@@ -1,0 +1,155 @@
+﻿@page "/text"
+@model SmartKB.Pages.TextModel
+<link rel="stylesheet" href="~/css/style.css" />
+
+<div class="container" id="inputContainer">
+    <a href="/selection" class="btn-back">Back to Selection</a>
+    <h1 id="inputTitle">Text Summarization</h1>
+
+    <pre id="result" class="summary-output"></pre>
+
+    <!-- Text Input Summarization Section -->
+    <form id="textForm" class="upload-form text-form" aria-hidden="true">
+        <div class="text-card">
+            <label for="textInput" id="textLabel" class="text-label">
+                <span id="textUploadText"><strong>Paste or type the text you want summarized</strong></span>
+                <textarea id="textInput"
+                          placeholder="Paste or type the content you want summarized. You can include multiple paragraphs, bullet points, or long-form text here."
+                          rows="10"
+                          aria-label="Enter text to summarize"></textarea>
+            </label>
+
+            <div class="helper-text" id="textHelper">
+                <span>Paste any text you want to summarize. Longer inputs are supported.</span>
+            </div>
+            <div class="error-msg" id="textError"></div>
+            <div class="file-info" id="textInfo" style="display:none;">
+                <span class="file-name">Text ready</span>
+            </div>
+            <button id="summarizeButton" type="submit" class="btn">
+                <span class="btn-text">Summarize Text</span>
+            </button>
+        </div>
+    </form>
+
+    <pre id="textResult" class="summary-output"></pre>
+</div>
+
+<!-- Summary Modal -->
+<div id="summaryModalOverlay" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Summary</h2>
+            <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Close summary">
+                ✕
+            </button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+        <div class="modal-footer">
+            <button type="button" id="downloadSummaryBtn" class="btn modal-download-btn">
+                <span class="btn-text">Download Summary</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const textInput = document.getElementById("textInput");
+    const summarizeButton = document.getElementById("summarizeButton");
+    const textError = document.getElementById("textError");
+    const textInfo = document.getElementById("textInfo");
+    const backButton = document.querySelector(".btn-back");
+
+    const modalOverlay = document.getElementById("summaryModalOverlay");
+    const modalBody = document.getElementById("modalBody");
+    const modalCloseBtn = document.getElementById("modalCloseBtn");
+    const downloadSummaryBtn = document.getElementById("downloadSummaryBtn");
+
+    let currentSummaryText = "";
+    let processing = false;
+
+    function openSummaryModal(summaryText) {
+        currentSummaryText = summaryText || "";
+        modalBody.innerHTML = summaryText.split(/\n{2,}/).map(p => `<p>${p}</p>`).join("");
+        modalOverlay.classList.remove("hidden");
+        modalOverlay.setAttribute("aria-hidden", "false");
+    }
+
+    modalCloseBtn.addEventListener("click", () => {
+        modalOverlay.classList.add("hidden");
+        modalOverlay.setAttribute("aria-hidden", "true");
+        modalBody.innerHTML = "";
+        currentSummaryText = "";
+    });
+
+    downloadSummaryBtn.addEventListener("click", () => {
+        if (!currentSummaryText) return;
+        const blob = new Blob([currentSummaryText], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "smartkb-summary.txt";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    backButton.addEventListener("click", e => {
+        if (processing) e.preventDefault();
+    });
+
+    document.getElementById("textForm").addEventListener("submit", async e => {
+        e.preventDefault();
+        const text = textInput.value.trim();
+
+        textError.style.display = "none";
+        textError.innerText = "";
+        textInfo.style.display = "none";
+
+        if (!text) {
+            textError.innerText = "Please enter text to summarize.";
+            textError.style.display = "block";
+            return;
+        }
+
+        processing = true;
+
+        // Disable elements while processing
+        summarizeButton.disabled = true;
+        textInput.disabled = true;
+        backButton.style.pointerEvents = "none";
+        backButton.style.opacity = "0.5";
+
+        summarizeButton.innerText = "Summarizing...";
+
+        try {
+            const res = await fetch("/api/Documents/add-text", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text })
+            });
+
+            if (!res.ok) throw new Error("Summarization failed");
+
+            const data = await res.json();
+            openSummaryModal(data.summary);
+            textInfo.style.display = "flex";
+        } catch (err) {
+            textError.innerText = "Summarization failed. Try again.";
+            textError.style.display = "block";
+            console.error(err);
+        } finally {
+            processing = false;
+
+            // Re-enable elements
+            summarizeButton.disabled = false;
+            textInput.disabled = false;
+            backButton.style.pointerEvents = "auto";
+            backButton.style.opacity = "1";
+            summarizeButton.innerText = "Summarize Text";
+        }
+    });
+});
+</script>

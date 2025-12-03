@@ -1,0 +1,46 @@
+# Build folders
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Visual Studio cache
+.vs/
+
+# Logs
+*.log
+
+# Generated files
+*.cache
+*.config
+*.dbmdl
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# Publish output
+publish/
+wwwroot/lib/
+
+# Environment / secrets
+*.env
+appsettings*.json
+
+# Solution files
+*.sln
+
+# Rider / VS Code
+.idea/
+*.iml
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
