@@ -26,10 +26,10 @@ namespace SmartKB.Controllers
                 var client = new MongoClient(connectionString);
                 var database = client.GetDatabase(databaseName);
 
-                // List collections
+                
                 var collections = database.ListCollectionNames().ToList();
 
-                // Try to fetch one document from "documents"
+                
                 var docCollection = database.GetCollection<BsonDocument>("documents");
                 var sampleDoc = docCollection.Find(Builders<BsonDocument>.Filter.Empty).FirstOrDefault();
 
