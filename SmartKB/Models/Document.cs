@@ -5,8 +5,8 @@ namespace SmartKB.Models
 {
     public class Document
     {
-        [BsonId] // Marks this as the primary key
-        [BsonRepresentation(BsonType.ObjectId)] // Store as ObjectId but expose as string
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
         public string? Id { get; set; }
 
         [BsonElement("fileName")]

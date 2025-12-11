@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
 using SmartKB.DTOs;
 using SmartKB.Models;
 using SmartKB.Services;
-
 namespace SmartKB.Controllers
 {
     [ApiController]
@@ -18,6 +18,7 @@ namespace SmartKB.Controllers
             var database = client.GetDatabase(configuration["MongoDbSettings:DatabaseName"]);
             _documentCollection = database.GetCollection<Document>("documents");
         }
+        [Authorize(Roles = "1, 2")]
 
         [HttpGet("getall")]
         public IActionResult GetAllDocuments()
@@ -29,11 +30,12 @@ namespace SmartKB.Controllers
                 Id = d.Id,
                 FileName = d.FileName,
                 FileType = d.FileType,
-                //Summary = d.Summary
+                
             }).ToList();
 
             return Ok(result);
         }
+        [Authorize(Roles = "1")]
 
         [HttpGet("{id}")]
         public IActionResult GetDocumentById(string id)
@@ -44,26 +46,28 @@ namespace SmartKB.Controllers
 
             return Ok(document);
         }
+        [Authorize(Roles = "1")]
+
         [HttpPost("upload")]
         public async Task<IActionResult> UploadDocument(IFormFile file)
         {
-            // --- REQUIRED ---
+            
             if (file == null || file.Length == 0)
                 return BadRequest("File is required.");
 
-            // --- ALLOWED TYPES (Excel added) ---
+            
             var allowed = new[] { "pdf", "txt", "doc", "docx", "xls", "xlsx" };
             var fileExt = Path.GetExtension(file.FileName).TrimStart('.').ToLower();
 
             if (!allowed.Contains(fileExt))
                 return BadRequest("Unsupported file type. Allowed: pdf, txt, doc, docx, xls, xlsx.");
 
-            // --- SIZE LIMIT: 5 MB ---
-            const long maxSize = 5 * 1024 * 1024; // 5MB
+            
+            const long maxSize = 5 * 1024 * 1024;
             if (file.Length > maxSize)
                 return BadRequest("File too large. Max allowed is 5MB.");
 
-            // --- READ FILE ---
+            
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms);
             var fileBytes = ms.ToArray();
@@ -71,7 +75,7 @@ namespace SmartKB.Controllers
             var fileName = Path.GetFileNameWithoutExtension(file.FileName);
             var fileType = fileExt;
 
-            // --- EXTRACT TEXT ---
+            
             var extractor = new TextExtractor();
             string extractedText = extractor.ExtractText(fileBytes, fileType);
 
@@ -89,7 +93,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                // Directly await AI summarization
+                
                 string summary = await SummarizeWithOllama(extractedText);
 
                 var update = Builders<Document>.Update
@@ -100,7 +104,7 @@ namespace SmartKB.Controllers
 
                 Console.WriteLine($"[{DateTime.Now}] Document {document.Id} updated with summary.");
 
-                // Return summary immediately
+                
                 return Ok(new
                 {
                     message = "Document uploaded and summarized",
@@ -120,7 +124,7 @@ namespace SmartKB.Controllers
                 return StatusCode(500, "Summarization failed");
             }
         }
-
+        [Authorize(Roles = "1")]
         [HttpPost("add-text")]
         public async Task<IActionResult> AddTextDocument([FromBody] AddTextDto dto)
         {
