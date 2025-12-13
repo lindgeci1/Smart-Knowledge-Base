@@ -11,12 +11,14 @@ namespace SmartKB.Controllers
     public class DocumentsController : ControllerBase
     {
         private readonly IMongoCollection<Document> _documentCollection;
-
+        private readonly IMongoCollection<TextDocument> _textCollection;
         public DocumentsController(IConfiguration configuration)
         {
             var client = new MongoClient(configuration["MongoDbSettings:ConnectionString"]);
             var database = client.GetDatabase(configuration["MongoDbSettings:DatabaseName"]);
+
             _documentCollection = database.GetCollection<Document>("documents");
+            _textCollection = database.GetCollection<TextDocument>("texts");
         }
         [Authorize(Roles = "1, 2")]
 
@@ -55,7 +57,13 @@ namespace SmartKB.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest("File is required.");
 
-            
+            // Get userId from JWT token
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
             var allowed = new[] { "pdf", "txt", "doc", "docx", "xls", "xlsx" };
             var fileExt = Path.GetExtension(file.FileName).TrimStart('.').ToLower();
 
@@ -85,7 +93,8 @@ namespace SmartKB.Controllers
                 FileType = fileType,
                 FileData = extractedText,
                 Summary = null,
-                Status = "Pending"
+                Status = "Pending",
+                UserId = userId
             };
 
             _documentCollection.InsertOne(document);
@@ -131,38 +140,39 @@ namespace SmartKB.Controllers
             if (string.IsNullOrWhiteSpace(dto.Text))
                 return BadRequest("Text is required.");
 
-            var document = new Document
+            var textDocument = new TextDocument
             {
-                FileName = "Untitled", 
-                FileType = "text",
-                FileData = dto.Text,
+                Text = dto.Text,
                 Summary = null,
-                Status = "Pending"
+                Status = "Pending",
             };
 
-            _documentCollection.InsertOne(document);
+            _textCollection.InsertOne(textDocument);
 
             try
             {
                 string summary = await SummarizeWithOllama(dto.Text);
 
-                var update = Builders<Document>.Update
-                    .Set(d => d.Summary, summary)
-                    .Set(d => d.Status, "Completed");
+                var update = Builders<TextDocument>.Update
+                    .Set(t => t.Summary, summary)
+                    .Set(t => t.Status, "Completed");
 
-                _documentCollection.UpdateOne(d => d.Id == document.Id, update);
+                _textCollection.UpdateOne(t => t.Id == textDocument.Id, update);
 
                 return Ok(new
                 {
                     message = "Text added and summarized",
-                    documentId = document.Id,
+                    documentId = textDocument.Id,
                     summary
                 });
             }
             catch
             {
-                var update = Builders<Document>.Update.Set(d => d.Status, "Error");
-                _documentCollection.UpdateOne(d => d.Id == document.Id, update);
+                var update = Builders<TextDocument>.Update
+                    .Set(t => t.Status, "Error");
+
+                _textCollection.UpdateOne(t => t.Id == textDocument.Id, update);
+
                 return StatusCode(500, "Summarization failed");
             }
         }
