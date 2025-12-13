@@ -124,7 +124,7 @@ namespace SmartKB.Controllers
                 return StatusCode(500, "Summarization failed");
             }
         }
-        [Authorize(Roles = "1")]
+        //[Authorize(Roles = "1")]
         [HttpPost("add-text")]
         public async Task<IActionResult> AddTextDocument([FromBody] AddTextDto dto)
         {

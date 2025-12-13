@@ -3,7 +3,10 @@
 <link rel="stylesheet" href="~/css/style.css" />
 
 <div class="container" id="inputContainer">
-    <a href="/selection" class="btn-back">Back to Selection</a>
+    <div style="display:flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <a href="/selection" class="btn-back">Back to Selection</a>
+        <button type="button" class="btn nav-btn" id="logoutBtn" style="width:auto; margin-top:0;">Logout</button>
+    </div>
     <h1 id="inputTitle">Upload Documents</h1>
 
     <!-- Document Upload Form -->
@@ -57,11 +60,44 @@
     </div>
 </div>
 
-<script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script type="module">
+    import { apiClient, getJwtFromCookie } from "/js/auth.js";
+
     console.log("File.cshtml script loaded");
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
+        let token = getJwtFromCookie();
+        
+        // If no JWT but refresh token might exist, try to renew silently
+        // Don't call logout here - let interceptor handle it when API calls are made
+        if (!token) {
+            try {
+                const renewRes = await axios.post(
+                    "http://localhost:5074/api/auth/renew",
+                    {},
+                    { withCredentials: true }
+                );
+                const newJwt = renewRes.data?.jwt || renewRes.data?.Jwt;
+                if (newJwt) {
+                    token = newJwt;
+                    document.cookie = `token=${newJwt}; path=/; max-age=900;`;
+                } else {
+                    // No JWT returned - redirect to login
+                    // Don't call logout - refresh token might still be valid for next API call
+                    window.location.replace("/login");
+                    return;
+                }
+            } catch {
+                // Renew failed - redirect to login
+                // Don't call logout here - interceptor will handle logout when API calls fail
+                window.location.replace("/login");
+                return;
+            }
+        }
+
         const backButton = document.querySelector(".btn-back");
+        const logoutButton = document.getElementById("logoutBtn");
         const uploadBox = document.getElementById("uploadLabel");
         const allowedExtensions = [".pdf", ".docx", ".txt", ".xls", ".xlsx"];
         const fileInput = document.getElementById("fileInput");
@@ -105,13 +141,16 @@
             if (uploading) e.preventDefault();
         });
 
+        logoutButton.addEventListener("click", async () => {
+            await import("/js/auth.js").then(mod => mod.logout());
+        });
+
         uploadButton.addEventListener("click", async (e) => {
             e.preventDefault();
             if (!fileInput.files.length) return;
 
             uploading = true;
 
-            // Disable all elements via properties
             uploadButton.disabled = true;
             fileInput.disabled = true;
             backButton.style.pointerEvents = "none";
@@ -125,10 +164,10 @@
             formData.append("file", fileInput.files[0]);
 
             try {
-                const res = await fetch("/api/Documents/upload", { method: "POST", body: formData });
-                if (!res.ok) throw new Error("Upload failed");
-
-                const data = await res.json();
+                const res = await apiClient.post("/Documents/upload", formData, {
+                    headers: { "Content-Type": "multipart/form-data" }
+                });
+                const data = res.data;
                 currentSummaryText = data.summary;
                 modalBody.innerHTML = data.summary.split(/\n{2,}/).map(p => `<p>${p}</p>`).join("");
                 modalOverlay.classList.remove("hidden");
@@ -140,7 +179,6 @@
             } finally {
                 uploading = false;
 
-                // Enable all elements again
                 uploadButton.disabled = false;
                 fileInput.disabled = false;
                 backButton.style.pointerEvents = "auto";
