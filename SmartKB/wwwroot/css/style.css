@@ -64,6 +64,75 @@
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.08);
   text-align: center;
 }
+.auth-card {
+  max-width: 420px;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  text-align: left;
+}
+.auth-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #333;
+}
+.auth-label input {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  outline: none;
+}
+.auth-label input:focus {
+  border-color: #0078d7;
+  box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
+}
+.auth-switch {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #555;
+}
+.auth-switch a {
+  color: #0078d7;
+  text-decoration: none;
+}
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+.lock-icon {
+  font-size: 14px;
+  background: #ffebee;
+  border: 1px solid #ef5350;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: #c62828;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.mode-btn.locked {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #e0e0e0;
+  color: #757575;
+  pointer-events: auto;
+}
+
+.mode-btn.locked:hover {
+  background: #d0d0d0;
+}
+
+.mode-btn.locked .btn-text {
+  color: #757575;
+}
 
 .welcome-title {
   margin: 0 0 12px;
@@ -472,6 +541,78 @@ h1 {
   width: auto;
   padding: 0.5rem 1rem;
   margin-top: 0;
+}
+
+/* Session expired modal - exact design match */
+#sessionExpiredModal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  z-index: 1200;
+  opacity: 1;
+  visibility: visible;
+}
+
+#sessionExpiredModal .session-expired-card {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  max-width: 500px;
+  width: 90%;
+}
+
+#sessionExpiredModal .session-expired-header {
+  background: #ff9800;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#sessionExpiredModal .session-expired-warning-icon {
+  width: 24px;
+  height: 24px;
+  background: #ffc107;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#sessionExpiredModal .session-expired-warning-icon::after {
+  content: "!";
+  color: #000;
+  font-weight: bold;
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 8px;
+}
+
+#sessionExpiredModal .session-expired-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+}
+
+#sessionExpiredModal .session-expired-body {
+  padding: 24px 20px;
+  text-align: center;
+  background: #ffffff;
+}
+
+#sessionExpiredModal .session-expired-message {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+  font-family: Arial, sans-serif;
 }
 
 .upload-form {

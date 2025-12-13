@@ -53,7 +53,10 @@
     </div>
 </div>
 
-<script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script type="module">
+import { apiClient } from "/js/auth.js";
+
 document.addEventListener("DOMContentLoaded", () => {
     const textInput = document.getElementById("textInput");
     const summarizeButton = document.getElementById("summarizeButton");
@@ -116,7 +119,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         processing = true;
 
-        // Disable elements while processing
         summarizeButton.disabled = true;
         textInput.disabled = true;
         backButton.style.pointerEvents = "none";
@@ -125,15 +127,8 @@ document.addEventListener("DOMContentLoaded", () => {
         summarizeButton.innerText = "Summarizing...";
 
         try {
-            const res = await fetch("/api/Documents/add-text", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text })
-            });
-
-            if (!res.ok) throw new Error("Summarization failed");
-
-            const data = await res.json();
+            const res = await apiClient.post("/Documents/add-text", { text });
+            const data = res.data;
             openSummaryModal(data.summary);
             textInfo.style.display = "flex";
         } catch (err) {
@@ -143,7 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } finally {
             processing = false;
 
-            // Re-enable elements
             summarizeButton.disabled = false;
             textInput.disabled = false;
             backButton.style.pointerEvents = "auto";
