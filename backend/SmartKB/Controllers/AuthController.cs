@@ -35,6 +35,9 @@ namespace SmartKB.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
+            if (string.IsNullOrWhiteSpace(dto.Username))
+                return BadRequest("Username is required");
+
             var existing = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
             if (existing != null)
                 return BadRequest("Email already exists");
@@ -51,6 +54,7 @@ namespace SmartKB.Controllers
             var user = new User
             {
                 Email = dto.Email,
+                Username = dto.Username,
                 PasswordHash = hash,
                 PasswordSalt = salt,
                 IsActive = true,
@@ -113,6 +117,7 @@ namespace SmartKB.Controllers
             var claims = new[]
             {
         new Claim("userId", user.UserId),
+        new Claim("username", user.Username ?? ""),
         new Claim(ClaimTypes.Role, roleId.ToString())
     };
 
@@ -125,7 +130,7 @@ namespace SmartKB.Controllers
             string jwt = new JwtSecurityTokenHandler().WriteToken(jwtToken);
 
             string refreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-            DateTime refreshExpires = DateTime.UtcNow.AddDays(7);
+            DateTime refreshExpires = DateTime.UtcNow.AddDays(1);
 
             var update = Builders<User>.Update
                 .Set(u => u.RefreshToken, refreshToken)
@@ -152,53 +157,27 @@ namespace SmartKB.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
-            if (authHeader == null || !authHeader.StartsWith("Bearer "))
-                return Unauthorized("Missing token");
+            // 1. Read refresh token from HttpOnly cookie
+            string refreshToken = Request.Cookies["refreshToken"];
 
-            string token = authHeader.Substring("Bearer ".Length);
-
-            string jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
-            if (string.IsNullOrEmpty(jwtKey))
-                return Unauthorized("Server error: JWT_KEY missing");
-
-            var handler = new JwtSecurityTokenHandler();
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-
-            try
+            if (!string.IsNullOrEmpty(refreshToken))
             {
-                handler.ValidateToken(token, new TokenValidationParameters
-                {
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = key,
-                    ValidateLifetime = true
-                }, out var validatedToken);
-
-                var jwt = (JwtSecurityToken)validatedToken;
-
-                string? userId = jwt.Claims.FirstOrDefault(c => c.Type == "userId")?.Value;
-                if (userId == null)
-                    return Unauthorized("Invalid token");
-
-                // Remove refresh token from DB
+                // 2. Revoke ONLY that session (if it exists)
                 var update = Builders<User>.Update
                     .Set(u => u.RefreshToken, null)
                     .Set(u => u.RefreshTokenExpiresAt, null)
                     .Set(u => u.UpdatedAt, DateTime.UtcNow);
 
-                await _users.UpdateOneAsync(u => u.UserId == userId, update);
-
-                // Delete the HttpOnly cookie
-                Response.Cookies.Delete("refreshToken");
-
-                return Ok(new { message = "Logged out successfully" });
+                await _users.UpdateOneAsync(
+                    u => u.RefreshToken == refreshToken,
+                    update
+                );
             }
-            catch
-            {
-                return Unauthorized("Invalid or expired token");
-            }
+
+            // 3. Always clear cookies (even if token was missing/expired)
+            Response.Cookies.Delete("refreshToken");
+
+            return Ok(new { message = "Logged out" });
         }
 
 
@@ -232,6 +211,7 @@ namespace SmartKB.Controllers
             var claims = new[]
             {
         new Claim("userId", user.UserId),
+        new Claim("username", user.Username ?? ""),
         new Claim(ClaimTypes.Role, roleId.ToString())
     };
 

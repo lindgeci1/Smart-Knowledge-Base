@@ -17,5 +17,11 @@ namespace SmartKB.Models
 
         [BsonElement("status")]
         public string Status { get; set; } = "Pending";
+
+        [BsonElement("userId")]
+        public string UserId { get; set; }
+
+        [BsonElement("createdAt")]
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }
