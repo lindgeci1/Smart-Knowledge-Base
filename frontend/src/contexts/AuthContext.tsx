@@ -1,6 +1,15 @@
-import React, { useEffect, useState, createContext } from 'react';
+import React, { useEffect, useState, createContext, ReactNode } from "react";
+import {
+  decodeJwt,
+  getJwtFromCookie,
+  loginRequest,
+  logoutRequest,
+  registerRequest,
+} from "../lib/authClient";
+
 // Types
-export type UserRole = 'admin' | 'user';
+export type UserRole = "admin" | "user";
+
 export interface User {
   id: string;
   email: string;
@@ -9,140 +18,182 @@ export interface User {
   usageLimit: number;
   usageCount: number;
 }
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
-  logout: () => void;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    role: UserRole
+  ) => Promise<void>;
+  logout: () => Promise<void>;
   updateUserUsage: (increment: number) => void;
   updateUserLimit: (additionalLimit: number) => void;
 }
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-// Mock helpers
-const MOCK_DELAY = 800;
-const mockUser = (email: string, role: UserRole, name: string): User => ({
-  id: Math.random().toString(36).substr(2, 9),
-  email,
-  name,
-  role,
-  usageLimit: 100,
-  usageCount: 0
-});
-export function AuthProvider({
-  children
-}: {
-  children: ReactNode;
-}) {
+
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
+
+// Helper to construct a User object from JWT + optional stored user/email/name
+function buildUserFromToken(
+  jwt: string,
+  storedUser?: Partial<User> | null,
+  fallbackEmail?: string,
+  fallbackName?: string
+): User {
+  const payload = decodeJwt(jwt) || {};
+  const userId = (payload.userId as string) || storedUser?.id || "";
+  const rawRole =
+    (payload[
+      "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+    ] as string) || "";
+
+  const role: UserRole = rawRole === "1" ? "admin" : "user";
+
+  const email = storedUser?.email || fallbackEmail || "";
+  const baseName =
+    storedUser?.name || fallbackName || (email ? email.split("@")[0] : "User");
+
+  return {
+    id: userId,
+    email,
+    name: baseName.charAt(0).toUpperCase() + baseName.slice(1),
+    role,
+    usageLimit: storedUser?.usageLimit ?? 100,
+    usageCount: storedUser?.usageCount ?? 0,
+  };
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  // Initialize auth state from localStorage
+
+  // Initialize auth state from JWT cookie only (no localStorage)
   useEffect(() => {
-    const initAuth = async () => {
-      const storedToken = localStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('auth_user');
-      if (storedToken && storedUser) {
-        try {
-          // In a real app, we would validate the token with the backend here
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          console.error('Failed to parse stored user', error);
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
+    const initAuth = () => {
+      try {
+        const jwt = getJwtFromCookie();
+
+        if (jwt) {
+          const userFromToken = buildUserFromToken(jwt);
+          setToken(jwt);
+          setUser(userFromToken);
+        } else {
+          setUser(null);
+          setToken(null);
         }
+      } catch (error) {
+        console.error("Failed to initialize auth state", error);
+        setUser(null);
+        setToken(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
+
     initAuth();
   }, []);
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-    // Simulate API call
-    return new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
-        // Mock validation
-        if (password.length < 6) {
-          setIsLoading(false);
-          reject(new Error('Password must be at least 6 characters'));
-          return;
-        }
-        // Mock successful login
-        // For demo purposes, if email contains 'admin', make them admin
-        const role: UserRole = email.includes('admin') ? 'admin' : 'user';
-        const name = email.split('@')[0];
-        // Check if we have a stored user to preserve usage stats across logins for demo
-        // In a real app, this comes from DB
-        const storedUserStr = localStorage.getItem('auth_user');
-        let userToSet: User;
-        if (storedUserStr && JSON.parse(storedUserStr).email === email) {
-          userToSet = JSON.parse(storedUserStr);
-        } else {
-          userToSet = mockUser(email, role, name.charAt(0).toUpperCase() + name.slice(1));
-        }
-        const newToken = 'mock_jwt_token_' + Math.random().toString(36);
-        setUser(userToSet);
-        setToken(newToken);
-        localStorage.setItem('auth_token', newToken);
-        localStorage.setItem('auth_user', JSON.stringify(userToSet));
-        setIsLoading(false);
-        resolve();
-      }, MOCK_DELAY);
-    });
+    try {
+      const { jwt } = await loginRequest(email, password);
+      if (!jwt) {
+        throw new Error("Missing token from login response");
+      }
+
+      const storedUserStr =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("auth_user")
+          : null;
+      const storedUser = storedUserStr
+        ? (JSON.parse(storedUserStr) as Partial<User>)
+        : null;
+
+      const userFromToken = buildUserFromToken(
+        jwt,
+        storedUser ?? undefined,
+        email
+      );
+      setUser(userFromToken);
+      setToken(jwt);
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("auth_token", jwt);
+        window.localStorage.setItem("auth_user", JSON.stringify(userFromToken));
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
-  const register = async (name: string, email: string, password: string, role: UserRole) => {
+
+  const register = async (
+    _name: string,
+    email: string,
+    password: string,
+    _role: UserRole
+  ) => {
+    // Backend controls role assignment (first user = admin (1), others = user (2))
     setIsLoading(true);
-    return new Promise<void>(resolve => {
-      setTimeout(() => {
-        const newUser = mockUser(email, role, name);
-        const newToken = 'mock_jwt_token_' + Math.random().toString(36);
-        setUser(newUser);
-        setToken(newToken);
-        localStorage.setItem('auth_token', newToken);
-        localStorage.setItem('auth_user', JSON.stringify(newUser));
-        setIsLoading(false);
-        resolve();
-      }, MOCK_DELAY);
-    });
+    try {
+      await registerRequest(email, password);
+      // Do NOT log user in automatically – mirror Razor pages (they go to login after register)
+    } finally {
+      setIsLoading(false);
+    }
   };
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await logoutRequest();
+    } finally {
+      setUser(null);
+      setToken(null);
+      setIsLoading(false);
+    }
   };
+
   const updateUserUsage = (increment: number) => {
     if (!user) return;
-    const updatedUser = {
+    const updatedUser: User = {
       ...user,
-      usageCount: user.usageCount + increment
+      usageCount: user.usageCount + increment,
     };
     setUser(updatedUser);
-    localStorage.setItem('auth_user', JSON.stringify(updatedUser));
   };
+
   const updateUserLimit = (additionalLimit: number) => {
     if (!user) return;
-    const updatedUser = {
+    const updatedUser: User = {
       ...user,
-      usageLimit: user.usageLimit + additionalLimit
+      usageLimit: user.usageLimit + additionalLimit,
     };
     setUser(updatedUser);
-    localStorage.setItem('auth_user', JSON.stringify(updatedUser));
   };
-  return <AuthContext.Provider value={{
-    user,
-    token,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-    updateUserUsage,
-    updateUserLimit
-  }}>
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        register,
+        logout,
+        updateUserUsage,
+        updateUserLimit,
+      }}
+    >
       {children}
-    </AuthContext.Provider>;
+    </AuthContext.Provider>
+  );
 }

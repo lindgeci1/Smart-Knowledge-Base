@@ -1,36 +1,38 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Lock, Mail, ShieldCheck } from 'lucide-react';
+import React, { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { ShieldCheck } from "lucide-react";
 export function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const {
-    login,
-    isLoading
-  } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const { login, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  // Get the redirect path from location state or default to dashboard
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  // Get the redirect path from location state if present
+  const from = (location.state as any)?.from?.pathname as string | undefined;
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     try {
       await login(email, password);
-      // Redirect based on role logic is handled in AuthContext or we can do it here
-      // For now, we trust the "from" state or default logic
-      navigate(from, {
-        replace: true
-      });
+      // If we came from a protected route, go back there
+      if (from) {
+        navigate(from, { replace: true });
+        return;
+      }
+      // Otherwise redirect based on decoded role from JWT:
+      // roleId "1" -> admin, else regular user
+      const targetPath = user?.role === "admin" ? "/admin" : "/dashboard";
+      navigate(targetPath, { replace: true });
     } catch (err) {
-      setError('Invalid email or password');
+      setError("Invalid email or password");
     }
   };
-  return <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-slate-100">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -46,18 +48,36 @@ export function LoginPage() {
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <Input label="Email address" type="email" required placeholder="admin@example.com" value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} />
+            <Input
+              label="Email address"
+              type="email"
+              required
+              placeholder="admin@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+            />
 
-            <Input label="Password" type="password" required placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
+            <Input
+              label="Password"
+              type="password"
+              required
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+            />
           </div>
 
-          {error && <div className="rounded-md bg-red-50 p-4">
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
               <div className="flex">
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">{error}</h3>
                 </div>
               </div>
-            </div>}
+            </div>
+          )}
 
           <div>
             <Button type="submit" className="w-full" isLoading={isLoading}>
@@ -67,7 +87,10 @@ export function LoginPage() {
 
           <div className="text-center text-sm">
             <span className="text-slate-600">Don't have an account? </span>
-            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+            <Link
+              to="/register"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
               Register here
             </Link>
           </div>
@@ -83,5 +106,6 @@ export function LoginPage() {
           </p>
         </div>
       </div>
-    </div>;
+    </div>
+  );
 }

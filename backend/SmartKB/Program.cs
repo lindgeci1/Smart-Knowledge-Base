@@ -31,6 +31,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+// CORS: allow React dev frontend with credentials (cookies)
+var frontendOrigin = builder.Configuration["FrontendOrigin"] ?? "http://localhost:5173";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendCors", policy =>
+    {
+        policy.WithOrigins(frontendOrigin)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "SmartKB API", Version = "v1" });
@@ -72,6 +85,9 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+
+// Apply CORS before auth so preflight + cookie requests succeed
+app.UseCors("FrontendCors");
 
 app.UseAuthentication();
 app.UseAuthorization();

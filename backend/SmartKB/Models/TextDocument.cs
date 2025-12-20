@@ -1,4 +1,4 @@
-﻿using MongoDB.Bson;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace SmartKB.Models
@@ -17,5 +17,8 @@ namespace SmartKB.Models
 
         [BsonElement("status")]
         public string Status { get; set; } = "Pending";
+
+        [BsonElement("userId")]
+        public string UserId { get; set; }
     }
 }
