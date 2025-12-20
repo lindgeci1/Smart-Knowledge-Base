@@ -28,18 +28,29 @@ namespace SmartKB.Services
 
         private string ExtractPdf(byte[] fileData)
         {
-            using var mem = new MemoryStream(fileData);
-            using var pdf = new PdfDocument(new PdfReader(mem));
-
-            var sb = new StringBuilder();
-            for (int i = 1; i <= pdf.GetNumberOfPages(); i++)
+            try
             {
-                var page = pdf.GetPage(i);
-                var text = PdfTextExtractor.GetTextFromPage(page);
-                sb.AppendLine(text);
-            }
+                using var mem = new MemoryStream(fileData);
+                using var pdf = new PdfDocument(new PdfReader(mem));
 
-            return sb.ToString();
+                var sb = new StringBuilder();
+                for (int i = 1; i <= pdf.GetNumberOfPages(); i++)
+                {
+                    var page = pdf.GetPage(i);
+                    var text = PdfTextExtractor.GetTextFromPage(page);
+                    sb.AppendLine(text);
+                }
+
+                return sb.ToString();
+            }
+            catch (iText.Kernel.Exceptions.PdfException ex)
+            {
+                throw new Exception($"Invalid or corrupted file. Please ensure the file is valid file. Error: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error reading file: {ex.Message}");
+            }
         }
 
         private string ExtractDocx(byte[] fileData)

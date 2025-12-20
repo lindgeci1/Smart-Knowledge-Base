@@ -1,27 +1,37 @@
-import React from 'react';
-import { Users, File, MessageSquare, Activity, TrendingUp } from 'lucide-react';
+import React from "react";
+import { Users, File, MessageSquare, Activity, TrendingUp } from "lucide-react";
 interface DashboardSectionProps {
   stats: {
     users: number;
     files: number;
     texts: number;
   };
-  userUsageMap: Map<string, {
-    userId: string;
-    count: number;
-    percentage: number;
-  }>;
+  userUsageMap: Map<
+    string,
+    {
+      userId: string;
+      count: number;
+      percentage: number;
+    }
+  >;
 }
 export function DashboardSection({
   stats,
-  userUsageMap
+  userUsageMap,
 }: DashboardSectionProps) {
   // Calculate total summaries
   const totalSummaries = stats.files + stats.texts;
   // Calculate aggregate usage (average percentage across all users)
   const usageValues = Array.from(userUsageMap.values());
-  const aggregateUsage = usageValues.length > 0 ? Math.round(usageValues.reduce((sum, u) => sum + u.percentage, 0) / usageValues.length) : 0;
-  return <div className="space-y-8 animate-in fade-in duration-500">
+  const aggregateUsage =
+    usageValues.length > 0
+      ? Math.round(
+          usageValues.reduce((sum, u) => sum + u.percentage, 0) /
+            usageValues.length
+        )
+      : 0;
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
       <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
 
       {/* Stats Grid */}
@@ -136,5 +146,6 @@ export function DashboardSection({
           You can perform CRUD operations in each respective section.
         </p>
       </div>
-    </div>;
+    </div>
+  );
 }

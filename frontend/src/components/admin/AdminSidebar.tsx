@@ -1,40 +1,51 @@
-import React from 'react';
-import { LayoutDashboard, Users, FileText, MessageSquare, LogOut, Shield, Zap } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import React from "react";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  MessageSquare,
+  LogOut,
+  Shield,
+  Zap,
+} from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
 interface AdminSidebarProps {
-  activeView: 'dashboard' | 'users' | 'files' | 'text' | 'summarize';
-  setActiveView: (view: 'dashboard' | 'users' | 'files' | 'text' | 'summarize') => void;
+  activeView: "dashboard" | "users" | "files" | "text" | "summarize";
+  setActiveView: (
+    view: "dashboard" | "users" | "files" | "text" | "summarize"
+  ) => void;
 }
-export function AdminSidebar({
-  activeView,
-  setActiveView
-}: AdminSidebarProps) {
-  const {
-    logout,
-    user
-  } = useAuth();
-  const navItems = [{
-    id: 'dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard
-  }, {
-    id: 'summarize',
-    label: 'Summarize',
-    icon: Zap
-  }, {
-    id: 'users',
-    label: 'Users',
-    icon: Users
-  }, {
-    id: 'files',
-    label: 'Files',
-    icon: FileText
-  }, {
-    id: 'text',
-    label: 'Text Summaries',
-    icon: MessageSquare
-  }] as const;
-  return <div className="hidden md:flex flex-col w-64 bg-slate-900 h-screen fixed left-0 top-0 text-white">
+export function AdminSidebar({ activeView, setActiveView }: AdminSidebarProps) {
+  const { logout, user } = useAuth();
+  const navItems = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      id: "summarize",
+      label: "Summarize",
+      icon: Zap,
+    },
+    {
+      id: "users",
+      label: "Users",
+      icon: Users,
+    },
+    {
+      id: "files",
+      label: "Files",
+      icon: FileText,
+    },
+    {
+      id: "text",
+      label: "Text Summaries",
+      icon: MessageSquare,
+    },
+  ] as const;
+  return (
+    <div className="hidden md:flex flex-col w-64 bg-slate-900 h-screen fixed left-0 top-0 text-white">
       {/* Logo */}
       <div className="p-6 border-b border-slate-800 flex items-center">
         <div className="bg-indigo-600 p-1.5 rounded-lg mr-3">
@@ -60,18 +71,32 @@ export function AdminSidebar({
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map(item => <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeView === item.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveView(item.id)}
+            className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+              activeView === item.id
+                ? "bg-indigo-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
             <item.icon className="mr-3 h-5 w-5" />
             {item.label}
-          </button>)}
+          </button>
+        ))}
       </nav>
 
       {/* Logout */}
       <div className="p-4 border-t border-slate-800">
-        <button onClick={logout} className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 rounded-lg hover:bg-red-900/20 hover:text-red-400 transition-colors">
+        <button
+          onClick={logout}
+          className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 rounded-lg hover:bg-red-900/20 hover:text-red-400 transition-colors"
+        >
           <LogOut className="mr-3 h-5 w-5" />
           Sign Out
         </button>
       </div>
-    </div>;
+    </div>
+  );
 }
