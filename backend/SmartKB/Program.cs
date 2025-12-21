@@ -91,6 +91,9 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Add middleware to check if user is active
+app.UseMiddleware<SmartKB.Middleware.ActiveUserMiddleware>();
+
 app.MapControllers();
 app.MapRazorPages();
 

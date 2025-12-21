@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { UserPlus } from "lucide-react";
+import { UserPlus, ArrowLeft } from "lucide-react";
 export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -23,7 +23,15 @@ export function RegisterPage() {
   };
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-slate-100">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-slate-100 relative">
+        <button
+          onClick={() => navigate("/")}
+          className="absolute top-4 left-4 flex items-center text-slate-500 hover:text-slate-700 transition-colors"
+          title="Go back to home"
+        >
+          <ArrowLeft className="h-5 w-5 mr-1" />
+          <span className="text-sm">Back</span>
+        </button>
         <div className="text-center">
           <div className="mx-auto h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center">
             <UserPlus className="h-6 w-6 text-indigo-600" />

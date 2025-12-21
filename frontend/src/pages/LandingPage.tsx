@@ -1,13 +1,24 @@
-import React, { useEffect, useState, Component } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { Button } from '../components/ui/Button';
-import { Layout, Users, FileText, TrendingUp, ArrowRight, Zap, BarChart3, Shield, CheckCircle2, Play } from 'lucide-react';
+import React, { useEffect, useState, Component } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { Button } from "../components/ui/Button";
+import {
+  Layout,
+  Users,
+  FileText,
+  TrendingUp,
+  ArrowRight,
+  Zap,
+  BarChart3,
+  Shield,
+  CheckCircle2,
+  Play,
+} from "lucide-react";
 // Animated Counter Component
 const Counter = ({
   end,
   duration = 2000,
-  label
+  label,
 }: {
   end: number;
   duration?: number;
@@ -29,25 +40,30 @@ const Counter = ({
     };
     window.requestAnimationFrame(step);
   }, [end, duration]);
-  return <div className="flex flex-col items-center p-6 bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
+  return (
+    <div className="flex flex-col items-center p-6 bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
       <div className="text-4xl font-bold text-slate-900 mb-2 tabular-nums">
         {count.toLocaleString()}
       </div>
       <div className="text-sm font-medium text-slate-500 uppercase tracking-wide">
         {label}
       </div>
-    </div>;
+    </div>
+  );
 };
 // Simple SVG Line Chart Component
 const ActivityChart = () => {
   const data = [20, 45, 35, 60, 55, 80, 75, 90, 85, 100];
   const max = Math.max(...data);
-  const points = data.map((val, i) => {
-    const x = i / (data.length - 1) * 100;
-    const y = 100 - val / max * 80; // Keep some padding at top
-    return `${x},${y}`;
-  }).join(' ');
-  return <div className="w-full h-full relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl border border-slate-700">
+  const points = data
+    .map((val, i) => {
+      const x = (i / (data.length - 1)) * 100;
+      const y = 100 - (val / max) * 80; // Keep some padding at top
+      return `${x},${y}`;
+    })
+    .join(" ");
+  return (
+    <div className="w-full h-full relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl border border-slate-700">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-900/50 backdrop-blur-sm z-10">
         <div className="flex items-center space-x-2">
@@ -63,12 +79,44 @@ const ActivityChart = () => {
 
       {/* Chart Area */}
       <div className="absolute inset-0 pt-16 px-4 pb-4">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="w-full h-full overflow-visible"
+        >
           {/* Grid lines */}
-          <line x1="0" y1="20" x2="100" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
-          <line x1="0" y1="40" x2="100" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
-          <line x1="0" y1="60" x2="100" y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
-          <line x1="0" y1="80" x2="100" y2="80" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+          <line
+            x1="0"
+            y1="20"
+            x2="100"
+            y2="20"
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth="0.5"
+          />
+          <line
+            x1="0"
+            y1="40"
+            x2="100"
+            y2="40"
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth="0.5"
+          />
+          <line
+            x1="0"
+            y1="60"
+            x2="100"
+            y2="60"
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth="0.5"
+          />
+          <line
+            x1="0"
+            y1="80"
+            x2="100"
+            y2="80"
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth="0.5"
+          />
 
           {/* Area gradient */}
           <defs>
@@ -79,17 +127,40 @@ const ActivityChart = () => {
           </defs>
 
           {/* Area path */}
-          <path d={`M0,100 L0,${100 - data[0] / max * 80} ${points.split(' ').map(p => `L${p}`).join(' ')} L100,100 Z`} fill="url(#chartGradient)" />
+          <path
+            d={`M0,100 L0,${100 - (data[0] / max) * 80} ${points
+              .split(" ")
+              .map((p) => `L${p}`)
+              .join(" ")} L100,100 Z`}
+            fill="url(#chartGradient)"
+          />
 
           {/* Line path */}
-          <polyline points={points} fill="none" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-lg" />
+          <polyline
+            points={points}
+            fill="none"
+            stroke="#818cf8"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="drop-shadow-lg"
+          />
 
           {/* Points */}
           {data.map((val, i) => {
-          const x = i / (data.length - 1) * 100;
-          const y = 100 - val / max * 80;
-          return <circle key={i} cx={x} cy={y} r="1.5" fill="#fff" className="opacity-0 hover:opacity-100 transition-opacity duration-200" />;
-        })}
+            const x = (i / (data.length - 1)) * 100;
+            const y = 100 - (val / max) * 80;
+            return (
+              <circle
+                key={i}
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill="#fff"
+                className="opacity-0 hover:opacity-100 transition-opacity duration-200"
+              />
+            );
+          })}
         </svg>
       </div>
 
@@ -101,24 +172,21 @@ const ActivityChart = () => {
           <TrendingUp className="w-4 h-4 text-green-400 ml-2" />
         </div>
       </div>
-    </div>;
+    </div>
+  );
 };
 export function LandingPage() {
-  const {
-    user,
-    isAuthenticated,
-    isLoading
-  } = useAuth();
-  // Redirect logic
+  const { user, isAuthenticated, isLoading } = useAuth();
+  // Loading state
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-white">
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>;
+      </div>
+    );
   }
-  if (isAuthenticated && user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
-  }
-  return <div className="min-h-screen bg-white font-sans selection:bg-blue-100 selection:text-blue-900">
+  return (
+    <div className="min-h-screen bg-white font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-100 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -132,16 +200,39 @@ export function LandingPage() {
               </span>
             </div>
             <div className="flex items-center space-x-4">
-              <Link to="/login">
-                <Button variant="ghost" className="text-slate-600 hover:text-slate-900">
-                  Log in
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">
-                  Get Started
-                </Button>
-              </Link>
+              {isAuthenticated && user ? (
+                <>
+                  <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
+                    <Button
+                      variant="ghost"
+                      className="text-slate-600 hover:text-slate-900"
+                    >
+                      {user.role === "admin" ? "Admin Dashboard" : "Dashboard"}
+                    </Button>
+                  </Link>
+                  <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button
+                      variant="ghost"
+                      className="text-slate-600 hover:text-slate-900"
+                    >
+                      Log in
+                    </Button>
+                  </Link>
+                  <Link to="/register">
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -152,10 +243,10 @@ export function LandingPage() {
         <div className="text-center max-w-3xl mx-auto mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-sm font-medium mb-6">
             <Zap className="w-4 h-4 mr-2 fill-blue-600" />
-            <span>Now powered by GPT-4 Turbo</span>
+            <span>Now powered by Ollama (llama3.2)</span>
           </div>
           <h1 className="text-5xl sm:text-6xl font-extrabold text-slate-900 tracking-tight mb-6 leading-[1.1]">
-            Transform your content into{' '}
+            Transform your content into{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
               actionable insights
             </span>
@@ -166,17 +257,31 @@ export function LandingPage() {
             of productive teams today.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/register" className="w-full sm:w-auto">
-              <Button className="w-full sm:w-auto h-12 px-8 text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200/50 transition-all hover:scale-105">
-                Start Summarizing Free
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link to="/login" className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full sm:w-auto h-12 px-8 text-base border-slate-200 hover:bg-slate-50 hover:text-slate-900">
-                View Demo
-              </Button>
-            </Link>
+            {isAuthenticated && user ? (
+              <Link
+                to={user.role === "admin" ? "/admin" : "/dashboard"}
+                className="w-full sm:w-auto"
+              >
+                <Button className="w-full sm:w-auto h-12 px-8 text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200/50 transition-all hover:scale-105">
+                  Go to {user.role === "admin" ? "Admin" : "Your"} Dashboard
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/register" className="w-full sm:w-auto">
+                  <Button className="w-full sm:w-auto h-12 px-8 text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200/50 transition-all hover:scale-105">
+                    Start Summarizing Free
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link to="/login" className="w-full sm:w-auto">
+                  {/* <Button variant="outline" className="w-full sm:w-auto h-12 px-8 text-base border-slate-200 hover:bg-slate-50 hover:text-slate-900"> */}
+                  {/* View Demo */}
+                  {/* </Button> */}
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -191,7 +296,11 @@ export function LandingPage() {
                   Recent Activity
                 </div>
                 <div className="space-y-4">
-                  {[1, 2, 3].map(i => <div key={i} className="flex items-start space-x-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="flex items-start space-x-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50"
+                    >
                       <div className="bg-blue-500/10 p-2 rounded-md">
                         <FileText className="w-4 h-4 text-blue-400" />
                       </div>
@@ -203,7 +312,8 @@ export function LandingPage() {
                           Processed just now
                         </div>
                       </div>
-                    </div>)}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -295,5 +405,6 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
-    </div>;
+    </div>
+  );
 }

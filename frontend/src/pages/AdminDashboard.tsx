@@ -43,39 +43,61 @@ export function AdminDashboard() {
   const [allSummaries, setAllSummaries] = useState<Summary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
-  // Calculate usage statistics per user
+  const [usersUsage, setUsersUsage] = useState<Map<string, { overallUsage: number; totalLimit: number }>>(new Map());
+  
+  // Fetch users usage from backend
+  const fetchUsersUsage = async () => {
+    try {
+      const response = await apiClient.get("/Users/admin/usage");
+      const usageData = response.data || [];
+      const usageMap = new Map<string, { overallUsage: number; totalLimit: number }>();
+      
+      usageData.forEach((item: { userId: string; overallUsage: number; totalLimit: number }) => {
+        usageMap.set(item.userId, {
+          overallUsage: item.overallUsage,
+          totalLimit: item.totalLimit
+        });
+      });
+      
+      setUsersUsage(usageMap);
+    } catch (error) {
+      console.error("Error fetching users usage", error);
+      setUsersUsage(new Map());
+    }
+  };
+
+  // Calculate usage statistics per user from backend
   const userUsageMap = useMemo(() => {
     const usageMap = new Map<string, UserUsage>();
-    // Count summaries per user
-    const userCounts = new Map<string, number>();
-    allSummaries.forEach((summary) => {
-      const count = userCounts.get(summary.userId) || 0;
-      userCounts.set(summary.userId, count + 10); // Assuming 10 points per summary
-    });
-    // Calculate total for percentage
-    const maxPerUser = 100; // Default limit for visualization
-    // Build usage map
-    userCounts.forEach((count, userId) => {
-      const percentage = Math.min((count / maxPerUser) * 100, 100);
+    
+    // Use backend usage data
+    usersUsage.forEach((usage, userId) => {
+      const percentage = usage.totalLimit > 0 
+        ? Math.min((usage.overallUsage / usage.totalLimit) * 100, 100)
+        : 0;
       usageMap.set(userId, {
         userId,
-        count,
+        count: usage.overallUsage,
         percentage: Math.round(percentage),
       });
     });
+    
     return usageMap;
-  }, [allSummaries]);
+  }, [usersUsage]);
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
 
       // Fetch total users count from API
       try {
-        const response = await apiClient.get("/Documents/admin/total-users");
+        const response = await apiClient.get("/Users/admin/total-users");
         setTotalUsers(response.data.count || 0);
       } catch (error) {
         console.error("Error loading total users", error);
       }
+
+      // Fetch users usage from backend
+      await fetchUsersUsage();
 
       // 1. Load Summaries (Files & Text)
       try {
@@ -96,13 +118,22 @@ export function AdminDashboard() {
     loadData();
   }, [user]);
   const getUserUsage = (userId: string): UserUsage => {
-    return (
-      userUsageMap.get(userId) || {
-        userId,
-        count: 0,
-        percentage: 0,
-      }
-    );
+    const usage = userUsageMap.get(userId);
+    const backendUsage = usersUsage.get(userId);
+    
+    if (usage && backendUsage) {
+      return {
+        ...usage,
+        totalLimit: backendUsage.totalLimit
+      };
+    }
+    
+    return {
+      userId,
+      count: 0,
+      percentage: 0,
+      totalLimit: 100
+    };
   };
   const getUsageColor = (percentage: number): string => {
     if (percentage >= 80) return "bg-red-500";
@@ -140,6 +171,7 @@ export function AdminDashboard() {
               users={users}
               getUserUsage={getUserUsage}
               getUsageColor={getUsageColor}
+              onUsersChange={fetchUsersUsage}
             />
           )}
 

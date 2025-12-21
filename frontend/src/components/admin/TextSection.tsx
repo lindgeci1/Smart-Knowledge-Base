@@ -25,7 +25,7 @@ export function TextSection({ texts: initialTexts }: TextSectionProps) {
 
   const fetchTextSummaries = async () => {
     try {
-      const response = await apiClient.get("/Documents/admin/text-summaries");
+      const response = await apiClient.get("/Texts/admin/summaries");
       const summaries = response.data.map((text: any) => ({
         id: text.id,
         userId: text.userId,
@@ -45,7 +45,7 @@ export function TextSection({ texts: initialTexts }: TextSectionProps) {
     if (!deletingText || isDeleting) return;
     setIsDeleting(true);
     try {
-      await apiClient.delete(`/Documents/admin/text-summary/${deletingText.id}`);
+      await apiClient.delete(`/Texts/admin/${deletingText.id}`);
       setTexts(texts.filter((t) => t.id !== deletingText.id));
       setDeletingText(null);
     } catch (error) {
