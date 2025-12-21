@@ -25,7 +25,7 @@ export function FilesSection({ files: initialFiles }: FilesSectionProps) {
 
   const fetchDocuments = async () => {
     try {
-      const response = await apiClient.get("/Documents/admin/documents");
+      const response = await apiClient.get("/Documents/admin");
       const documents = response.data.map((doc: any) => ({
         id: doc.id,
         userId: doc.userId,
@@ -46,7 +46,7 @@ export function FilesSection({ files: initialFiles }: FilesSectionProps) {
     if (!deletingFile || isDeleting) return;
     setIsDeleting(true);
     try {
-      await apiClient.delete(`/Documents/admin/document/${deletingFile.id}`);
+      await apiClient.delete(`/Documents/admin/${deletingFile.id}`);
       setFiles(files.filter((f) => f.id !== deletingFile.id));
       setDeletingFile(null);
     } catch (error) {

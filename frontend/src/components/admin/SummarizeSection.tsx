@@ -32,8 +32,8 @@ export function SummarizeSection() {
   const fetchSummaries = useCallback(async () => {
     try {
       const [textResponse, fileResponse] = await Promise.all([
-        apiClient.get("/Documents/admin/text-summaries"),
-        apiClient.get("/Documents/admin/documents"),
+        apiClient.get("/Texts/admin/summaries"),
+        apiClient.get("/Documents/admin"),
       ]);
 
       const textSummaries = textResponse.data || [];
@@ -114,7 +114,7 @@ export function SummarizeSection() {
     setIsProcessing(true);
 
     try {
-      await apiClient.post("/Documents/add-text", {
+      await apiClient.post("/Texts", {
         text: textInput,
       });
 

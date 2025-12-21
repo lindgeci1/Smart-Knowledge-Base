@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Search, Plus, Trash2, X } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Search, Plus, Trash2, X, UserCheck } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 interface UserData {
   id: string;
@@ -13,16 +13,19 @@ interface UserUsage {
   userId: string;
   count: number;
   percentage: number;
+  totalLimit?: number;
 }
 interface UsersSectionProps {
   users: UserData[];
   getUserUsage: (userId: string) => UserUsage;
   getUsageColor: (percentage: number) => string;
+  onUsersChange?: () => void;
 }
 export function UsersSection({
   users: _initialUsers,
   getUserUsage,
   getUsageColor,
+  onUsersChange,
 }: UsersSectionProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserData[]>([]);
@@ -30,6 +33,10 @@ export function UsersSection({
   const [isCreating, setIsCreating] = useState(false);
   const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [reactivatingUser, setReactivatingUser] = useState<UserData | null>(
+    null
+  );
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [createError, setCreateError] = useState("");
   const [newUser, setNewUser] = useState({
@@ -38,27 +45,9 @@ export function UsersSection({
     password: "",
   });
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredUsers(users);
-    } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = users.filter(
-        (user) =>
-          user.name.toLowerCase().includes(query) ||
-          user.email.toLowerCase().includes(query)
-      );
-      setFilteredUsers(filtered);
-    }
-  }, [searchQuery, users]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
-      const response = await apiClient.get("/Documents/admin/users");
+      const response = await apiClient.get("/Users/admin");
       const usersData = response.data.map(
         (user: {
           id: string;
@@ -78,23 +67,64 @@ export function UsersSection({
       );
       setUsers(usersData);
       setFilteredUsers(usersData);
+      // Refresh usage when users are fetched
+      if (onUsersChange) {
+        onUsersChange();
+      }
     } catch (error) {
       console.error("Error fetching users", error);
     }
-  };
+  }, [onUsersChange]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredUsers(users);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = users.filter(
+        (user) =>
+          user.name.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query)
+      );
+      setFilteredUsers(filtered);
+    }
+  }, [searchQuery, users]);
 
   const handleDelete = async () => {
     if (!deletingUser || isDeleting) return;
     setIsDeleting(true);
     try {
-      await apiClient.delete(`/Documents/admin/user/${deletingUser.id}`);
-      setUsers(users.filter((u) => u.id !== deletingUser.id));
+      await apiClient.delete(`/Users/admin/${deletingUser.id}`);
       setDeletingUser(null);
+      // Refresh users list to get updated status
+      await fetchUsers();
     } catch (error) {
-      console.error("Error deleting user", error);
-      alert("Failed to delete user. Please try again.");
+      console.error("Error deactivating user", error);
+      alert("Failed to deactivate user. Please try again.");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!reactivatingUser || isReactivating) return;
+    setIsReactivating(true);
+    try {
+      await apiClient.post(
+        `/Users/admin/${reactivatingUser.id}/reactivate`
+      );
+      setReactivatingUser(null);
+      // Refresh users list to get updated status
+      await fetchUsers();
+    } catch (error) {
+      console.error("Error reactivating user", error);
+      alert("Failed to reactivate user. Please try again.");
+    } finally {
+      setIsReactivating(false);
     }
   };
 
@@ -104,7 +134,7 @@ export function UsersSection({
     setIsCreatingUser(true);
     setCreateError("");
     try {
-      await apiClient.post("/Documents/admin/users", {
+      await apiClient.post("/Users/admin", {
         email: newUser.email,
         username: newUser.username,
         password: newUser.password,
@@ -246,11 +276,12 @@ export function UsersSection({
             </div>
             <div className="mb-6">
               <p className="text-sm text-slate-600">
-                Are you sure you want to delete{" "}
+                Are you sure you want to deactivate{" "}
                 <span className="font-semibold text-slate-900">
                   {deletingUser.name}
                 </span>{" "}
-                ({deletingUser.email})? This action cannot be undone.
+                ({deletingUser.email})? The user will not be able to access the
+                system until reactivated.
               </p>
             </div>
             <div className="flex justify-end space-x-3">
@@ -267,7 +298,51 @@ export function UsersSection({
                 disabled={isDeleting}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
               >
-                {isDeleting ? "Deleting..." : "Delete User"}
+                {isDeleting ? "Deactivating..." : "Deactivate User"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reactivate Modal */}
+      {reactivatingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Reactivate User</h3>
+              <button
+                onClick={() => setReactivatingUser(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-slate-600">
+                Are you sure you want to reactivate{" "}
+                <span className="font-semibold text-slate-900">
+                  {reactivatingUser.name}
+                </span>{" "}
+                ({reactivatingUser.email})? The user will be able to access the
+                system again.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setReactivatingUser(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReactivate}
+                disabled={isReactivating}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {isReactivating ? "Reactivating..." : "Reactivate User"}
               </button>
             </div>
           </div>
@@ -373,7 +448,8 @@ export function UsersSection({
                                 {usage.percentage}%
                               </span>
                               <span className="text-xs text-slate-500">
-                                {usage.count} credits
+                                {usage.count} / {usage.totalLimit || 100}{" "}
+                                credits
                               </span>
                             </div>
                             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
@@ -390,22 +466,35 @@ export function UsersSection({
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => setDeletingUser(userData)}
-                          disabled={userData.role === "admin"}
-                          className={`${
-                            userData.role === "admin"
-                              ? "text-slate-300 cursor-not-allowed"
-                              : "text-red-600 hover:text-red-900"
-                          }`}
-                          title={
-                            userData.role === "admin"
-                              ? "Cannot delete admin users"
-                              : "Delete"
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          {userData.status === "inactive" ? (
+                            <button
+                              onClick={() => setReactivatingUser(userData)}
+                              disabled={isReactivating}
+                              className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                              title="Reactivate user"
+                            >
+                              <UserCheck className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingUser(userData)}
+                              disabled={userData.role === "admin"}
+                              className={`${
+                                userData.role === "admin"
+                                  ? "text-slate-300 cursor-not-allowed"
+                                  : "text-red-600 hover:text-red-900"
+                              }`}
+                              title={
+                                userData.role === "admin"
+                                  ? "Cannot deactivate admin users"
+                                  : "Deactivate"
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

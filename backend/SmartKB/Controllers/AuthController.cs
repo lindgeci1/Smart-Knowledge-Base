@@ -93,6 +93,10 @@ namespace SmartKB.Controllers
             if (user == null)
                 return Unauthorized("Invalid email or password");
 
+            // Check if user is active
+            if (!user.IsActive)
+                return Unauthorized("Your account has been deactivated. Please contact an administrator.");
+
             var hash = Convert.ToBase64String(
                 SHA256.HashData(Encoding.UTF8.GetBytes(dto.Password + user.PasswordSalt))
             );
@@ -192,6 +196,10 @@ namespace SmartKB.Controllers
             var user = await _users.Find(u => u.RefreshToken == refreshToken).FirstOrDefaultAsync();
             if (user == null)
                 return Unauthorized("Invalid refresh token");
+
+            // Check if user is active
+            if (!user.IsActive)
+                return Unauthorized("Your account has been deactivated. Please contact an administrator.");
 
             if (user.RefreshTokenExpiresAt == null || user.RefreshTokenExpiresAt < DateTime.UtcNow)
                 return Unauthorized("Refresh token expired");

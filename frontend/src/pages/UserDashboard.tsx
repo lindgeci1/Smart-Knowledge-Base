@@ -30,7 +30,7 @@ interface Summary {
   filename?: string; // Only for file type
 }
 export function UserDashboard() {
-  const { user, logout, updateUserUsage } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   // State
   const [activeTab, setActiveTab] = useState<"text" | "file">("text");
@@ -40,6 +40,22 @@ export function UserDashboard() {
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [currentResult, setCurrentResult] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [backendUsage, setBackendUsage] = useState<number>(0);
+  const [backendTotalLimit, setBackendTotalLimit] = useState<number>(100);
+
+  // Function to fetch usage from backend
+  const fetchUsage = useCallback(async () => {
+    if (!user || user.role === "admin") return; // Don't fetch usage for admins
+    try {
+      const response = await apiClient.get("/Users/usage");
+      setBackendUsage(response.data?.overallUsage || 0);
+      setBackendTotalLimit(response.data?.totalLimit || 100);
+    } catch (error) {
+      console.error("Failed to load usage", error);
+      setBackendUsage(0);
+      setBackendTotalLimit(100);
+    }
+  }, [user]);
 
   // Function to fetch summaries from backend
   const fetchSummaries = useCallback(async () => {
@@ -47,8 +63,8 @@ export function UserDashboard() {
     try {
       // Fetch both text and file summaries
       const [textResponse, fileResponse] = await Promise.all([
-        apiClient.get("/Documents/text-summaries"),
-        apiClient.get("/Documents/file-summaries"),
+        apiClient.get("/Texts/summaries"),
+        apiClient.get("/Documents/summaries"),
       ]);
 
       const textSummaries = textResponse.data || [];
@@ -93,16 +109,22 @@ export function UserDashboard() {
       console.error("Failed to load summaries", error);
     }
   }, [user]);
-  // Usage calculations
+
+  // Usage calculations - use backend data for users, frontend for admins
   const usageCost = 10;
-  const currentUsage = user?.usageCount || 0;
-  const limit = user?.usageLimit || 100;
-  const usagePercentage = Math.min((currentUsage / limit) * 100, 100);
+  const currentUsage =
+    user?.role === "admin" ? user?.usageCount || 0 : backendUsage;
+  const limit =
+    user?.role === "admin" ? user?.usageLimit || 100 : backendTotalLimit;
+  const usagePercentage =
+    limit > 0 ? Math.min((currentUsage / limit) * 100, 100) : 0;
   const isLimitReached = currentUsage + usageCost > limit;
-  // Load summaries on mount
+
+  // Load summaries and usage on mount
   useEffect(() => {
     fetchSummaries();
-  }, [fetchSummaries]);
+    fetchUsage();
+  }, [fetchSummaries, fetchUsage]);
   const handleSummarizeText = async () => {
     if (!textInput.trim() || !user) return;
     if (textInput.length < 50) {
@@ -119,7 +141,7 @@ export function UserDashboard() {
 
     try {
       // Call backend API to summarize text
-      const response = await apiClient.post("/Documents/add-text", {
+      const response = await apiClient.post("/Texts", {
         text: textInput,
       });
 
@@ -138,11 +160,11 @@ export function UserDashboard() {
       };
 
       setCurrentResult(newSummary);
-      updateUserUsage(usageCost);
       setTextInput("");
 
-      // Refresh summaries list from backend
+      // Refresh summaries list and usage from backend
       await fetchSummaries();
+      await fetchUsage();
     } catch (error: any) {
       console.error("Summarization failed:", error);
       setError(
@@ -215,11 +237,11 @@ export function UserDashboard() {
       };
 
       setCurrentResult(newSummary);
-      updateUserUsage(usageCost);
       setSelectedFile(null);
 
-      // Refresh summaries list from backend
+      // Refresh summaries list and usage from backend
       await fetchSummaries();
+      await fetchUsage();
     } catch (error: any) {
       console.error("File upload failed:", error);
 
