@@ -16,8 +16,6 @@ namespace SmartKB.Services
 
         public async Task<string> SummarizeWithOllama(string text)
         {
-            Console.WriteLine($"[{DateTime.Now}] Starting summarization with Ollama (Docker)...");
-
             using var client = new HttpClient();
             var request = new
             {
@@ -45,7 +43,6 @@ namespace SmartKB.Services
                     finalOutput += resp.GetString();
             }
 
-            Console.WriteLine($"[{DateTime.Now}] Summarization completed.");
             return finalOutput.Trim();
         }
 
