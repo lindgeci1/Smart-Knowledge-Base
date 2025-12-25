@@ -36,6 +36,24 @@ export const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
+// Helper to get email from localStorage
+const getStoredEmail = (): string => {
+  try {
+    return localStorage.getItem("user_email") || "";
+  } catch {
+    return "";
+  }
+};
+
+// Helper to store email in localStorage
+const storeEmail = (email: string): void => {
+  try {
+    localStorage.setItem("user_email", email);
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
 // Helper to create user object from JWT
 const createUserFromJWT = (jwt: string): User | null => {
   const decoded = decodeJWT(jwt);
@@ -43,7 +61,7 @@ const createUserFromJWT = (jwt: string): User | null => {
 
   return {
     id: decoded.userId,
-    email: "", // Email not in JWT, will be set on login if needed
+    email: getStoredEmail(), // Get email from localStorage
     name: decoded.username || "",
     role: decoded.role,
     usageLimit: 100,
@@ -101,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Update user email from login (backend doesn't return it, but we know it)
       userFromJWT.email = email;
+      storeEmail(email); // Store email in localStorage
 
       setToken(jwt);
       setUser(userFromJWT);
@@ -155,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       // Clear local state
       clearJwtCookie();
+      localStorage.removeItem("user_email"); // Clear stored email
       setUser(null);
       setToken(null);
     }
