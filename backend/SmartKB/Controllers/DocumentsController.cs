@@ -27,6 +27,14 @@ namespace SmartKB.Controllers
             _summarizationService = new SummarizationService(userRoleCollection, usageCollection);
         }
 
+        [AllowAnonymous]
+        [HttpGet("count")]
+        public async Task<IActionResult> GetDocumentsCount()
+        {
+            var count = await _documentCollection.CountDocumentsAsync(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary));
+            return Ok(new { count = (int)count });
+        }
+
         [Authorize(Roles = "1")]
 
         [HttpGet("{id}")]
