@@ -2,6 +2,7 @@ import React, { useEffect, useState, Component } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
+import { apiClient } from "../lib/authClient";
 import {
   Layout,
   Users,
@@ -177,6 +178,29 @@ const ActivityChart = () => {
 };
 export function LandingPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const [userCount, setUserCount] = useState(0);
+  const [summaryCount, setSummaryCount] = useState(0);
+  const [fileCount, setFileCount] = useState(0);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [usersResponse, textsResponse, documentsResponse] = await Promise.all([
+          apiClient.get("/Users/count"),
+          apiClient.get("/Texts/count"),
+          apiClient.get("/Documents/count"),
+        ]);
+        setUserCount(usersResponse.data?.count || 0);
+        setSummaryCount(textsResponse.data?.count || 0);
+        setFileCount(documentsResponse.data?.count || 0);
+      } catch (error) {
+        console.error("Failed to load stats", error);
+        // Keep defaults at 0
+      }
+    };
+    fetchStats();
+  }, []);
+
   // Loading state
   if (isLoading) {
     return (
@@ -342,9 +366,9 @@ export function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Counter end={12847} label="Active Users" />
-            <Counter end={45293} label="Summaries Generated" />
-            <Counter end={8621} label="Files Processed" />
+            <Counter end={userCount} label="Active Users" />
+            <Counter end={summaryCount} label="Summaries Generated" />
+            <Counter end={fileCount} label="Files Processed" />
           </div>
         </div>
       </section>
