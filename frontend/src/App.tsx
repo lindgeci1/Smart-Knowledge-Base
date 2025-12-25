@@ -1,4 +1,3 @@
-import React from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -19,16 +18,63 @@ import { PackagesPage } from "./pages/PackagesPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 
 // Initialize Stripe
-const stripePublishableKey =
-  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
-  "pk_test_51QsjnVQF9XoPB98ZMfSziy8P7CdWek1KBqjPfjj5WhTkrGunPHE4IzJAZcGKWplgMcE8ZmiGJeFP8RfHAGQ5eQOa006MumVCKS";
-const stripePromise = loadStripe(stripePublishableKey);
+const stripePublishableKey = (import.meta as any).env
+  ?.VITE_STRIPE_PUBLISHABLE_KEY;
+
+if (!stripePublishableKey) {
+  console.error(
+    "VITE_STRIPE_PUBLISHABLE_KEY is not set in environment variables"
+  );
+}
+
+const stripePromise = stripePublishableKey
+  ? loadStripe(stripePublishableKey)
+  : null;
 
 function App() {
   return (
     <AuthProvider>
       <Elements stripe={stripePromise}>
-        <Toaster position="top-right" />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 5000,
+            style: {
+              background: "#0f172a", // slate-900
+              color: "#ffffff",
+              borderRadius: "0.75rem", // rounded-xl
+              padding: "1rem 1.25rem",
+              boxShadow:
+                "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              border: "1px solid rgba(148, 163, 184, 0.1)", // subtle border
+              fontSize: "0.875rem",
+              fontWeight: "500",
+              maxWidth: "420px",
+            },
+            success: {
+              iconTheme: {
+                primary: "#10b981", // green-500
+                secondary: "#ffffff",
+              },
+              style: {
+                background: "#0f172a", // slate-900
+                color: "#ffffff",
+                borderLeft: "4px solid #10b981", // green accent
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ef4444", // red-500
+                secondary: "#ffffff",
+              },
+              style: {
+                background: "#0f172a", // slate-900
+                color: "#ffffff",
+                borderLeft: "4px solid #ef4444", // red accent
+              },
+            },
+          }}
+        />
         <Router>
           <Routes>
             {/* Public Landing Page (handles its own redirect if logged in) */}

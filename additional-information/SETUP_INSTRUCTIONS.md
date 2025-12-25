@@ -2,9 +2,9 @@
 
 ## 1. Stripe Keys Configuration
 
-Stripe keys have been added to `backend/SmartKB/appsettings.json`:
-- **Publishable Key**: `pk_test_51QsjnVQF9XoPB98ZMfSziy8P7CdWek1KBqjPfjj5WhTkrGunPHE4IzJAZcGKWplgMcE8ZmiGJeFP8RfHAGQ5eQOa006MumVCKS`
-- **Secret Key**: `sk_test_51QsjnVQF9XoPB98ZeQTg74KPCLlV4ES99pNY020hnZgOfSdndW7RrRMGPJeUrL54hrThBYVc2ytjNBfi7zwiruqv00r5W0R4qB`
+Stripe keys should be configured in `backend/SmartKB/appsettings.json` or in a `.env` file:
+- **Publishable Key**: `stripe_publishable_key_here`
+- **Secret Key**: `stripe_secret_key_here`
 
 **Note**: For production, move these to environment variables or use a `.env` file in the `backend/SmartKB` directory.
 

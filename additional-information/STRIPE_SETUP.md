@@ -8,8 +8,8 @@ Create a `.env` file in the `backend/SmartKB/` directory with the following:
 
 ```env
 JWT_KEY=your_jwt_secret_key_here
-STRIPE_PUBLISHABLE_KEY=pk_test_51QsjnVQF9XoPB98ZMfSziy8P7CdWek1KBqjPfjj5WhTkrGunPHE4IzJAZcGKWplgMcE8ZmiGJeFP8RfHAGQ5eQOa006MumVCKS
-STRIPE_SECRET_KEY=sk_test_51QsjnVQF9XoPB98ZeQTg74KPCLlV4ES99pNY020hnZgOfSdndW7RrRMGPJeUrL54hrThBYVc2ytjNBfi7zwiruqv00r5W0R4qB
+STRIPE_PUBLISHABLE_KEY=stripe_publishable_key_here
+STRIPE_SECRET_KEY=stripe_secret_key_here
 ```
 
 **Note**: The backend uses `DotNetEnv` which automatically loads `.env` files. Make sure the `.env` file is in the `backend/SmartKB/` directory (same level as `Program.cs`).
@@ -20,7 +20,7 @@ Create a `.env` file in the `frontend/` directory with the following:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5074/api
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_51QsjnVQF9XoPB98ZMfSziy8P7CdWek1KBqjPfjj5WhTkrGunPHE4IzJAZcGKWplgMcE8ZmiGJeFP8RfHAGQ5eQOa006MumVCKS
+VITE_STRIPE_PUBLISHABLE_KEY=stripe_publishable_key_here
 ```
 
 **Note**: Vite requires the `VITE_` prefix for environment variables to be exposed to the frontend.

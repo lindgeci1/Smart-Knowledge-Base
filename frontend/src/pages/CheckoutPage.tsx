@@ -63,6 +63,13 @@ export function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState(user?.email || "");
   const [cardholderName, setCardholderName] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    cardholderName?: string;
+    addressLine1?: string;
+    postalCode?: string;
+    city?: string;
+  }>({});
 
   // Update email when user object is available
   useEffect(() => {
@@ -82,7 +89,6 @@ export function CheckoutPage() {
     if (paymentSuccess === "true") {
       toast.success("Payment successful! Your package has been activated.", {
         duration: 5000,
-        icon: "✅",
       });
       // Clean up URL
       navigate(`/checkout/${packageId}`, { replace: true });
@@ -126,9 +132,31 @@ export function CheckoutPage() {
     fetchPackage();
   }, [packageId, navigate]);
 
+  // Email validation helper
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Check if all required fields are filled and valid
+  const isFormValid = 
+    email.trim() !== "" &&
+    isValidEmail(email) &&
+    cardholderName.trim().length >= 2 &&
+    addressLine1.trim().length >= 5 &&
+    postalCode.trim().length >= 4 &&
+    city.trim().length >= 2 &&
+    cardComplete &&
+    stripe !== null;
+
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkoutPackage || !stripe || !elements) return;
+    if (!checkoutPackage || !stripe || !elements || !isFormValid) {
+      if (!isFormValid) {
+        setError("Please fill in all required fields correctly.");
+      }
+      return;
+    }
 
     setError(null);
     setIsProcessing(true);
@@ -199,10 +227,9 @@ export function CheckoutPage() {
 
         // Step 5: Show success toast and redirect
         toast.success(
-          `Payment successful! ${checkoutPackage.name} package activated.`,
+          `Payment successful! Your ${checkoutPackage.name} package has been activated.`,
           {
             duration: 5000,
-            icon: "✅",
           }
         );
 
@@ -378,11 +405,28 @@ export function CheckoutPage() {
                 type="text"
                 placeholder="Full name on card"
                 value={cardholderName}
-                onChange={(e) => setCardholderName(e.target.value)}
+                onChange={(e) => {
+                  // Only allow letters, spaces, hyphens, and apostrophes
+                  const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
+                  setCardholderName(value);
+                  if (fieldErrors.cardholderName) {
+                    setFieldErrors(prev => ({ ...prev, cardholderName: undefined }));
+                  }
+                }}
+                onBlur={() => {
+                  if (cardholderName.trim().length < 2) {
+                    setFieldErrors(prev => ({ ...prev, cardholderName: "Cardholder name must be at least 2 characters" }));
+                  }
+                }}
                 required
                 disabled={isProcessing}
-                className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  fieldErrors.cardholderName ? "border-red-300" : "border-slate-300"
+                }`}
               />
+              {fieldErrors.cardholderName && (
+                <p className="mt-1 text-xs text-red-600">{fieldErrors.cardholderName}</p>
+              )}
             </div>
           </div>
 
@@ -413,11 +457,26 @@ export function CheckoutPage() {
                   type="text"
                   placeholder="Address line 1"
                   value={addressLine1}
-                  onChange={(e) => setAddressLine1(e.target.value)}
+                  onChange={(e) => {
+                    setAddressLine1(e.target.value);
+                    if (fieldErrors.addressLine1) {
+                      setFieldErrors(prev => ({ ...prev, addressLine1: undefined }));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (addressLine1.trim().length < 5) {
+                      setFieldErrors(prev => ({ ...prev, addressLine1: "Address must be at least 5 characters" }));
+                    }
+                  }}
                   required
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    fieldErrors.addressLine1 ? "border-red-300" : "border-slate-300"
+                  }`}
                 />
+                {fieldErrors.addressLine1 && (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.addressLine1}</p>
+                )}
               </div>
               <div>
                 <input
@@ -435,22 +494,56 @@ export function CheckoutPage() {
                     type="text"
                     placeholder="Postal code"
                     value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
+                    onChange={(e) => {
+                      // Only allow numbers
+                      const value = e.target.value.replace(/[^0-9]/g, "");
+                      setPostalCode(value);
+                      if (fieldErrors.postalCode) {
+                        setFieldErrors(prev => ({ ...prev, postalCode: undefined }));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (postalCode.trim().length < 4) {
+                        setFieldErrors(prev => ({ ...prev, postalCode: "Postal code must be at least 4 digits" }));
+                      }
+                    }}
                     required
                     disabled={isProcessing}
-                    className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      fieldErrors.postalCode ? "border-red-300" : "border-slate-300"
+                    }`}
                   />
+                  {fieldErrors.postalCode && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.postalCode}</p>
+                  )}
                 </div>
                 <div>
                   <input
                     type="text"
                     placeholder="City"
                     value={city}
-                    onChange={(e) => setCity(e.target.value)}
+                    onChange={(e) => {
+                      // Only allow letters, spaces, hyphens, and apostrophes
+                      const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
+                      setCity(value);
+                      if (fieldErrors.city) {
+                        setFieldErrors(prev => ({ ...prev, city: undefined }));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (city.trim().length < 2) {
+                        setFieldErrors(prev => ({ ...prev, city: "City must be at least 2 characters" }));
+                      }
+                    }}
                     required
                     disabled={isProcessing}
-                    className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      fieldErrors.city ? "border-red-300" : "border-slate-300"
+                    }`}
                   />
+                  {fieldErrors.city && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -476,7 +569,7 @@ export function CheckoutPage() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isProcessing || !cardComplete || !stripe}
+            disabled={isProcessing || !isFormValid}
             className="w-full py-3 text-sm bg-slate-900 hover:bg-slate-800 text-white font-semibold mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? (
