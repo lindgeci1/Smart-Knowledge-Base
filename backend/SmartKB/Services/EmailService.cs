@@ -195,6 +195,79 @@ namespace SmartKB.Services
                 throw new Exception("Failed to send email. Please try again later.");
             }
         }
+
+        public async Task SendPaymentConfirmationEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId, DateTime paidAt)
+        {
+            try
+            {
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
+                message.To.Add(new MailboxAddress("", toEmail));
+                message.Subject = "Payment Confirmation - Smart Knowledge Base";
+
+                var formattedAmount = amount.ToString("F2");
+                var formattedDate = paidAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
+
+                var bodyBuilder = new BodyBuilder
+                {
+                    HtmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+                            <h2 style='color: #4f46e5; margin-bottom: 20px;'>Payment Confirmation</h2>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
+                                Hello {customerName},
+                            </p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
+                                Thank you for your purchase! Your payment has been successfully processed.
+                            </p>
+                            <div style='background-color: #d1fae5; padding: 20px; margin: 30px 0; border-radius: 8px; border: 2px solid #10b981;'>
+                                <p style='color: #065f46; font-size: 16px; margin: 0 0 10px 0; font-weight: 600;'>✓ Payment Successful</p>
+                                <p style='color: #047857; font-size: 14px; margin: 0;'>Your package has been activated and is ready to use.</p>
+                            </div>
+                            <div style='background-color: #f3f4f6; padding: 20px; margin: 30px 0; border-radius: 8px; border: 1px solid #e5e7eb;'>
+                                <h3 style='color: #1f2937; font-size: 18px; margin: 0 0 15px 0;'>Payment Details</h3>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Package:</td>
+                                        <td style='padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{packageName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Amount:</td>
+                                        <td style='padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{currency} {formattedAmount}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Payment Date:</td>
+                                        <td style='padding: 8px 0; color: #1f2937; font-size: 14px; text-align: right;'>{formattedDate}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Payment ID:</td>
+                                        <td style='padding: 8px 0; color: #1f2937; font-size: 12px; text-align: right; font-family: monospace;'>{paymentId}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin-top: 20px;'>
+                                You can now access your upgraded features in your dashboard. If you have any questions or need assistance, feel free to reach out to our support team.
+                            </p>
+                            <hr style='border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;' />
+                            <p style='color: #9ca3af; font-size: 12px; text-align: center; margin: 0;'>
+                                Smart Knowledge Base
+                            </p>
+                        </div>",
+                    TextBody = $"Payment Confirmation\n\nHello {customerName},\n\nThank you for your purchase! Your payment has been successfully processed.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment Date: {formattedDate}\nPayment ID: {paymentId}\n\nYou can now access your upgraded features in your dashboard.\n\nSmart Knowledge Base"
+                };
+
+                message.Body = bodyBuilder.ToMessageBody();
+
+                using var client = new SmtpClient();
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to send email. Please try again later.");
+            }
+        }
     }
 }
 

@@ -113,7 +113,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                string summary = await _summarizationService.SummarizeWithOllama(extractedText);
+                string summary = await _summarizationService.SummarizeWithOllama(extractedText, "file");
 
                 var update = Builders<Document>.Update
                     .Set(d => d.Summary, summary)

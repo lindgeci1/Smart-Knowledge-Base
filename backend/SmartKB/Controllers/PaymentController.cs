@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
 using SmartKB.DTOs;
 using SmartKB.Models;
+using SmartKB.Services;
 using Stripe;
 using System.Security.Claims;
 
@@ -18,10 +19,12 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Usage> _usageCollection;
         private readonly IConfiguration _configuration;
         private readonly StripeService _stripeService;
+        private readonly EmailService _emailService;
 
-        public PaymentController(IConfiguration configuration)
+        public PaymentController(IConfiguration configuration, EmailService emailService)
         {
             _configuration = configuration;
+            _emailService = emailService;
 
             var client = new MongoClient(configuration["MongoDbSettings:ConnectionString"]);
             var database = client.GetDatabase(configuration["MongoDbSettings:DatabaseName"]);
@@ -191,6 +194,33 @@ namespace SmartKB.Controllers
                         usage.TotalLimit += package.SummaryLimit.Value;
                         usage.UpdatedAt = DateTime.UtcNow;
                         await _usageCollection.ReplaceOneAsync(u => u.Id == usage.Id, usage);
+                    }
+                }
+
+                // Send payment confirmation email
+                if (!string.IsNullOrEmpty(payment.BillingEmail) && package != null)
+                {
+                    try
+                    {
+                        var customerName = !string.IsNullOrEmpty(payment.BillingName) 
+                            ? payment.BillingName 
+                            : "Customer";
+                        
+                        await _emailService.SendPaymentConfirmationEmailAsync(
+                            toEmail: payment.BillingEmail,
+                            customerName: customerName,
+                            packageName: package.Name,
+                            amount: payment.Amount,
+                            currency: payment.Currency,
+                            paymentId: payment.Id ?? "",
+                            paidAt: payment.PaidAt ?? DateTime.UtcNow
+                        );
+                    }
+                    catch (Exception emailEx)
+                    {
+                        // Log email error but don't fail the payment confirmation
+                        // Payment is already successful, email is just a notification
+                        Console.WriteLine($"Failed to send payment confirmation email: {emailEx.Message}");
                     }
                 }
 

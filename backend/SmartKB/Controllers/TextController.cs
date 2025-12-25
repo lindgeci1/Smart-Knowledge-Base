@@ -63,7 +63,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                string summary = await _summarizationService.SummarizeWithOllama(dto.Text);
+                string summary = await _summarizationService.SummarizeWithOllama(dto.Text, "text");
 
                 var update = Builders<TextDocument>.Update
                     .Set(t => t.Summary, summary)

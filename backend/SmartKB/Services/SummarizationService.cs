@@ -14,8 +14,11 @@ namespace SmartKB.Services
             _usageCollection = usageCollection;
         }
 
-        public async Task<string> SummarizeWithOllama(string text)
+        public async Task<string> SummarizeWithOllama(string text, string type = "text")
         {
+            var startTime = DateTime.UtcNow;
+            Console.WriteLine($"Summarization with Ollama (Docker) started - {type}");
+
             using var client = new HttpClient();
             var request = new
             {
@@ -42,6 +45,10 @@ namespace SmartKB.Services
                 if (doc.RootElement.TryGetProperty("response", out var resp))
                     finalOutput += resp.GetString();
             }
+
+            var endTime = DateTime.UtcNow;
+            var responseTime = (endTime - startTime).TotalMilliseconds;
+            Console.WriteLine($"Summarization with Ollama (Docker) finished - Response time: {responseTime:F2} ms");
 
             return finalOutput.Trim();
         }

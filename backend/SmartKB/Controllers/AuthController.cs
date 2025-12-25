@@ -42,23 +42,23 @@ namespace SmartKB.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            Console.WriteLine($"[Register] Starting registration for email: {dto.Email}, username: {dto.Username}");
+            // Console.WriteLine($"[Register] Starting registration for email: {dto.Email}, username: {dto.Username}");
 
             if (string.IsNullOrWhiteSpace(dto.Username))
             {
-                Console.WriteLine($"[Register] Registration failed - Username is required");
+                // Console.WriteLine($"[Register] Registration failed - Username is required");
                 return BadRequest("Username is required");
             }
 
-            Console.WriteLine($"[Register] Checking if email already exists...");
+            // Console.WriteLine($"[Register] Checking if email already exists...");
             var existing = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
             if (existing != null)
             {
-                Console.WriteLine($"[Register] Registration failed - Email already exists: {dto.Email}");
+                // Console.WriteLine($"[Register] Registration failed - Email already exists: {dto.Email}");
                 return BadRequest("Email already exists");
             }
 
-            Console.WriteLine($"[Register] Generating password salt and hash...");
+            // Console.WriteLine($"[Register] Generating password salt and hash...");
             var saltBytes = RandomNumberGenerator.GetBytes(16);
             var salt = Convert.ToBase64String(saltBytes);
 
@@ -66,9 +66,9 @@ namespace SmartKB.Controllers
                 SHA256.HashData(Encoding.UTF8.GetBytes(dto.Password + salt))
             );
 
-            Console.WriteLine($"[Register] Checking if this is the first user...");
+            // Console.WriteLine($"[Register] Checking if this is the first user...");
             bool firstUser = !(await _users.Find(_ => true).AnyAsync());
-            Console.WriteLine($"[Register] Is first user: {firstUser}");
+            // Console.WriteLine($"[Register] Is first user: {firstUser}");
 
             var user = new User
             {
@@ -83,17 +83,17 @@ namespace SmartKB.Controllers
                 UpdatedAt = DateTime.UtcNow
             };
 
-            Console.WriteLine($"[Register] Inserting user into database...");
+            // Console.WriteLine($"[Register] Inserting user into database...");
             await _users.InsertOneAsync(user);
             Console.WriteLine($"[Register] User inserted with UserId: {user.UserId}");
 
             int roleId = firstUser ? 1 : 2;
-            Console.WriteLine($"[Register] Assigning role ID: {roleId} ({(firstUser ? "Admin" : "User")})");
+                // Console.WriteLine($"[Register] Assigning role ID: {roleId} ({(firstUser ? "Admin" : "User")})");
 
             var role = await _roles.Find(r => r.RoleId == roleId).FirstOrDefaultAsync();
             if (role == null)
             {
-                Console.WriteLine($"[Register] Registration failed - Role not found: {roleId}");
+                // Console.WriteLine($"[Register] Registration failed - Role not found: {roleId}");
                 return BadRequest("Role not found in DB: " + roleId);
             }
 
@@ -103,23 +103,23 @@ namespace SmartKB.Controllers
                 RoleId = roleId
             };
 
-            Console.WriteLine($"[Register] Creating user role assignment...");
+            // Console.WriteLine($"[Register] Creating user role assignment...");
             await _userRoles.InsertOneAsync(userRole);
-            Console.WriteLine($"[Register] Registration successful - UserId: {user.UserId}, Role: {roleId}, Message: {(firstUser ? "Admin created" : "User registered")}");
+            //Console.WriteLine($"[Register] Registration successful - UserId: {user.UserId}, Role: {roleId}, Message: {(firstUser ? "Admin created" : "User registered")}");
 
             // Send welcome email asynchronously (fire-and-forget) to avoid blocking the response
-            Console.WriteLine($"[Register] Queuing welcome email to send asynchronously...");
+            // Console.WriteLine($"[Register] Queuing welcome email to send asynchronously...");
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    Console.WriteLine($"[Register] [Background] Sending welcome email to: {dto.Email}");
+                    // Console.WriteLine($"[Register] [Background] Sending welcome email to: {dto.Email}");
                     await _emailService.SendWelcomeEmailAsync(dto.Email, dto.Username);
-                    Console.WriteLine($"[Register] [Background] Welcome email sent successfully to: {dto.Email}");
+                    // Console.WriteLine($"[Register] [Background] Welcome email sent successfully to: {dto.Email}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Register] [Background] Welcome email sending failed: {ex.Message}");
+                    // Console.WriteLine($"[Register] [Background] Welcome email sending failed: {ex.Message}");
                     // Silently fail - we don't want to block registration if email fails
                 }
             });
@@ -133,55 +133,55 @@ namespace SmartKB.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
-            Console.WriteLine($"[Login] Login attempt for email: {dto.Email}");
+            // Console.WriteLine($"[Login] Login attempt for email: {dto.Email}");
 
-            Console.WriteLine($"[Login] Looking up user by email...");
+            // Console.WriteLine($"[Login] Looking up user by email...");
             var user = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
             if (user == null)
             {
-                Console.WriteLine($"[Login] Login failed - User not found for email: {dto.Email}");
+                // Console.WriteLine($"[Login] Login failed - User not found for email: {dto.Email}");
                 return Unauthorized("Invalid email or password");
             }
 
-            Console.WriteLine($"[Login] User found - UserId: {user.UserId}, Username: {user.Username}");
+            // Console.WriteLine($"[Login] User found - UserId: {user.UserId}, Username: {user.Username}");
 
             // Check if user is active
             if (!user.IsActive)
             {
-                Console.WriteLine($"[Login] Login failed - User is inactive: {user.UserId}");
+                // Console.WriteLine($"[Login] Login failed - User is inactive: {user.UserId}");
                 return Unauthorized("Your account has been deactivated. Please contact an administrator.");
             }
 
-            Console.WriteLine($"[Login] Verifying password...");
+            // Console.WriteLine($"[Login] Verifying password...");
             var hash = Convert.ToBase64String(
                 SHA256.HashData(Encoding.UTF8.GetBytes(dto.Password + user.PasswordSalt))
             );
 
             if (hash != user.PasswordHash)
             {
-                Console.WriteLine($"[Login] Login failed - Invalid password for user: {user.UserId}");
+                // Console.WriteLine($"[Login] Login failed - Invalid password for user: {user.UserId}");
                 return Unauthorized("Invalid email or password");
             }
 
-            Console.WriteLine($"[Login] Password verified successfully");
+            // Console.WriteLine($"[Login] Password verified successfully");
 
-            Console.WriteLine($"[Login] Looking up user role...");
+            // Console.WriteLine($"[Login] Looking up user role...");
             var userRole = await _userRoles.Find(ur => ur.UserId == user.UserId).FirstOrDefaultAsync();
             if (userRole == null)
             {
-                Console.WriteLine($"[Login] Login failed - No role assigned for user: {user.UserId}");
+                // Console.WriteLine($"[Login] Login failed - No role assigned for user: {user.UserId}");
                 return Unauthorized("User has no role assigned");
             }
 
             int roleId = userRole.RoleId;
-            Console.WriteLine($"[Login] User role found - RoleId: {roleId}");
+            // Console.WriteLine($"[Login] User role found - RoleId: {roleId}");
 
             string jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
                 ?? throw new Exception("Missing JWT_KEY in .env");
 
             int jwtExpireMinutes = 15;
 
-            Console.WriteLine($"[Login] Generating JWT token...");
+            //  Console.WriteLine($"[Login] Generating JWT token...");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -199,9 +199,9 @@ namespace SmartKB.Controllers
             );
 
             string jwt = new JwtSecurityTokenHandler().WriteToken(jwtToken);
-            Console.WriteLine($"[Login] JWT token generated - Expires in {jwtExpireMinutes} minutes");
+            // Console.WriteLine($"[Login] JWT token generated - Expires in {jwtExpireMinutes} minutes");
 
-            Console.WriteLine($"[Login] Generating refresh token...");
+            // Console.WriteLine($"[Login] Generating refresh token...");
             string refreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
             DateTime refreshExpires = DateTime.UtcNow.AddDays(1);
 
@@ -210,7 +210,7 @@ namespace SmartKB.Controllers
                 .Set(u => u.RefreshTokenExpiresAt, refreshExpires)
                 .Set(u => u.UpdatedAt, DateTime.UtcNow);
 
-            Console.WriteLine($"[Login] Updating user with refresh token...");
+            // Console.WriteLine($"[Login] Updating user with refresh token...");
             await _users.UpdateOneAsync(u => u.UserId == user.UserId, update);
 
             Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
@@ -221,7 +221,7 @@ namespace SmartKB.Controllers
                 Expires = refreshExpires
             });
 
-            Console.WriteLine($"[Login] Login successful - UserId: {user.UserId}, RoleId: {roleId}, Refresh token expires: {refreshExpires}");
+            // Console.WriteLine($"[Login] Login successful - UserId: {user.UserId}, RoleId: {roleId}, Refresh token expires: {refreshExpires}");
 
             return Ok(new
             {
@@ -310,7 +310,7 @@ namespace SmartKB.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
         {
-            Console.WriteLine($"[Forgot Password] Password reset request for email: {dto.Email}");
+            // Console.WriteLine($"[Forgot Password] Password reset request for email: {dto.Email}");
 
             if (string.IsNullOrWhiteSpace(dto.Email))
             {
@@ -319,7 +319,7 @@ namespace SmartKB.Controllers
             }
 
             // Check if user exists (but don't reveal if they don't for security)
-            Console.WriteLine($"[Forgot Password] Looking up user by email...");
+            // Console.WriteLine($"[Forgot Password] Looking up user by email...");
             var user = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
             
             if (user == null)
@@ -329,7 +329,7 @@ namespace SmartKB.Controllers
                 return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
             }
 
-            Console.WriteLine($"[Forgot Password] User found - UserId: {user.UserId}, Username: {user.Username}");
+            // Console.WriteLine($"[Forgot Password] User found - UserId: {user.UserId}, Username: {user.Username}");
 
             // Check if user is active
             if (!user.IsActive)
@@ -346,35 +346,35 @@ namespace SmartKB.Controllers
             }
 
             // Generate 6-digit code
-            Console.WriteLine($"[Forgot Password] Generating 6-digit reset code...");
+            // Console.WriteLine($"[Forgot Password] Generating 6-digit reset code...");
             var random = new Random();
             var code = random.Next(100000, 999999).ToString();
-            Console.WriteLine($"[Forgot Password] Reset code generated: {code}");
+            // Console.WriteLine($"[Forgot Password] Reset code generated: {code}");
 
             // Set expiration to 5 minutes from now
             var expiresAt = DateTime.UtcNow.AddMinutes(5);
-            Console.WriteLine($"[Forgot Password] Code expires at: {expiresAt}");
+            // Console.WriteLine($"[Forgot Password] Code expires at: {expiresAt}");
 
             // Invalidate ALL existing tokens for this user (both used and unused)
             // This ensures that when a new code is requested, all previous codes become invalid
-            Console.WriteLine($"[Forgot Password] Invalidating existing tokens for user: {user.UserId}");
+            // Console.WriteLine($"[Forgot Password] Invalidating existing tokens for user: {user.UserId}");
             var updateExisting = Builders<PasswordResetToken>.Update
                 .Set(t => t.IsUsed, true);
             var invalidatedCount = await _passwordResetTokens.UpdateManyAsync(
                 t => t.UserId == user.UserId,
                 updateExisting
             );
-            Console.WriteLine($"[Forgot Password] Invalidated {invalidatedCount.ModifiedCount} existing token(s)");
+            // Console.WriteLine($"[Forgot Password] Invalidated {invalidatedCount.ModifiedCount} existing token(s)");
 
             // Check if UserId is set (it should be populated from MongoDB _id)
             if (string.IsNullOrEmpty(user.UserId))
             {
-                Console.WriteLine($"[Forgot Password] UserId is null (duplicate check) - returning success for security");
+                // Console.WriteLine($"[Forgot Password] UserId is null (duplicate check) - returning success for security");
                 return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
             }
 
             // Create new reset token
-            Console.WriteLine($"[Forgot Password] Creating new reset token...");
+            // Console.WriteLine($"[Forgot Password] Creating new reset token...");
             var resetToken = new PasswordResetToken
             {
                 UserId = user.UserId,
@@ -386,34 +386,34 @@ namespace SmartKB.Controllers
 
             try
             {
-                Console.WriteLine($"[Forgot Password] Inserting token into database...");
+                // Console.WriteLine($"[Forgot Password] Inserting token into database...");
                 await _passwordResetTokens.InsertOneAsync(resetToken);
-                Console.WriteLine($"[Forgot Password] Token inserted successfully - TokenId: {resetToken.Id}");
+                // Console.WriteLine($"[Forgot Password] Token inserted successfully - TokenId: {resetToken.Id}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Forgot Password] Token insertion failed: {ex.Message}");
+                // Console.WriteLine($"[Forgot Password] Token insertion failed: {ex.Message}");
                 return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
             }
 
             // Send email with reset code asynchronously (fire-and-forget) to avoid blocking the response
-            Console.WriteLine($"[Forgot Password] Queuing email to send asynchronously...");
+            // Console.WriteLine($"[Forgot Password] Queuing email to send asynchronously...");
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    Console.WriteLine($"[Forgot Password] [Background] Sending email to: {dto.Email}");
+                    // Console.WriteLine($"[Forgot Password] [Background] Sending email to: {dto.Email}");
                     await _emailService.SendPasswordResetEmailAsync(dto.Email, code);
-                    Console.WriteLine($"[Forgot Password] [Background] Email sent successfully to: {dto.Email}");
+                    // Console.WriteLine($"[Forgot Password] [Background] Email sent successfully to: {dto.Email}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Forgot Password] [Background] Email sending failed: {ex.Message}");
+                    // Console.WriteLine($"[Forgot Password] [Background] Email sending failed: {ex.Message}");
                     // Silently fail - we don't want to reveal if email sending failed
                 }
             });
 
-            Console.WriteLine($"[Forgot Password] Request completed successfully - Reset code sent to: {dto.Email}");
+            // Console.WriteLine($"[Forgot Password] Request completed successfully - Reset code sent to: {dto.Email}");
             return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
         }
 
