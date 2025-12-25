@@ -3,6 +3,7 @@ using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using SmartKB.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,9 @@ Env.Load();
 builder.Services.AddControllers();
 builder.Services.AddRazorPages().AddRazorRuntimeCompilation();
 builder.Services.AddEndpointsApiExplorer();
+
+// Register Email Service
+builder.Services.AddSingleton<EmailService>();
 
 // Add CORS
 builder.Services.AddCors(options =>

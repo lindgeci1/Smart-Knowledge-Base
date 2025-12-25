@@ -110,7 +110,6 @@ namespace SmartKB.Controllers
             };
 
             _documentCollection.InsertOne(document);
-            Console.WriteLine($"[{DateTime.Now}] Document {document.Id} uploaded and text stored.");
 
             try
             {
@@ -121,8 +120,6 @@ namespace SmartKB.Controllers
                     .Set(d => d.Status, "Completed");
 
                 _documentCollection.UpdateOne(d => d.Id == document.Id, update);
-
-                Console.WriteLine($"[{DateTime.Now}] Document {document.Id} updated with summary.");
 
                 // Increment usage for regular users (role 2), not admins (role 1)
                 await _summarizationService.IncrementUsageIfUser(userId);
@@ -136,7 +133,6 @@ namespace SmartKB.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{DateTime.Now}] Summarization failed for document {document.Id}: {ex.Message}");
 
                 var update = Builders<Document>.Update
                     .Set(d => d.Status, "Error");

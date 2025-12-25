@@ -82,7 +82,10 @@ apiClient.interceptors.response.use(
       originalRequest?.url?.includes("/auth/login") ||
       originalRequest?.url?.includes("/auth/register") ||
       originalRequest?.url?.includes("/auth/renew") ||
-      originalRequest?.url?.includes("/auth/logout");
+      originalRequest?.url?.includes("/auth/logout") ||
+      originalRequest?.url?.includes("/auth/forgot-password") ||
+      originalRequest?.url?.includes("/auth/verify-reset-code") ||
+      originalRequest?.url?.includes("/auth/reset-password");
 
     // Only handle 401 for non-auth endpoints and if we haven't already retried
     if (

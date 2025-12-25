@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { PasswordInput } from "../components/ui/PasswordInput";
 import { UserPlus, ArrowLeft } from "lucide-react";
 export function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -66,9 +67,8 @@ export function RegisterPage() {
               disabled={isLoading}
             />
 
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               required
               placeholder="••••••••"
               value={password}
