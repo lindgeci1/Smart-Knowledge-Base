@@ -130,6 +130,58 @@ namespace SmartKB.Controllers
             var result = await _packageCollection.DeleteManyAsync(_ => true);
             return Ok(new { message = "All packages deleted", deletedCount = result.DeletedCount });
         }
+
+        [Authorize(Roles = "1")] // Admin only
+        [HttpGet("admin")]
+        public async Task<IActionResult> GetAllPackages()
+        {
+            var packages = await _packageCollection
+                .Find(_ => true)
+                .SortBy(p => p.Price)
+                .ToListAsync();
+
+            return Ok(packages);
+        }
+
+        [Authorize(Roles = "1")] // Admin only
+        [HttpDelete("admin/{id}")]
+        public async Task<IActionResult> DeletePackage(string id)
+        {
+            var package = await _packageCollection
+                .Find(p => p.Id == id)
+                .FirstOrDefaultAsync();
+
+            if (package == null)
+                return NotFound("Package not found");
+
+            // Set package as inactive instead of deleting (similar to user deactivation)
+            var update = Builders<Package>.Update
+                .Set(p => p.IsActive, false)
+                .Set(p => p.UpdatedAt, DateTime.UtcNow);
+
+            await _packageCollection.UpdateOneAsync(p => p.Id == id, update);
+            return Ok(new { message = "Package deactivated successfully" });
+        }
+
+        [Authorize(Roles = "1")] // Admin only
+        [HttpPost("admin/{id}/reactivate")]
+        public async Task<IActionResult> ReactivatePackage(string id)
+        {
+            var package = await _packageCollection
+                .Find(p => p.Id == id)
+                .FirstOrDefaultAsync();
+
+            if (package == null)
+                return NotFound("Package not found");
+
+            // Set package as active
+            var update = Builders<Package>.Update
+                .Set(p => p.IsActive, true)
+                .Set(p => p.UpdatedAt, DateTime.UtcNow);
+
+            await _packageCollection.UpdateOneAsync(p => p.Id == id, update);
+            return Ok(new { message = "Package reactivated successfully" });
+        }
     }
 }
 

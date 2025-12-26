@@ -262,6 +262,52 @@ namespace SmartKB.Controllers
                 return StatusCode(500, new { error = "Failed to fetch payment history", message = ex.Message });
             }
         }
+
+        [Authorize(Roles = "1")] // Admin only
+        [HttpGet("admin")]
+        public async Task<IActionResult> GetAllPayments()
+        {
+            try
+            {
+                var payments = await _paymentCollection
+                    .Find(_ => true)
+                    .SortByDescending(p => p.CreatedAt)
+                    .ToListAsync();
+
+                // Enrich payments with user and package information
+                var result = new List<object>();
+                foreach (var payment in payments)
+                {
+                    var package = await _packageCollection
+                        .Find(p => p.Id == payment.PackageId)
+                        .FirstOrDefaultAsync();
+
+                    result.Add(new
+                    {
+                        id = payment.Id,
+                        userId = payment.UserId,
+                        packageId = payment.PackageId,
+                        packageName = package?.Name ?? "Unknown Package",
+                        amount = payment.Amount,
+                        currency = payment.Currency,
+                        status = payment.Status,
+                        paymentMethod = payment.PaymentMethod,
+                        billingEmail = payment.BillingEmail,
+                        billingName = payment.BillingName,
+                        stripePaymentIntentId = payment.StripePaymentIntentId,
+                        stripeChargeId = payment.StripeChargeId,
+                        createdAt = payment.CreatedAt,
+                        paidAt = payment.PaidAt
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = "Failed to fetch payments", message = ex.Message });
+            }
+        }
     }
 
     // Helper class for Stripe operations

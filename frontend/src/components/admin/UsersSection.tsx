@@ -20,15 +20,23 @@ interface UsersSectionProps {
   getUserUsage: (userId: string) => UserUsage;
   getUsageColor: (percentage: number) => string;
   onUsersChange?: () => void;
+  loading?: boolean;
+  onDataLoaded?: (hasData: boolean) => void;
+  onUsersFetched?: (users: UserData[]) => void;
 }
 export function UsersSection({
-  users: _initialUsers,
+  users: initialUsers,
   getUserUsage,
   getUsageColor,
   onUsersChange,
+  loading: externalLoading = false,
+  onDataLoaded,
+  onUsersFetched,
 }: UsersSectionProps) {
-  const [users, setUsers] = useState<UserData[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<UserData[]>(initialUsers || []);
+  const [filteredUsers, setFilteredUsers] = useState<UserData[]>(
+    initialUsers || []
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
@@ -44,6 +52,22 @@ export function UsersSection({
     email: "",
     password: "",
   });
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(
+    initialUsers && initialUsers.length > 0
+  );
+  const [hasRecords, setHasRecords] = useState(
+    initialUsers && initialUsers.length > 0
+  );
+
+  // Sync with parent data when it changes
+  useEffect(() => {
+    if (initialUsers && initialUsers.length > 0) {
+      setUsers(initialUsers);
+      setFilteredUsers(initialUsers);
+      setHasLoadedOnce(true);
+      setHasRecords(true);
+    }
+  }, [initialUsers]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -67,18 +91,36 @@ export function UsersSection({
       );
       setUsers(usersData);
       setFilteredUsers(usersData);
+      const hasData = usersData.length > 0;
+      setHasRecords(hasData);
+      setHasLoadedOnce(true);
       // Refresh usage when users are fetched
       if (onUsersChange) {
         onUsersChange();
       }
+      // Notify parent about data loaded
+      if (onDataLoaded) {
+        onDataLoaded(hasData);
+      }
+      // Update parent state with the fetched data
+      if (onUsersFetched) {
+        onUsersFetched(usersData);
+      }
     } catch (error) {
       console.error("Error fetching users", error);
+      setHasLoadedOnce(true);
+      setHasRecords(false);
+      if (onDataLoaded) {
+        onDataLoaded(false);
+      }
     }
-  }, [onUsersChange]);
+  }, [onUsersChange, onDataLoaded, onUsersFetched]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (externalLoading && !hasLoadedOnce) {
+      fetchUsers();
+    }
+  }, [externalLoading, hasLoadedOnce, fetchUsers]);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -114,9 +156,7 @@ export function UsersSection({
     if (!reactivatingUser || isReactivating) return;
     setIsReactivating(true);
     try {
-      await apiClient.post(
-        `/Users/admin/${reactivatingUser.id}/reactivate`
-      );
+      await apiClient.post(`/Users/admin/${reactivatingUser.id}/reactivate`);
       setReactivatingUser(null);
       // Refresh users list to get updated status
       await fetchUsers();
@@ -167,6 +207,9 @@ export function UsersSection({
       setIsCreatingUser(false);
     }
   };
+  // Show loading overlay only if we're loading and we know there are records
+  const showLoading = externalLoading && (hasRecords || !hasLoadedOnce);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
@@ -362,7 +405,12 @@ export function UsersSection({
             <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2" />
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto relative">
+          {showLoading && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
@@ -384,7 +432,7 @@ export function UsersSection({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {filteredUsers.length === 0 ? (
+              {filteredUsers.length === 0 && !showLoading ? (
                 <tr>
                   <td
                     colSpan={5}

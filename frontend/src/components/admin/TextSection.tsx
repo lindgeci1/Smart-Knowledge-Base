@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { MessageSquare, Trash2, X, Download } from "lucide-react";
+import { MessageSquare, Trash2, X, Download, Search } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 interface Summary {
   id: string;
@@ -13,15 +13,52 @@ interface Summary {
 }
 interface TextSectionProps {
   texts: Summary[];
+  loading?: boolean;
+  onDataLoaded?: (hasData: boolean) => void;
+  onTextsFetched?: (texts: Summary[]) => void;
 }
-export function TextSection({ texts: initialTexts }: TextSectionProps) {
-  const [texts, setTexts] = useState<Summary[]>([]);
+export function TextSection({
+  texts: initialTexts,
+  loading: externalLoading = false,
+  onDataLoaded,
+  onTextsFetched,
+}: TextSectionProps) {
+  const [texts, setTexts] = useState<Summary[]>(initialTexts || []);
+  const [filteredTexts, setFilteredTexts] = useState<Summary[]>(
+    initialTexts || []
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [deletingText, setDeletingText] = useState<Summary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(
+    initialTexts && initialTexts.length > 0
+  );
+  const [hasRecords, setHasRecords] = useState(
+    initialTexts && initialTexts.length > 0
+  );
 
+  // Sync with parent data when it changes
   useEffect(() => {
-    fetchTextSummaries();
-  }, []);
+    if (initialTexts && initialTexts.length > 0) {
+      setTexts(initialTexts);
+      setFilteredTexts(initialTexts);
+      setHasLoadedOnce(true);
+      setHasRecords(true);
+    }
+  }, [initialTexts]);
+
+  // Filter texts based on search query (by user email)
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredTexts(texts);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = texts.filter((text) =>
+        text.userName.toLowerCase().includes(query)
+      );
+      setFilteredTexts(filtered);
+    }
+  }, [searchQuery, texts]);
 
   const fetchTextSummaries = async () => {
     try {
@@ -36,10 +73,31 @@ export function TextSection({ texts: initialTexts }: TextSectionProps) {
         createdAt: text.createdAt,
       }));
       setTexts(summaries);
+      const hasData = summaries.length > 0;
+      setHasRecords(hasData);
+      setHasLoadedOnce(true);
+      if (onDataLoaded) {
+        onDataLoaded(hasData);
+      }
+      if (onTextsFetched) {
+        onTextsFetched(summaries);
+      }
     } catch (error) {
       console.error("Error fetching text summaries", error);
+      setHasLoadedOnce(true);
+      setHasRecords(false);
+      if (onDataLoaded) {
+        onDataLoaded(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (externalLoading && !hasLoadedOnce) {
+      fetchTextSummaries();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalLoading, hasLoadedOnce]);
 
   const handleDelete = async () => {
     if (!deletingText || isDeleting) return;
@@ -70,6 +128,9 @@ export function TextSection({ texts: initialTexts }: TextSectionProps) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+  // Show loading overlay only if we're loading and we know there are records
+  const showLoading = externalLoading && (hasRecords || !hasLoadedOnce);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
@@ -122,7 +183,24 @@ export function TextSection({ texts: initialTexts }: TextSectionProps) {
       )}
 
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+          <div className="relative w-full max-w-md">
+            <input
+              type="text"
+              placeholder="Search text summaries by user email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2" />
+          </div>
+        </div>
+        <div className="overflow-x-auto relative">
+          {showLoading && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
@@ -141,17 +219,19 @@ export function TextSection({ texts: initialTexts }: TextSectionProps) {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {texts.length === 0 ? (
+              {filteredTexts.length === 0 && !showLoading ? (
                 <tr>
                   <td
                     colSpan={4}
                     className="px-6 py-8 text-center text-sm text-slate-500"
                   >
-                    No summaries yet
+                    {searchQuery.trim() === ""
+                      ? "No summaries yet"
+                      : "No summaries match your search"}
                   </td>
                 </tr>
               ) : (
-                texts.map((text) => (
+                filteredTexts.map((text) => (
                   <tr key={text.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">

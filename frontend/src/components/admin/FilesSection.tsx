@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Trash2, X, Download } from "lucide-react";
+import { FileText, Trash2, X, Download, Search } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 interface Summary {
   id: string;
@@ -13,15 +13,52 @@ interface Summary {
 }
 interface FilesSectionProps {
   files: Summary[];
+  loading?: boolean;
+  onDataLoaded?: (hasData: boolean) => void;
+  onFilesFetched?: (files: Summary[]) => void;
 }
-export function FilesSection({ files: initialFiles }: FilesSectionProps) {
-  const [files, setFiles] = useState<Summary[]>([]);
+export function FilesSection({
+  files: initialFiles,
+  loading: externalLoading = false,
+  onDataLoaded,
+  onFilesFetched,
+}: FilesSectionProps) {
+  const [files, setFiles] = useState<Summary[]>(initialFiles || []);
+  const [filteredFiles, setFilteredFiles] = useState<Summary[]>(
+    initialFiles || []
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [deletingFile, setDeletingFile] = useState<Summary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(
+    initialFiles && initialFiles.length > 0
+  );
+  const [hasRecords, setHasRecords] = useState(
+    initialFiles && initialFiles.length > 0
+  );
 
+  // Sync with parent data when it changes
   useEffect(() => {
-    fetchDocuments();
-  }, []);
+    if (initialFiles && initialFiles.length > 0) {
+      setFiles(initialFiles);
+      setFilteredFiles(initialFiles);
+      setHasLoadedOnce(true);
+      setHasRecords(true);
+    }
+  }, [initialFiles]);
+
+  // Filter files based on search query (by user email)
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredFiles(files);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = files.filter((file) =>
+        file.userName.toLowerCase().includes(query)
+      );
+      setFilteredFiles(filtered);
+    }
+  }, [searchQuery, files]);
 
   const fetchDocuments = async () => {
     try {
@@ -37,10 +74,31 @@ export function FilesSection({ files: initialFiles }: FilesSectionProps) {
         filename: doc.fileName,
       }));
       setFiles(documents);
+      const hasData = documents.length > 0;
+      setHasRecords(hasData);
+      setHasLoadedOnce(true);
+      if (onDataLoaded) {
+        onDataLoaded(hasData);
+      }
+      if (onFilesFetched) {
+        onFilesFetched(documents);
+      }
     } catch (error) {
       console.error("Error fetching documents", error);
+      setHasLoadedOnce(true);
+      setHasRecords(false);
+      if (onDataLoaded) {
+        onDataLoaded(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (externalLoading && !hasLoadedOnce) {
+      fetchDocuments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalLoading, hasLoadedOnce]);
 
   const handleDelete = async () => {
     if (!deletingFile || isDeleting) return;
@@ -69,6 +127,9 @@ export function FilesSection({ files: initialFiles }: FilesSectionProps) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+  // Show loading overlay only if we're loading and we know there are records
+  const showLoading = externalLoading && (hasRecords || !hasLoadedOnce);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
@@ -119,7 +180,24 @@ export function FilesSection({ files: initialFiles }: FilesSectionProps) {
       )}
 
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+          <div className="relative w-full max-w-md">
+            <input
+              type="text"
+              placeholder="Search files by user email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2" />
+          </div>
+        </div>
+        <div className="overflow-x-auto relative">
+          {showLoading && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
@@ -138,17 +216,19 @@ export function FilesSection({ files: initialFiles }: FilesSectionProps) {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {files.length === 0 ? (
+              {filteredFiles.length === 0 && !showLoading ? (
                 <tr>
                   <td
                     colSpan={4}
                     className="px-6 py-8 text-center text-sm text-slate-500"
                   >
-                    No files uploaded yet
+                    {searchQuery.trim() === ""
+                      ? "No files uploaded yet"
+                      : "No files match your search"}
                   </td>
                 </tr>
               ) : (
-                files.map((file) => (
+                filteredFiles.map((file) => (
                   <tr key={file.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
