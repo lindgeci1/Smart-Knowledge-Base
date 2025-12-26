@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { CreditCard, Search, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Search, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 
 interface PaymentData {
-  id: string;
   userId: string;
   packageId: string;
   packageName: string;
   amount: number;
   currency: string;
   status: string;
+  declineReason?: string;
   paymentMethod: string;
   billingEmail?: string;
   billingName?: string;
@@ -32,7 +32,9 @@ export function PaymentsSection({
   onDataLoaded,
   onPaymentsFetched,
 }: PaymentsSectionProps) {
-  const [payments, setPayments] = useState<PaymentData[]>(initialPayments || []);
+  const [payments, setPayments] = useState<PaymentData[]>(
+    initialPayments || []
+  );
   const [filteredPayments, setFilteredPayments] = useState<PaymentData[]>(
     initialPayments || []
   );
@@ -62,10 +64,10 @@ export function PaymentsSection({
       const query = searchQuery.toLowerCase();
       const filtered = payments.filter(
         (payment) =>
-          (payment.billingEmail?.toLowerCase().includes(query)) ||
-          (payment.packageName?.toLowerCase().includes(query)) ||
-          (payment.status?.toLowerCase().includes(query)) ||
-          (payment.billingName?.toLowerCase().includes(query))
+          payment.billingEmail?.toLowerCase().includes(query) ||
+          payment.packageName?.toLowerCase().includes(query) ||
+          payment.status?.toLowerCase().includes(query) ||
+          payment.billingName?.toLowerCase().includes(query)
       );
       setFilteredPayments(filtered);
     }
@@ -75,13 +77,13 @@ export function PaymentsSection({
     try {
       const response = await apiClient.get("/Payment/admin");
       const paymentsData = response.data.map((payment: any) => ({
-        id: payment.id,
         userId: payment.userId,
         packageId: payment.packageId,
         packageName: payment.packageName || "Unknown Package",
         amount: payment.amount,
         currency: payment.currency || "USD",
         status: payment.status,
+        declineReason: payment.declineReason,
         paymentMethod: payment.paymentMethod || "card",
         billingEmail: payment.billingEmail,
         billingName: payment.billingName,
@@ -124,8 +126,8 @@ export function PaymentsSection({
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case "failed":
         return <XCircle className="h-4 w-4 text-red-600" />;
-      case "pending":
-        return <Clock className="h-4 w-4 text-yellow-600" />;
+      case "incomplete":
+        return <Clock className="h-4 w-4 text-gray-600" />;
       default:
         return <AlertCircle className="h-4 w-4 text-gray-600" />;
     }
@@ -137,12 +139,8 @@ export function PaymentsSection({
         return "bg-green-100 text-green-800";
       case "failed":
         return "bg-red-100 text-red-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "canceled":
+      case "incomplete":
         return "bg-gray-100 text-gray-800";
-      case "refunded":
-        return "bg-blue-100 text-blue-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -165,7 +163,9 @@ export function PaymentsSection({
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900">Payment Management</h2>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Payment Management
+        </h2>
       </div>
 
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
@@ -191,9 +191,6 @@ export function PaymentsSection({
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Payment ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Package
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -211,6 +208,9 @@ export function PaymentsSection({
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Method
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Decline Reason
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
@@ -226,16 +226,11 @@ export function PaymentsSection({
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <CreditCard className="h-4 w-4 text-indigo-600 mr-2" />
-                        <span className="text-xs font-mono text-slate-600">
-                          {payment.id?.substring(0, 8)}...
-                        </span>
-                      </div>
-                    </td>
+                filteredPayments.map((payment, index) => (
+                  <tr
+                    key={`${payment.userId}-${payment.createdAt}-${index}`}
+                    className="hover:bg-slate-50"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-slate-900">
                         {payment.packageName}
@@ -280,6 +275,17 @@ export function PaymentsSection({
                         {payment.paymentMethod}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`text-xs ${
+                          payment.declineReason
+                            ? "text-red-600 font-medium"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {payment.declineReason || "—"}
+                      </span>
+                    </td>
                   </tr>
                 ))
               )}
@@ -290,4 +296,3 @@ export function PaymentsSection({
     </div>
   );
 }
-

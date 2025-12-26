@@ -42,6 +42,186 @@ namespace SmartKB.Controllers
             _stripeService = new StripeService();
         }
 
+        /// <summary>
+        /// Maps Stripe payment intent status to our simplified status: succeeded, incomplete, or failed
+        /// </summary>
+        private string MapStripeStatusToSimplifiedStatus(string stripeStatus)
+        {
+            return stripeStatus.ToLower() switch
+            {
+                "succeeded" => "succeeded",
+                "failed" => "failed",
+                "canceled" => "failed",
+                "incomplete" => "incomplete",
+                _ => "incomplete" // All other statuses (requires_payment_method, requires_confirmation, requires_action, processing, pending, etc.) map to incomplete
+            };
+        }
+
+        /// <summary>
+        /// Extracts decline reason from Stripe payment intent and its charges
+        /// </summary>
+        private async Task<string?> ExtractDeclineReasonFromStripe(PaymentIntent paymentIntent)
+        {
+            string? declineReason = null;
+
+            // Try to get decline reason from LastPaymentError
+            if (paymentIntent.LastPaymentError != null)
+            {
+                declineReason = paymentIntent.LastPaymentError.DeclineCode ?? 
+                               paymentIntent.LastPaymentError.Message ??
+                               paymentIntent.LastPaymentError.Type;
+            }
+
+            // Try to get from all charges associated with this payment intent
+            if (string.IsNullOrEmpty(declineReason))
+            {
+                try
+                {
+                    var chargeService = new ChargeService();
+                    var charges = chargeService.List(new ChargeListOptions
+                    {
+                        PaymentIntent = paymentIntent.Id
+                    });
+
+                    // Check all charges for decline reasons
+                    foreach (var charge in charges.Data)
+                    {
+                        if (charge.Status == "failed")
+                        {
+                            if (charge.Outcome != null)
+                            {
+                                declineReason = charge.Outcome.Reason ?? 
+                                               charge.Outcome.SellerMessage ??
+                                               charge.Outcome.Type;
+                            }
+
+                            if (string.IsNullOrEmpty(declineReason) && charge.FailureMessage != null)
+                            {
+                                declineReason = charge.FailureMessage;
+                            }
+
+                            if (string.IsNullOrEmpty(declineReason) && charge.FailureCode != null)
+                            {
+                                declineReason = charge.FailureCode;
+                            }
+
+                            // If we found a reason, break
+                            if (!string.IsNullOrEmpty(declineReason))
+                                break;
+                        }
+                    }
+
+                    // If still no reason, try the latest charge
+                    if (string.IsNullOrEmpty(declineReason) && !string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                    {
+                        var latestCharge = await chargeService.GetAsync(paymentIntent.LatestChargeId);
+                        if (latestCharge.Outcome != null)
+                        {
+                            declineReason = latestCharge.Outcome.Reason ?? 
+                                           latestCharge.Outcome.SellerMessage ??
+                                           latestCharge.Outcome.Type;
+                        }
+                        if (string.IsNullOrEmpty(declineReason) && latestCharge.FailureMessage != null)
+                        {
+                            declineReason = latestCharge.FailureMessage;
+                        }
+                        if (string.IsNullOrEmpty(declineReason) && latestCharge.FailureCode != null)
+                        {
+                            declineReason = latestCharge.FailureCode;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error but continue
+                    Console.WriteLine($"Error retrieving decline reason: {ex.Message}");
+                }
+            }
+
+            return declineReason;
+        }
+
+        /// <summary>
+        /// Syncs payment status and decline reason from Stripe
+        /// </summary>
+        private async Task SyncPaymentStatusFromStripe(Payment payment)
+        {
+            if (string.IsNullOrEmpty(payment.StripePaymentIntentId))
+                return;
+
+            try
+            {
+                var service = new PaymentIntentService();
+                var paymentIntent = await service.GetAsync(payment.StripePaymentIntentId);
+
+                // Always update status from Stripe (supports all Stripe statuses)
+                payment.Status = paymentIntent.Status;
+
+                // Capture decline reason if payment failed or was canceled
+                if (paymentIntent.Status != "succeeded" && paymentIntent.Status != "pending" && paymentIntent.Status != "processing")
+                {
+                    string? declineReason = null;
+
+                    // Try to get decline reason from LastPaymentError
+                    if (paymentIntent.LastPaymentError != null)
+                    {
+                        declineReason = paymentIntent.LastPaymentError.DeclineCode ?? paymentIntent.LastPaymentError.Message;
+                    }
+
+                    // If no error in payment intent, try to get from the charge
+                    if (string.IsNullOrEmpty(declineReason) && !string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                    {
+                        try
+                        {
+                            var chargeService = new ChargeService();
+                            var charge = await chargeService.GetAsync(paymentIntent.LatestChargeId);
+
+                            if (charge.Outcome != null)
+                            {
+                                declineReason = charge.Outcome.Reason ?? charge.Outcome.SellerMessage;
+                            }
+
+                            if (string.IsNullOrEmpty(declineReason) && charge.FailureMessage != null)
+                            {
+                                declineReason = charge.FailureMessage;
+                            }
+                        }
+                        catch
+                        {
+                            // If charge retrieval fails, continue without decline reason
+                        }
+                    }
+
+                    payment.DeclineReason = declineReason;
+                }
+                else
+                {
+                    // Clear decline reason for successful or pending payments
+                    payment.DeclineReason = null;
+                }
+
+                // Update StripeChargeId if available
+                if (!string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                {
+                    payment.StripeChargeId = paymentIntent.LatestChargeId;
+                }
+
+                // Update PaidAt if payment succeeded
+                if (paymentIntent.Status == "succeeded" && payment.PaidAt == null)
+                {
+                    payment.PaidAt = DateTime.UtcNow;
+                }
+
+                payment.UpdatedAt = DateTime.UtcNow;
+                await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+            }
+            catch (StripeException)
+            {
+                // If Stripe API call fails, keep existing status
+                // This prevents errors from breaking the payment listing
+            }
+        }
+
         [HttpPost("create-payment-intent")]
         public async Task<IActionResult> CreatePaymentIntent([FromBody] CreatePaymentIntentDto dto)
         {
@@ -59,14 +239,14 @@ namespace SmartKB.Controllers
                 if (package == null)
                     return NotFound("Package not found");
 
-                // Create payment record with pending status
+                // Create payment record with failed status (will be updated from Stripe)
                 var payment = new Payment
                 {
                     UserId = userId,
                     PackageId = dto.PackageId,
                     Amount = package.Price,
                     Currency = "USD",
-                    Status = "pending",
+                    Status = "failed",
                     PaymentMethod = "card",
                     BillingEmail = dto.Email,
                     BillingName = dto.BillingName,
@@ -104,8 +284,9 @@ namespace SmartKB.Controllers
                 var service = new PaymentIntentService();
                 var paymentIntent = await service.CreateAsync(options);
 
-                // Update payment with Stripe Payment Intent ID
+                // Update payment with Stripe Payment Intent ID and simplified status from Stripe
                 payment.StripePaymentIntentId = paymentIntent.Id;
+                payment.Status = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
                 await _paymentCollection.ReplaceOneAsync(
                     p => p.Id == payment.Id,
                     payment
@@ -148,17 +329,30 @@ namespace SmartKB.Controllers
                 var service = new PaymentIntentService();
                 var paymentIntent = await service.GetAsync(dto.PaymentIntentId);
 
-                if (paymentIntent.Status != "succeeded")
+                // Map Stripe status to simplified status (succeeded, incomplete, failed)
+                var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
+                payment.Status = simplifiedStatus;
+                
+                // Capture decline reason if payment failed or incomplete
+                if (simplifiedStatus == "failed" || simplifiedStatus == "incomplete")
                 {
-                    payment.Status = paymentIntent.Status;
-                    payment.UpdatedAt = DateTime.UtcNow;
-                    await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                    payment.DeclineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                }
+                else
+                {
+                    // Clear decline reason for succeeded payments
+                    payment.DeclineReason = null;
+                }
+                
+                payment.UpdatedAt = DateTime.UtcNow;
+                await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
 
-                    return BadRequest(new { error = $"Payment not completed. Status: {paymentIntent.Status}" });
+                if (simplifiedStatus != "succeeded")
+                {
+                    return BadRequest(new { error = $"Payment not completed. Status: {simplifiedStatus}", declineReason = payment.DeclineReason });
                 }
 
                 // Payment succeeded - update payment record
-                payment.Status = "succeeded";
                 payment.StripeChargeId = paymentIntent.LatestChargeId;
                 payment.PaidAt = DateTime.UtcNow;
                 payment.UpdatedAt = DateTime.UtcNow;
@@ -255,6 +449,46 @@ namespace SmartKB.Controllers
                     .SortByDescending(p => p.CreatedAt)
                     .ToListAsync();
 
+                // Sync status from Stripe for all payments and map to simplified status
+                var service = new PaymentIntentService();
+                foreach (var payment in payments)
+                {
+                    if (!string.IsNullOrEmpty(payment.StripePaymentIntentId))
+                    {
+                        try
+                        {
+                            var paymentIntent = await service.GetAsync(payment.StripePaymentIntentId);
+                            var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
+                            payment.Status = simplifiedStatus;
+
+                            // Capture decline reason if payment failed or incomplete
+                            if (simplifiedStatus == "failed" || simplifiedStatus == "incomplete")
+                            {
+                                payment.DeclineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                            }
+                            else
+                            {
+                                payment.DeclineReason = null;
+                            }
+
+                            if (simplifiedStatus == "succeeded" && payment.PaidAt == null)
+                            {
+                                payment.PaidAt = DateTime.UtcNow;
+                            }
+
+                            payment.UpdatedAt = DateTime.UtcNow;
+                            await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                        }
+                        catch { }
+                    }
+                }
+
+                // Re-fetch to get updated statuses
+                payments = await _paymentCollection
+                    .Find(p => p.UserId == userId)
+                    .SortByDescending(p => p.CreatedAt)
+                    .ToListAsync();
+
                 return Ok(payments);
             }
             catch (Exception ex)
@@ -274,6 +508,46 @@ namespace SmartKB.Controllers
                     .SortByDescending(p => p.CreatedAt)
                     .ToListAsync();
 
+                // Sync status from Stripe for all payments and map to simplified status
+                var service = new PaymentIntentService();
+                foreach (var payment in payments)
+                {
+                    if (!string.IsNullOrEmpty(payment.StripePaymentIntentId))
+                    {
+                        try
+                        {
+                            var paymentIntent = await service.GetAsync(payment.StripePaymentIntentId);
+                            var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
+                            payment.Status = simplifiedStatus;
+
+                            // Capture decline reason if payment failed or incomplete
+                            if (simplifiedStatus == "failed" || simplifiedStatus == "incomplete")
+                            {
+                                payment.DeclineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                            }
+                            else
+                            {
+                                payment.DeclineReason = null;
+                            }
+
+                            if (simplifiedStatus == "succeeded" && payment.PaidAt == null)
+                            {
+                                payment.PaidAt = DateTime.UtcNow;
+                            }
+
+                            payment.UpdatedAt = DateTime.UtcNow;
+                            await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                        }
+                        catch { }
+                    }
+                }
+
+                // Re-fetch to get updated statuses
+                payments = await _paymentCollection
+                    .Find(_ => true)
+                    .SortByDescending(p => p.CreatedAt)
+                    .ToListAsync();
+
                 // Enrich payments with user and package information
                 var result = new List<object>();
                 foreach (var payment in payments)
@@ -284,13 +558,13 @@ namespace SmartKB.Controllers
 
                     result.Add(new
                     {
-                        id = payment.Id,
                         userId = payment.UserId,
                         packageId = payment.PackageId,
                         packageName = package?.Name ?? "Unknown Package",
                         amount = payment.Amount,
                         currency = payment.Currency,
                         status = payment.Status,
+                        declineReason = payment.DeclineReason,
                         paymentMethod = payment.PaymentMethod,
                         billingEmail = payment.BillingEmail,
                         billingName = payment.BillingName,

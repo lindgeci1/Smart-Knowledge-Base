@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { AdminSidebar } from "../components/admin/AdminSidebar";
 import { DashboardSection } from "../components/admin/DashboardSection";
@@ -48,13 +49,13 @@ interface PackageData {
   updatedAt: string;
 }
 interface PaymentData {
-  id: string;
   userId: string;
   packageId: string;
   packageName: string;
   amount: number;
   currency: string;
   status: string;
+  declineReason?: string;
   paymentMethod: string;
   billingEmail?: string;
   billingName?: string;
@@ -65,16 +66,23 @@ interface PaymentData {
 }
 export function AdminDashboard() {
   const { user } = useAuth();
-  // State
-  const [activeView, setActiveView] = useState<
-    | "dashboard"
-    | "users"
-    | "files"
-    | "text"
-    | "summarize"
-    | "packages"
-    | "payments"
-  >("dashboard");
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Extract section from pathname
+  const getActiveViewFromPath = (): "dashboard" | "users" | "files" | "text" | "summarize" | "packages" | "payments" => {
+    const path = location.pathname;
+    if (path === "/admin") return "dashboard";
+    if (path === "/admin/users") return "users";
+    if (path === "/admin/files") return "files";
+    if (path === "/admin/text") return "text";
+    if (path === "/admin/summarize") return "summarize";
+    if (path === "/admin/packages") return "packages";
+    if (path === "/admin/payments") return "payments";
+    return "dashboard";
+  };
+  
+  const activeView = getActiveViewFromPath();
   const [users, setUsers] = useState<UserData[]>([]);
   const [files, setFiles] = useState<Summary[]>([]);
   const [texts, setTexts] = useState<Summary[]>([]);
@@ -170,7 +178,38 @@ export function AdminDashboard() {
     loadData();
   }, [user]);
 
-  // Handle tab change with lazy loading
+  // Trigger lazy loading when URL section changes
+  useEffect(() => {
+    if (activeView === "users" && !loadingStates.users.hasData && !loadingStates.users.loading) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        users: { loading: true, hasData: false },
+      }));
+    } else if (activeView === "files" && !loadingStates.files.hasData && !loadingStates.files.loading) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        files: { loading: true, hasData: false },
+      }));
+    } else if (activeView === "text" && !loadingStates.text.hasData && !loadingStates.text.loading) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        text: { loading: true, hasData: false },
+      }));
+    } else if (activeView === "packages" && !loadingStates.packages.hasData && !loadingStates.packages.loading) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        packages: { loading: true, hasData: false },
+      }));
+    } else if (activeView === "payments" && !loadingStates.payments.hasData && !loadingStates.payments.loading) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        payments: { loading: true, hasData: false },
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
+
+  // Handle tab change with lazy loading and navigation
   const handleTabChange = (
     view:
       | "dashboard"
@@ -181,7 +220,12 @@ export function AdminDashboard() {
       | "packages"
       | "payments"
   ) => {
-    setActiveView(view);
+    // Navigate to the appropriate route
+    if (view === "dashboard") {
+      navigate("/admin");
+    } else {
+      navigate(`/admin/${view}`);
+    }
 
     // Only trigger lazy loading for data tabs (not dashboard or summarize) if not loaded before
     if (
