@@ -33,7 +33,10 @@ namespace SmartKB.Models
         public string Currency { get; set; } = "USD"; // Currency code
 
         [BsonElement("status")]
-        public string Status { get; set; } = "pending"; // "pending", "succeeded", "failed", "canceled", "refunded"
+        public string Status { get; set; } = "failed"; // Simplified status from Stripe: "succeeded", "incomplete", or "failed"
+
+        [BsonElement("declineReason")]
+        public string? DeclineReason { get; set; } // Reason for payment failure/decline (e.g., "card_declined", "insufficient_funds", "expired_card", etc.)
 
         [BsonElement("paymentMethod")]
         public string PaymentMethod { get; set; } = "card"; // "card", "paypal", etc.

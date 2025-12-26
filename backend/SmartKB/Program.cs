@@ -11,7 +11,6 @@ Env.Load();
 
 
 builder.Services.AddControllers();
-builder.Services.AddRazorPages().AddRazorRuntimeCompilation();
 builder.Services.AddEndpointsApiExplorer();
 
 // Register Email Service
@@ -86,7 +85,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
 app.UseRouting();
 
 // Use CORS before Authentication/Authorization
@@ -99,6 +97,5 @@ app.UseAuthorization();
 app.UseMiddleware<SmartKB.Middleware.ActiveUserMiddleware>();
 
 app.MapControllers();
-app.MapRazorPages();
 
 app.Run();
