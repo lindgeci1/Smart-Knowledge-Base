@@ -7,12 +7,14 @@ import {
   LogOut,
   Shield,
   Zap,
+  Package,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 interface AdminSidebarProps {
-  activeView: "dashboard" | "users" | "files" | "text" | "summarize";
+  activeView: "dashboard" | "users" | "files" | "text" | "summarize" | "packages" | "payments";
   setActiveView: (
-    view: "dashboard" | "users" | "files" | "text" | "summarize"
+    view: "dashboard" | "users" | "files" | "text" | "summarize" | "packages" | "payments"
   ) => void;
 }
 export function AdminSidebar({ activeView, setActiveView }: AdminSidebarProps) {
@@ -42,6 +44,16 @@ export function AdminSidebar({ activeView, setActiveView }: AdminSidebarProps) {
       id: "text",
       label: "Text Summaries",
       icon: MessageSquare,
+    },
+    {
+      id: "packages",
+      label: "Packages",
+      icon: Package,
+    },
+    {
+      id: "payments",
+      label: "Payments",
+      icon: CreditCard,
     },
   ] as const;
   return (

@@ -30,28 +30,28 @@ export function SummarizeSection() {
   const [summaries, setSummaries] = useState<Summary[]>([]);
 
   const fetchSummaries = useCallback(async () => {
+    if (!user) return;
+    
     try {
       const [textResponse, fileResponse] = await Promise.all([
-        apiClient.get("/Texts/admin/summaries"),
-        apiClient.get("/Documents/admin"),
+        apiClient.get("/Texts/summaries"),
+        apiClient.get("/Documents/summaries"),
       ]);
 
       const textSummaries = textResponse.data || [];
       const fileSummaries = fileResponse.data || [];
 
-      // Map text summaries
+      // Map text summaries - these are already filtered to current user by the API
       const mappedTextSummaries: Summary[] = textSummaries.map(
         (item: {
           id: string;
           text?: string;
           summary?: string;
-          userId: string;
-          userEmail?: string;
           createdAt?: string;
         }) => ({
           id: item.id,
-          userId: item.userId,
-          userName: item.userEmail || "Unknown",
+          userId: user.userId,
+          userName: user.name || user.email || "You",
           type: "text" as const,
           content:
             (item.text
@@ -63,20 +63,18 @@ export function SummarizeSection() {
         })
       );
 
-      // Map file summaries
+      // Map file summaries - these are already filtered to current user by the API
       const mappedFileSummaries: Summary[] = fileSummaries.map(
         (item: {
           id: string;
           fileName?: string;
           fileType?: string;
           summary?: string;
-          userId: string;
-          userEmail?: string;
           createdAt?: string;
         }) => ({
           id: item.id,
-          userId: item.userId,
-          userName: item.userEmail || "Unknown",
+          userId: user.userId,
+          userName: user.name || user.email || "You",
           type: "file" as const,
           content: item.fileName || "",
           filename: item.fileName ? `${item.fileName}.${item.fileType}` : "",
@@ -98,7 +96,7 @@ export function SummarizeSection() {
     } catch (error) {
       console.error("Failed to load summaries", error);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchSummaries();

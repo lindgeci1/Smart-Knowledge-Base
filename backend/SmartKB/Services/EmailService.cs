@@ -48,34 +48,20 @@ namespace SmartKB.Services
                 var message = new MimeMessage();
                 message.From.Add(new MailboxAddress(_fromName, _fromEmail));
                 message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Password Reset Code - Smart Knowledge Base";
+                message.Subject = "Reset Your Password";
 
                 var bodyBuilder = new BodyBuilder
                 {
                     HtmlBody = $@"
-                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-                            <h2 style='color: #4f46e5; margin-bottom: 20px;'>Password Reset Request</h2>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                You requested to reset your password for your Smart Knowledge Base account.
-                            </p>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                Your password reset code is:
-                            </p>
-                            <div style='background-color: #f3f4f6; padding: 30px; text-align: center; margin: 30px 0; border-radius: 8px; border: 2px solid #e5e7eb;'>
-                                <h1 style='color: #1f2937; font-size: 36px; letter-spacing: 8px; margin: 0; font-weight: bold;'>{resetCode}</h1>
-                            </div>
-                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6;'>
-                                This code will expire in <strong>5 minutes</strong>.
-                            </p>
-                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin-top: 20px;'>
-                                If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
-                            </p>
-                            <hr style='border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;' />
-                            <p style='color: #9ca3af; font-size: 12px; text-align: center; margin: 0;'>
-                                Smart Knowledge Base
-                            </p>
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Reset Your Password</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi,</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;'>You requested to reset your password for your Smart Knowledge Base account. If you didn't request a new password, you can safely delete this email.</p>
+                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 32px 0 0 0;'>Your reset code is: <strong style='color: #1f2937; font-size: 18px; letter-spacing: 2px;'>{resetCode}</strong></p>
+                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;'>This code will expire in 5 minutes.</p>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
                         </div>",
-                    TextBody = $"Your password reset code is: {resetCode}. This code will expire in 5 minutes. If you didn't request this, please ignore this email."
+                    TextBody = $"Reset Your Password\n\nHi,\n\nYou requested to reset your password for your Smart Knowledge Base account. If you didn't request a new password, you can safely delete this email.\n\nYour reset code is: {resetCode}\nThis code will expire in 5 minutes.\n\nThe {_fromName} Team."
                 };
 
                 message.Body = bodyBuilder.ToMessageBody();
@@ -99,35 +85,26 @@ namespace SmartKB.Services
                 var message = new MimeMessage();
                 message.From.Add(new MailboxAddress(_fromName, _fromEmail));
                 message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Welcome to SummarizeAI";
+                message.Subject = "Welcome to Smart Knowledge Base";
+
+                var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
+                var loginLink = $"{frontendUrl}/login";
 
                 var bodyBuilder = new BodyBuilder
                 {
                     HtmlBody = $@"
-                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-                            <h2 style='color: #4f46e5; margin-bottom: 20px;'>Welcome to SummarizeAI!</h2>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                Hello {username},
-                            </p>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                Thank you for joining SummarizeAI! Your account has been successfully created.
-                            </p>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                You can now start using our AI-powered summarization features to make your work more efficient.
-                            </p>
-                            <div style='background-color: #f3f4f6; padding: 20px; text-align: center; margin: 30px 0; border-radius: 8px; border: 2px solid #e5e7eb;'>
-                                <p style='color: #1f2937; font-size: 16px; margin: 0; font-weight: 600;'>Get Started</p>
-                                <p style='color: #6b7280; font-size: 14px; margin: 10px 0 0 0;'>Log in to your dashboard and start summarizing!</p>
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Welcome to Smart Knowledge Base</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {username},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;'>Thank you for joining Smart Knowledge Base! Your account has been successfully created. You can now start using our AI-powered summarization features to make your work more efficient.</p>
+                            <div style='text-align: center; margin: 32px 0;'>
+                                <a href='{loginLink}' style='display: inline-block; background-color: #6A5ACD; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 16px; font-weight: 500;'>Get Started</a>
                             </div>
-                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin-top: 20px;'>
-                                If you have any questions or need assistance, feel free to reach out to our support team.
-                            </p>
-                            <hr style='border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;' />
-                            <p style='color: #9ca3af; font-size: 12px; text-align: center; margin: 0;'>
-                                SummarizeAI
-                            </p>
+                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;'>If that doesn't work, copy and paste the following link in your browser:</p>
+                            <p style='color: #2563eb; font-size: 14px; line-height: 1.6; margin: 8px 0 32px 0; word-break: break-all;'><a href='{loginLink}' style='color: #2563eb; text-decoration: underline;'>{loginLink}</a></p>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
                         </div>",
-                    TextBody = $"Welcome to SummarizeAI!\n\nHello {username},\n\nThank you for joining SummarizeAI! Your account has been successfully created. You can now start using our AI-powered summarization features.\n\nGet started by logging in to your dashboard.\n\nSummarizeAI"
+                    TextBody = $"Welcome to Smart Knowledge Base\n\nHi {username},\n\nThank you for joining Smart Knowledge Base! Your account has been successfully created. You can now start using our AI-powered summarization features.\n\nGet Started: {loginLink}\n\nThe {_fromName} Team."
                 };
 
                 message.Body = bodyBuilder.ToMessageBody();
@@ -151,35 +128,18 @@ namespace SmartKB.Services
                 var message = new MimeMessage();
                 message.From.Add(new MailboxAddress(_fromName, _fromEmail));
                 message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Password Changed Successfully - SummarizeAI";
+                message.Subject = "Password Changed Successfully";
 
                 var bodyBuilder = new BodyBuilder
                 {
                     HtmlBody = $@"
-                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-                            <h2 style='color: #4f46e5; margin-bottom: 20px;'>Password Changed Successfully</h2>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                Hello {username},
-                            </p>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                This email confirms that your password has been successfully changed for your SummarizeAI account.
-                            </p>
-                            <div style='background-color: #d1fae5; padding: 20px; text-align: center; margin: 30px 0; border-radius: 8px; border: 2px solid #10b981;'>
-                                <p style='color: #065f46; font-size: 16px; margin: 0; font-weight: 600;'>✓ Password Updated</p>
-                                <p style='color: #047857; font-size: 14px; margin: 10px 0 0 0;'>Your account is now secured with your new password.</p>
-                            </div>
-                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin-top: 20px;'>
-                                <strong>Important:</strong> If you did not make this change, please contact our support team immediately to secure your account.
-                            </p>
-                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6;'>
-                                For security reasons, we recommend using a strong, unique password that you don't use for other accounts.
-                            </p>
-                            <hr style='border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;' />
-                            <p style='color: #9ca3af; font-size: 12px; text-align: center; margin: 0;'>
-                                SummarizeAI
-                            </p>
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Password Changed Successfully</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {username},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;'>This email confirms that your password has been successfully changed for your Smart Knowledge Base account. If you did not make this change, please contact our support team immediately to secure your account.</p>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
                         </div>",
-                    TextBody = $"Password Changed Successfully\n\nHello {username},\n\nThis email confirms that your password has been successfully changed for your SummarizeAI account.\n\nIf you did not make this change, please contact our support team immediately.\n\nSummarizeAI"
+                    TextBody = $"Password Changed Successfully\n\nHi {username},\n\nThis email confirms that your password has been successfully changed for your Smart Knowledge Base account. If you did not make this change, please contact our support team immediately to secure your account.\n\nThe {_fromName} Team."
                 };
 
                 message.Body = bodyBuilder.ToMessageBody();
@@ -203,7 +163,7 @@ namespace SmartKB.Services
                 var message = new MimeMessage();
                 message.From.Add(new MailboxAddress(_fromName, _fromEmail));
                 message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Payment Confirmation - Smart Knowledge Base";
+                message.Subject = "Payment Confirmation";
 
                 var formattedAmount = amount.ToString("F2");
                 var formattedDate = paidAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
@@ -211,20 +171,11 @@ namespace SmartKB.Services
                 var bodyBuilder = new BodyBuilder
                 {
                     HtmlBody = $@"
-                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-                            <h2 style='color: #4f46e5; margin-bottom: 20px;'>Payment Confirmation</h2>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                Hello {customerName},
-                            </p>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6;'>
-                                Thank you for your purchase! Your payment has been successfully processed.
-                            </p>
-                            <div style='background-color: #d1fae5; padding: 20px; margin: 30px 0; border-radius: 8px; border: 2px solid #10b981;'>
-                                <p style='color: #065f46; font-size: 16px; margin: 0 0 10px 0; font-weight: 600;'>✓ Payment Successful</p>
-                                <p style='color: #047857; font-size: 14px; margin: 0;'>Your package has been activated and is ready to use.</p>
-                            </div>
-                            <div style='background-color: #f3f4f6; padding: 20px; margin: 30px 0; border-radius: 8px; border: 1px solid #e5e7eb;'>
-                                <h3 style='color: #1f2937; font-size: 18px; margin: 0 0 15px 0;'>Payment Details</h3>
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Confirmation</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;'>Thank you for your purchase! Your payment has been successfully processed. Your package has been activated and is ready to use.</p>
+                            <div style='background-color: #f9fafb; padding: 20px; margin: 32px 0; border-radius: 6px; border: 1px solid #e5e7eb;'>
                                 <table style='width: 100%; border-collapse: collapse;'>
                                     <tr>
                                         <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Package:</td>
@@ -244,15 +195,9 @@ namespace SmartKB.Services
                                     </tr>
                                 </table>
                             </div>
-                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin-top: 20px;'>
-                                You can now access your upgraded features in your dashboard. If you have any questions or need assistance, feel free to reach out to our support team.
-                            </p>
-                            <hr style='border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;' />
-                            <p style='color: #9ca3af; font-size: 12px; text-align: center; margin: 0;'>
-                                Smart Knowledge Base
-                            </p>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
                         </div>",
-                    TextBody = $"Payment Confirmation\n\nHello {customerName},\n\nThank you for your purchase! Your payment has been successfully processed.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment Date: {formattedDate}\nPayment ID: {paymentId}\n\nYou can now access your upgraded features in your dashboard.\n\nSmart Knowledge Base"
+                    TextBody = $"Payment Confirmation\n\nHi {customerName},\n\nThank you for your purchase! Your payment has been successfully processed. Your package has been activated and is ready to use.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment Date: {formattedDate}\nPayment ID: {paymentId}\n\nThe {_fromName} Team."
                 };
 
                 message.Body = bodyBuilder.ToMessageBody();
