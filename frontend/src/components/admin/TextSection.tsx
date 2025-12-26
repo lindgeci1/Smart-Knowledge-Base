@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { MessageSquare, Trash2, X, Download, Search } from "lucide-react";
+import { MessageSquare, Trash2, X, Download, Search, RefreshCw } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 interface Summary {
   id: string;
@@ -36,6 +36,7 @@ export function TextSection({
   const [hasRecords, setHasRecords] = useState(
     initialTexts && initialTexts.length > 0
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Sync with parent data when it changes
   useEffect(() => {
@@ -134,7 +135,22 @@ export function TextSection({
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900">Text Summaries</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-slate-900">Text Summaries</h2>
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await fetchTextSummaries();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Delete Modal */}

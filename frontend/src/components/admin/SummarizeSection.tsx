@@ -9,6 +9,7 @@ import {
   Loader2,
   Download,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 interface Summary {
   id: string;
@@ -28,10 +29,11 @@ export function SummarizeSection() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchSummaries = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       const [textResponse, fileResponse] = await Promise.all([
         apiClient.get("/Texts/summaries"),
@@ -259,7 +261,26 @@ export function SummarizeSection() {
   };
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <h2 className="text-2xl font-bold text-slate-900">Admin Summarization</h2>
+      <div className="flex items-center gap-3">
+        <h2 className="text-2xl font-bold text-slate-900">
+          Admin Summarization
+        </h2>
+        <button
+          onClick={async () => {
+            setIsRefreshing(true);
+            await fetchSummaries();
+            setIsRefreshing(false);
+          }}
+          disabled={isRefreshing}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+          title="Refresh summaries"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+          />
+          <span>Refresh</span>
+        </button>
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="border-b border-slate-200">
