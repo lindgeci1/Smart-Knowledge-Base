@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Package, Trash2, X, Search, Star, RotateCcw } from "lucide-react";
+import { Package, Trash2, X, Search, Star, RotateCcw, RefreshCw } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 
 interface PackageData {
@@ -44,6 +44,7 @@ export function PackagesSection({
   const [hasRecords, setHasRecords] = useState(
     initialPackages && initialPackages.length > 0
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Sync with parent data when it changes
   useEffect(() => {
@@ -152,7 +153,22 @@ export function PackagesSection({
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900">Package Management</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-slate-900">Package Management</h2>
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await fetchPackages();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Deactivate Modal */}

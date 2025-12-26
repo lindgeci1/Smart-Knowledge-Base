@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, Plus, Trash2, X, UserCheck } from "lucide-react";
+import { Search, Plus, Trash2, X, UserCheck, RefreshCw } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 interface UserData {
   id: string;
@@ -58,6 +58,7 @@ export function UsersSection({
   const [hasRecords, setHasRecords] = useState(
     initialUsers && initialUsers.length > 0
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Sync with parent data when it changes
   useEffect(() => {
@@ -213,7 +214,22 @@ export function UsersSection({
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await fetchUsers();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
         <button
           onClick={() => setIsCreating(!isCreating)}
           className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 flex items-center"

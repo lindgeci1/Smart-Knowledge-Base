@@ -319,6 +319,16 @@ export function AdminDashboard() {
                 texts: texts.length,
               }}
               userUsageMap={userUsageMap}
+              onRefresh={async () => {
+                // Refresh all dashboard data
+                try {
+                  const response = await apiClient.get("/Users/admin/total-users");
+                  setTotalUsers(response.data.count || 0);
+                } catch (error) {
+                  console.error("Error loading total users", error);
+                }
+                await fetchUsersUsage();
+              }}
             />
           )}
 
