@@ -33,7 +33,7 @@ namespace SmartKB.Models
         public string Currency { get; set; } = "USD"; // Currency code
 
         [BsonElement("status")]
-        public string Status { get; set; } = "failed"; // Simplified status from Stripe: "succeeded", "incomplete", or "failed"
+        public string Status { get; set; } = "failed"; // Simplified status from Stripe: "succeeded", "incomplete", "failed", or "refunded"
 
         [BsonElement("declineReason")]
         public string? DeclineReason { get; set; } // Reason for payment failure/decline (e.g., "card_declined", "insufficient_funds", "expired_card", etc.)
@@ -63,6 +63,9 @@ namespace SmartKB.Models
 
         [BsonElement("paidAt")]
         public DateTime? PaidAt { get; set; } // When payment was completed
+
+        [BsonElement("refundedAt")]
+        public DateTime? RefundedAt { get; set; } // When payment was refunded (from Stripe)
     }
 
     public class BillingAddress
