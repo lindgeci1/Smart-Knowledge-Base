@@ -222,7 +222,15 @@ export function DashboardSection({
           </div>
         </div>
       </div>
-
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
+        <h3 className="text-lg font-medium text-slate-900 mb-2">
+          Welcome to the Admin Portal
+        </h3>
+        <p className="text-slate-500 max-w-2xl mx-auto">
+          Use the sidebar navigation to manage users, files, and text summaries.
+          You can perform CRUD operations in each respective section.
+        </p>
+      </div>
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Summary Distribution Pie Chart */}
@@ -330,16 +338,6 @@ export function DashboardSection({
             </ResponsiveContainer>
           </div>
         )}
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
-        <h3 className="text-lg font-medium text-slate-900 mb-2">
-          Welcome to the Admin Portal
-        </h3>
-        <p className="text-slate-500 max-w-2xl mx-auto">
-          Use the sidebar navigation to manage users, files, and text summaries.
-          You can perform CRUD operations in each respective section.
-        </p>
       </div>
     </div>
   );
