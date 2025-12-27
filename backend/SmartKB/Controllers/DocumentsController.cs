@@ -172,6 +172,14 @@ namespace SmartKB.Controllers
         }
 
         [Authorize(Roles = "1")]
+        [HttpGet("admin/count")]
+        public async Task<IActionResult> GetFileSummariesCount()
+        {
+            var count = await _documentCollection.CountDocumentsAsync(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary));
+            return Ok(new { count = (int)count });
+        }
+
+        [Authorize(Roles = "1")]
         [HttpGet("admin")]
         public async Task<IActionResult> GetAllDocuments()
         {

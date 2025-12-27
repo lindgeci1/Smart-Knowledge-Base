@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { MessageSquare, Trash2, X, Download, Search, RefreshCw, FileSpreadsheet, FileText, Code } from "lucide-react";
+import {
+  MessageSquare,
+  Trash2,
+  X,
+  Download,
+  Search,
+  RefreshCw,
+  FileSpreadsheet,
+  FileText,
+  Code,
+} from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 import { downloadData } from "../../utils/downloadUtils";
 interface Summary {
@@ -11,6 +21,7 @@ interface Summary {
   summary: string;
   createdAt: string;
   filename?: string;
+  textName?: string;
 }
 interface TextSectionProps {
   texts: Summary[];
@@ -72,6 +83,7 @@ export function TextSection({
         type: "text" as const,
         content: text.text,
         summary: text.summary,
+        textName: text.textName || "text summary",
         createdAt: text.createdAt,
       }));
       setTexts(summaries);
@@ -116,7 +128,9 @@ export function TextSection({
     }
   };
   const handleDownload = (text: Summary) => {
-    const blob = new Blob([text.summary], {
+    // Use summary content in the downloaded file
+    const fileContent = text.summary || "";
+    const blob = new Blob([fileContent], {
       type: "text/plain",
     });
     const url = URL.createObjectURL(blob);
@@ -135,9 +149,11 @@ export function TextSection({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-slate-900">Text Summaries</h2>
+      <div className="flex flex-col gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+          Text Summaries
+        </h2>
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={async () => {
               setIsRefreshing(true);
@@ -148,53 +164,61 @@ export function TextSection({
             className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
-        </div>
-        <div className="relative group">
-          <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
-            <Download className="h-4 w-4" />
-            <span>Download</span>
-          </button>
-          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-            <button
-              onClick={() => downloadData(
-                filteredTexts.map(t => ({
-                  "User": t.userName,
-                  Type: t.type,
-                  "Created At": new Date(t.createdAt).toLocaleString(),
-                })),
-                "text-summaries",
-                "excel"
-              )}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
-            >
-              <FileSpreadsheet className="h-4 w-4 text-green-600" />
-              <span>Excel (CSV)</span>
+          <div className="relative group">
+            <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
+              <Download className="h-4 w-4" />
+              <span>Download</span>
             </button>
-            <button
-              onClick={() => downloadData(
-                filteredTexts.map(t => ({
-                  "User": t.userName,
-                  Type: t.type,
-                  "Created At": new Date(t.createdAt).toLocaleString(),
-                })),
-                "text-summaries",
-                "pdf"
-              )}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <FileText className="h-4 w-4 text-red-600" />
-              <span>PDF (Text)</span>
-            </button>
-            <button
-              onClick={() => downloadData(filteredTexts, "text-summaries", "json")}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-md"
-            >
-              <Code className="h-4 w-4 text-blue-600" />
-              <span>JSON</span>
-            </button>
+            <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <button
+                onClick={() =>
+                  downloadData(
+                    filteredTexts.map((t) => ({
+                      User: t.userName,
+                      Type: t.type,
+                      "Created At": new Date(t.createdAt).toLocaleString(),
+                    })),
+                    "text-summaries",
+                    "excel"
+                  )
+                }
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                <span>Excel (CSV)</span>
+              </button>
+              <button
+                onClick={() =>
+                  downloadData(
+                    filteredTexts.map((t) => ({
+                      User: t.userName,
+                      Type: t.type,
+                      "Created At": new Date(t.createdAt).toLocaleString(),
+                    })),
+                    "text-summaries",
+                    "pdf"
+                  )
+                }
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <FileText className="h-4 w-4 text-red-600" />
+                <span>PDF (Text)</span>
+              </button>
+              <button
+                onClick={() =>
+                  downloadData(filteredTexts, "text-summaries", "json")
+                }
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-md"
+              >
+                <Code className="h-4 w-4 text-blue-600" />
+                <span>JSON</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -219,7 +243,7 @@ export function TextSection({
               </p>
               <div className="mt-3 p-3 bg-slate-50 rounded-md border border-slate-200">
                 <p className="text-xs text-slate-500 line-clamp-2">
-                  {deletingText.content}
+                  {deletingText.textName || "text summary"}
                 </p>
               </div>
             </div>
@@ -244,9 +268,9 @@ export function TextSection({
         </div>
       )}
 
-      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-          <div className="relative w-full max-w-md">
+      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100vh-250px)]">
+        <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="relative w-full sm:max-w-md">
             <input
               type="text"
               placeholder="Search text summaries by user email..."
@@ -257,7 +281,7 @@ export function TextSection({
             <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2" />
           </div>
         </div>
-        <div className="overflow-x-auto relative">
+        <div className="overflow-x-auto overflow-y-auto relative flex-1">
           {showLoading && (
             <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -299,7 +323,7 @@ export function TextSection({
                       <div className="flex items-center">
                         <MessageSquare className="h-4 w-4 text-slate-400 mr-2" />
                         <span className="text-sm text-slate-500 max-w-[200px] truncate">
-                          {text.content}
+                          {text.textName || "text summary"}
                         </span>
                       </div>
                     </td>

@@ -21,6 +21,7 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Role> _roles;
         private readonly IMongoCollection<UserRole> _userRoles;
         private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
+        private readonly IMongoCollection<Usage> _usage;
         private readonly IConfiguration _config;
         private readonly EmailService _emailService;
 
@@ -36,6 +37,7 @@ namespace SmartKB.Controllers
             _roles = db.GetCollection<Role>("roles");
             _userRoles = db.GetCollection<UserRole>("userRoles");
             _passwordResetTokens = db.GetCollection<PasswordResetToken>("passwordResetTokens");
+            _usage = db.GetCollection<Usage>("usage");
         }
 
 
@@ -106,6 +108,21 @@ namespace SmartKB.Controllers
             // Console.WriteLine($"[Register] Creating user role assignment...");
             await _userRoles.InsertOneAsync(userRole);
             //Console.WriteLine($"[Register] Registration successful - UserId: {user.UserId}, Role: {roleId}, Message: {(firstUser ? "Admin created" : "User registered")}");
+
+            // Create usage record only for regular users (role 2), not for admins (role 1)
+            // Admins have unlimited usage, so they don't need a usage record
+            if (roleId == 2)
+            {
+                var usage = new Usage
+                {
+                    UserId = user.UserId,
+                    OverallUsage = 0,
+                    TotalLimit = 100,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _usage.InsertOneAsync(usage);
+            }
 
             // Send welcome email asynchronously (fire-and-forget) to avoid blocking the response
             // Console.WriteLine($"[Register] Queuing welcome email to send asynchronously...");

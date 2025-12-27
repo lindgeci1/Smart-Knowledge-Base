@@ -20,6 +20,7 @@ interface Summary {
   summary: string;
   createdAt: string;
   filename?: string;
+  textName?: string;
 }
 export function SummarizeSection() {
   const { user } = useAuth();
@@ -48,6 +49,7 @@ export function SummarizeSection() {
         (item: {
           id: string;
           text?: string;
+          textName?: string;
           summary?: string;
           createdAt?: string;
         }) => ({
@@ -61,6 +63,7 @@ export function SummarizeSection() {
                 (item.text.length > 50 ? "..." : "")
               : "") || "",
           summary: item.summary || "",
+          textName: item.textName || "text summary",
           createdAt: item.createdAt || new Date().toISOString(),
         })
       );
@@ -229,7 +232,9 @@ export function SummarizeSection() {
   };
 
   const handleDownloadSummary = (summary: Summary) => {
-    const blob = new Blob([summary.summary], {
+    // Use summary content in the downloaded file for both text and file types
+    const fileContent = summary.summary || "";
+    const blob = new Blob([fileContent], {
       type: "text/plain",
     });
     const url = URL.createObjectURL(blob);
@@ -493,7 +498,7 @@ export function SummarizeSection() {
                         <h4 className="text-sm font-medium text-slate-900 truncate">
                           {summary.type === "file"
                             ? summary.filename || summary.content
-                            : "Text Summary"}
+                            : summary.textName || "text summary"}
                         </h4>
                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           {summary.type}

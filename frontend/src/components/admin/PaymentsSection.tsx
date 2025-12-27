@@ -156,7 +156,7 @@ export function PaymentsSection({
       Method: payment.paymentMethod,
       "Decline Reason": payment.declineReason || "—",
     }));
-    downloadData(data, "payments", format);
+    downloadData(data, "payments", format, format === "pdf");
   };
 
 
@@ -176,11 +176,11 @@ export function PaymentsSection({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-slate-900">
-            Payment Management
-          </h2>
+      <div className="flex flex-col gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+          Payment Management
+        </h2>
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={async () => {
               setIsRefreshing(true);
@@ -194,14 +194,12 @@ export function PaymentsSection({
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </button>
-        </div>
-        <div className="flex items-center gap-2">
           <div className="relative group">
             <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
               <Download className="h-4 w-4" />
               <span>Download</span>
             </button>
-            <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
               <button
                 onClick={() => handleDownload("excel")}
                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
@@ -228,9 +226,9 @@ export function PaymentsSection({
         </div>
       </div>
 
-      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-          <div className="relative w-full max-w-md">
+      <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100vh-250px)]">
+        <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="relative w-full sm:max-w-md">
             <input
               type="text"
               placeholder="Search payments by email, package, or status..."
@@ -241,7 +239,7 @@ export function PaymentsSection({
             <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2" />
           </div>
         </div>
-        <div className="overflow-x-auto relative">
+        <div className="overflow-x-auto overflow-y-auto relative flex-1">
           {showLoading && (
             <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>

@@ -53,6 +53,7 @@ namespace SmartKB.Controllers
             var textDocument = new TextDocument
             {
                 Text = dto.Text,
+                TextName = "text summary",
                 Summary = null,
                 Status = "Pending",
                 UserId = userId,
@@ -113,12 +114,21 @@ namespace SmartKB.Controllers
             {
                 id = t.Id,
                 text = t.Text,
+                textName = t.TextName,
                 summary = t.Summary,
                 createdAt = t.CreatedAt,
                 status = t.Status
             }).ToList();
 
             return Ok(result);
+        }
+
+        [Authorize(Roles = "1")]
+        [HttpGet("admin/count")]
+        public async Task<IActionResult> GetAdminTextSummariesCount()
+        {
+            var count = await _textCollection.CountDocumentsAsync(t => t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary));
+            return Ok(new { count = (int)count });
         }
 
         [Authorize(Roles = "1")]
@@ -138,6 +148,7 @@ namespace SmartKB.Controllers
                 {
                     id = text.Id,
                     text = text.Text,
+                    textName = text.TextName,
                     summary = text.Summary,
                     userId = text.UserId,
                     userEmail = user?.Email ?? "Unknown",
