@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Search, CheckCircle, XCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Download, FileSpreadsheet, FileText, Code } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
+import toast from "react-hot-toast";
+import { downloadData } from "../../utils/downloadUtils";
 
 interface PaymentData {
   userId: string;
@@ -17,6 +19,7 @@ interface PaymentData {
   stripeChargeId?: string;
   createdAt: string;
   paidAt?: string;
+  refundedAt?: string;
 }
 
 interface PaymentsSectionProps {
@@ -92,6 +95,7 @@ export function PaymentsSection({
         stripeChargeId: payment.stripeChargeId,
         createdAt: payment.createdAt,
         paidAt: payment.paidAt,
+        refundedAt: payment.refundedAt,
       }));
       setPayments(paymentsData);
       setFilteredPayments(paymentsData);
@@ -121,19 +125,6 @@ export function PaymentsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalLoading, hasLoadedOnce]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "succeeded":
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      case "incomplete":
-        return <Clock className="h-4 w-4 text-gray-600" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-600" />;
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "succeeded":
@@ -142,10 +133,32 @@ export function PaymentsSection({
         return "bg-red-100 text-red-800";
       case "incomplete":
         return "bg-gray-100 text-gray-800";
+      case "refunded":
+        return "bg-orange-100 text-orange-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  const handleDownload = (format: "excel" | "pdf" | "json") => {
+    const data = filteredPayments.map((payment) => ({
+      Package: payment.packageName,
+      Customer: payment.billingName || "N/A",
+      Email: payment.billingEmail || "N/A",
+      Amount: `${payment.currency} ${payment.amount.toFixed(2)}`,
+      Status: payment.status,
+      "Payment Date": payment.paidAt
+        ? formatDate(payment.paidAt)
+        : payment.createdAt
+        ? formatDate(payment.createdAt)
+        : "N/A",
+      "Refund Date": payment.refundedAt ? formatDate(payment.refundedAt) : "—",
+      Method: payment.paymentMethod,
+      "Decline Reason": payment.declineReason || "—",
+    }));
+    downloadData(data, "payments", format);
+  };
+
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -181,6 +194,37 @@ export function PaymentsSection({
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative group">
+            <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
+              <Download className="h-4 w-4" />
+              <span>Download</span>
+            </button>
+            <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <button
+                onClick={() => handleDownload("excel")}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                <span>Excel (CSV)</span>
+              </button>
+              <button
+                onClick={() => handleDownload("pdf")}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <FileText className="h-4 w-4 text-red-600" />
+                <span>PDF (Text)</span>
+              </button>
+              <button
+                onClick={() => handleDownload("json")}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-md"
+              >
+                <Code className="h-4 w-4 text-blue-600" />
+                <span>JSON</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -227,13 +271,16 @@ export function PaymentsSection({
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Decline Reason
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Refund Date
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
               {filteredPayments.length === 0 && !showLoading ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-8 text-center text-sm text-slate-500"
                   >
                     {searchQuery.trim() === ""
@@ -268,16 +315,13 @@ export function PaymentsSection({
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(payment.status)}
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                            payment.status
-                          )}`}
-                        >
-                          {payment.status}
-                        </span>
-                      </div>
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                          payment.status
+                        )}`}
+                      >
+                        {payment.status}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                       {payment.paidAt
@@ -301,6 +345,9 @@ export function PaymentsSection({
                       >
                         {payment.declineReason || "—"}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      {payment.refundedAt ? formatDate(payment.refundedAt) : "—"}
                     </td>
                   </tr>
                 ))

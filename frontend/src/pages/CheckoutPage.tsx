@@ -225,18 +225,18 @@ export function CheckoutPage() {
           updateUserLimit(checkoutPackage.summaryLimit);
         }
 
-        // Step 5: Show success toast and redirect
+        // Step 5: Show success toast and redirect immediately
         toast.success(
           `Payment successful! Your ${checkoutPackage.name} package has been activated.`,
           {
-            duration: 5000,
+            duration: 3000,
           }
         );
 
-        // Step 6: Redirect to dashboard
+        // Step 6: Redirect to dashboard (reduced delay for faster UX)
         setTimeout(() => {
           navigate("/dashboard");
-        }, 1500);
+        }, 800);
       } else {
         setError("Payment was not completed. Please try again.");
         setIsProcessing(false);
@@ -419,9 +419,13 @@ export function CheckoutPage() {
                   }
                 }}
                 required
-                disabled={isProcessing}
-                className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  fieldErrors.cardholderName ? "border-red-300" : "border-slate-300"
+              disabled={isProcessing}
+              className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  isProcessing 
+                    ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                    : fieldErrors.cardholderName 
+                      ? "border-red-300" 
+                      : "border-slate-300"
                 }`}
               />
               {fieldErrors.cardholderName && (
@@ -441,7 +445,11 @@ export function CheckoutPage() {
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    isProcessing 
+                      ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                      : "border-slate-300 bg-white"
+                  }`}
                 >
                   <option value="United States">United States</option>
                   <option value="Canada">Canada</option>
@@ -471,7 +479,11 @@ export function CheckoutPage() {
                   required
                   disabled={isProcessing}
                   className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    fieldErrors.addressLine1 ? "border-red-300" : "border-slate-300"
+                    isProcessing 
+                      ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                      : fieldErrors.addressLine1 
+                        ? "border-red-300" 
+                        : "border-slate-300"
                   }`}
                 />
                 {fieldErrors.addressLine1 && (
@@ -485,7 +497,11 @@ export function CheckoutPage() {
                   value={addressLine2}
                   onChange={(e) => setAddressLine2(e.target.value)}
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    isProcessing 
+                      ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                      : "border-slate-300"
+                  }`}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -510,7 +526,11 @@ export function CheckoutPage() {
                     required
                     disabled={isProcessing}
                     className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      fieldErrors.postalCode ? "border-red-300" : "border-slate-300"
+                      isProcessing 
+                        ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                        : fieldErrors.postalCode 
+                          ? "border-red-300" 
+                          : "border-slate-300"
                     }`}
                   />
                   {fieldErrors.postalCode && (
@@ -538,7 +558,11 @@ export function CheckoutPage() {
                     required
                     disabled={isProcessing}
                     className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      fieldErrors.city ? "border-red-300" : "border-slate-300"
+                      isProcessing 
+                        ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                        : fieldErrors.city 
+                          ? "border-red-300" 
+                          : "border-slate-300"
                     }`}
                   />
                   {fieldErrors.city && (

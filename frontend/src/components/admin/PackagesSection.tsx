@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Package, Trash2, X, Search, Star, RotateCcw, RefreshCw } from "lucide-react";
+import { Package, Trash2, X, Search, Star, RotateCcw, RefreshCw, Download, FileSpreadsheet, FileText, Code } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
+import { downloadData } from "../../utils/downloadUtils";
 
 interface PackageData {
   id?: string;
@@ -168,6 +169,61 @@ export function PackagesSection({
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </button>
+        </div>
+        <div className="relative group">
+          <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
+            <Download className="h-4 w-4" />
+            <span>Download</span>
+          </button>
+          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <button
+              onClick={() => downloadData(
+                filteredPackages.map(p => ({
+                  Name: p.name,
+                  Description: p.description,
+                  Price: `$${p.price}`,
+                  "Price Type": p.priceType,
+                  "Summary Limit": p.summaryLimit || "Unlimited",
+                  "Is Popular": p.isPopular ? "Yes" : "No",
+                  Status: p.isActive ? "Active" : "Inactive",
+                  "Created At": new Date(p.createdAt).toLocaleString(),
+                })),
+                "packages",
+                "excel"
+              )}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              <span>Excel (CSV)</span>
+            </button>
+            <button
+              onClick={() => downloadData(
+                filteredPackages.map(p => ({
+                  Name: p.name,
+                  Description: p.description,
+                  Price: `$${p.price}`,
+                  "Price Type": p.priceType,
+                  "Summary Limit": p.summaryLimit || "Unlimited",
+                  "Is Popular": p.isPopular ? "Yes" : "No",
+                  Status: p.isActive ? "Active" : "Inactive",
+                  "Created At": new Date(p.createdAt).toLocaleString(),
+                })),
+                "packages",
+                "pdf"
+              )}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <FileText className="h-4 w-4 text-red-600" />
+              <span>PDF (Text)</span>
+            </button>
+            <button
+              onClick={() => downloadData(filteredPackages, "packages", "json")}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-md"
+            >
+              <Code className="h-4 w-4 text-blue-600" />
+              <span>JSON</span>
+            </button>
+          </div>
         </div>
       </div>
 

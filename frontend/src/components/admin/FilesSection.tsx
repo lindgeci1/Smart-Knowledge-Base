@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Trash2, X, Download, Search, RefreshCw } from "lucide-react";
+import { FileText, Trash2, X, Download, Search, RefreshCw, FileSpreadsheet, Code } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
+import { downloadData } from "../../utils/downloadUtils";
 interface Summary {
   id: string;
   userId: string;
@@ -149,6 +150,53 @@ export function FilesSection({
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </button>
+        </div>
+        <div className="relative group">
+          <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
+            <Download className="h-4 w-4" />
+            <span>Download</span>
+          </button>
+          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <button
+              onClick={() => downloadData(
+                filteredFiles.map(f => ({
+                  "File Name": f.filename || "N/A",
+                  "User": f.userName,
+                  Type: f.type,
+                  "Created At": new Date(f.createdAt).toLocaleString(),
+                })),
+                "files",
+                "excel"
+              )}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              <span>Excel (CSV)</span>
+            </button>
+            <button
+              onClick={() => downloadData(
+                filteredFiles.map(f => ({
+                  "File Name": f.filename || "N/A",
+                  "User": f.userName,
+                  Type: f.type,
+                  "Created At": new Date(f.createdAt).toLocaleString(),
+                })),
+                "files",
+                "pdf"
+              )}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <FileText className="h-4 w-4 text-red-600" />
+              <span>PDF (Text)</span>
+            </button>
+            <button
+              onClick={() => downloadData(filteredFiles, "files", "json")}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-md"
+            >
+              <Code className="h-4 w-4 text-blue-600" />
+              <span>JSON</span>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -43,13 +43,27 @@ namespace SmartKB.Controllers
         }
 
         /// <summary>
-        /// Maps Stripe payment intent status to our simplified status: succeeded, incomplete, or failed
+        /// Maps Stripe payment intent status to our simplified status: succeeded, incomplete, failed, or refunded
+        /// If a refund date exists, the status will be "refunded"
+        /// If a decline reason exists, the status will be "failed" (unless already "succeeded" or "refunded")
         /// </summary>
-        private string MapStripeStatusToSimplifiedStatus(string stripeStatus)
+        private string MapStripeStatusToSimplifiedStatus(string stripeStatus, string? declineReason = null, DateTime? refundedAt = null)
         {
+            // If payment has been refunded, always return refunded
+            if (refundedAt.HasValue)
+                return "refunded";
+
+            // If payment succeeded, always return succeeded
+            if (stripeStatus.ToLower() == "succeeded")
+                return "succeeded";
+
+            // If there's a decline reason, the payment should be marked as failed
+            if (!string.IsNullOrEmpty(declineReason))
+                return "failed";
+
+            // Otherwise, map based on Stripe status
             return stripeStatus.ToLower() switch
             {
-                "succeeded" => "succeeded",
                 "failed" => "failed",
                 "canceled" => "failed",
                 "incomplete" => "incomplete",
@@ -58,21 +72,76 @@ namespace SmartKB.Controllers
         }
 
         /// <summary>
+        /// Extracts refund date from Stripe charges
+        /// </summary>
+        private async Task<DateTime?> ExtractRefundDateFromStripe(PaymentIntent paymentIntent)
+        {
+            if (string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                return null;
+
+            try
+            {
+                var chargeService = new ChargeService();
+                var charge = await chargeService.GetAsync(paymentIntent.LatestChargeId);
+
+                // Check if charge has been refunded
+                if (charge.Refunded)
+                {
+                    // Get the most recent refund date
+                    var refundService = new RefundService();
+                    var refunds = refundService.List(new RefundListOptions
+                    {
+                        Charge = paymentIntent.LatestChargeId
+                    });
+
+                    if (refunds.Data.Count > 0)
+                    {
+                        // Get the most recent refund
+                        var latestRefund = refunds.Data.OrderByDescending(r => r.Created).FirstOrDefault();
+                        if (latestRefund != null)
+                        {
+                            // Stripe.NET already converts Created to DateTime
+                            return latestRefund.Created;
+                        }
+                    }
+
+                    // Fallback: use charge created date if refunded but no refunds found
+                    // Stripe.NET already converts Created to DateTime
+                    return charge.Created;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // Log error but continue
+                Console.WriteLine($"Error retrieving refund date: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Extracts decline reason from Stripe payment intent and its charges
+        /// Only extracts decline reasons for actual failures (failed/canceled status or failed charges)
         /// </summary>
         private async Task<string?> ExtractDeclineReasonFromStripe(PaymentIntent paymentIntent)
         {
+            // Never extract decline reason for succeeded payments
+            if (paymentIntent.Status == "succeeded")
+                return null;
+
             string? declineReason = null;
 
-            // Try to get decline reason from LastPaymentError
-            if (paymentIntent.LastPaymentError != null)
+            // Only check LastPaymentError if payment is actually failed or canceled
+            if ((paymentIntent.Status == "failed" || paymentIntent.Status == "canceled") && 
+                paymentIntent.LastPaymentError != null)
             {
+                // Prefer DeclineCode, then Message, but skip generic Type
                 declineReason = paymentIntent.LastPaymentError.DeclineCode ?? 
-                               paymentIntent.LastPaymentError.Message ??
-                               paymentIntent.LastPaymentError.Type;
+                               paymentIntent.LastPaymentError.Message;
             }
 
-            // Try to get from all charges associated with this payment intent
+            // Try to get from failed charges associated with this payment intent
             if (string.IsNullOrEmpty(declineReason))
             {
                 try
@@ -83,16 +152,17 @@ namespace SmartKB.Controllers
                         PaymentIntent = paymentIntent.Id
                     });
 
-                    // Check all charges for decline reasons
+                    // Check all charges for decline reasons - only for failed charges
                     foreach (var charge in charges.Data)
                     {
                         if (charge.Status == "failed")
                         {
+                            // Only extract from failed charges
                             if (charge.Outcome != null)
                             {
+                                // Prefer Reason, then SellerMessage, but skip generic Type
                                 declineReason = charge.Outcome.Reason ?? 
-                                               charge.Outcome.SellerMessage ??
-                                               charge.Outcome.Type;
+                                               charge.Outcome.SellerMessage;
                             }
 
                             if (string.IsNullOrEmpty(declineReason) && charge.FailureMessage != null)
@@ -111,23 +181,29 @@ namespace SmartKB.Controllers
                         }
                     }
 
-                    // If still no reason, try the latest charge
-                    if (string.IsNullOrEmpty(declineReason) && !string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                    // If still no reason and payment is failed/canceled, try the latest charge
+                    if (string.IsNullOrEmpty(declineReason) && 
+                        (paymentIntent.Status == "failed" || paymentIntent.Status == "canceled") &&
+                        !string.IsNullOrEmpty(paymentIntent.LatestChargeId))
                     {
                         var latestCharge = await chargeService.GetAsync(paymentIntent.LatestChargeId);
-                        if (latestCharge.Outcome != null)
+                        
+                        // Only extract if charge is actually failed
+                        if (latestCharge.Status == "failed")
                         {
-                            declineReason = latestCharge.Outcome.Reason ?? 
-                                           latestCharge.Outcome.SellerMessage ??
-                                           latestCharge.Outcome.Type;
-                        }
-                        if (string.IsNullOrEmpty(declineReason) && latestCharge.FailureMessage != null)
-                        {
-                            declineReason = latestCharge.FailureMessage;
-                        }
-                        if (string.IsNullOrEmpty(declineReason) && latestCharge.FailureCode != null)
-                        {
-                            declineReason = latestCharge.FailureCode;
+                            if (latestCharge.Outcome != null)
+                            {
+                                declineReason = latestCharge.Outcome.Reason ?? 
+                                               latestCharge.Outcome.SellerMessage;
+                            }
+                            if (string.IsNullOrEmpty(declineReason) && latestCharge.FailureMessage != null)
+                            {
+                                declineReason = latestCharge.FailureMessage;
+                            }
+                            if (string.IsNullOrEmpty(declineReason) && latestCharge.FailureCode != null)
+                            {
+                                declineReason = latestCharge.FailureCode;
+                            }
                         }
                     }
                 }
@@ -139,87 +215,6 @@ namespace SmartKB.Controllers
             }
 
             return declineReason;
-        }
-
-        /// <summary>
-        /// Syncs payment status and decline reason from Stripe
-        /// </summary>
-        private async Task SyncPaymentStatusFromStripe(Payment payment)
-        {
-            if (string.IsNullOrEmpty(payment.StripePaymentIntentId))
-                return;
-
-            try
-            {
-                var service = new PaymentIntentService();
-                var paymentIntent = await service.GetAsync(payment.StripePaymentIntentId);
-
-                // Always update status from Stripe (supports all Stripe statuses)
-                payment.Status = paymentIntent.Status;
-
-                // Capture decline reason if payment failed or was canceled
-                if (paymentIntent.Status != "succeeded" && paymentIntent.Status != "pending" && paymentIntent.Status != "processing")
-                {
-                    string? declineReason = null;
-
-                    // Try to get decline reason from LastPaymentError
-                    if (paymentIntent.LastPaymentError != null)
-                    {
-                        declineReason = paymentIntent.LastPaymentError.DeclineCode ?? paymentIntent.LastPaymentError.Message;
-                    }
-
-                    // If no error in payment intent, try to get from the charge
-                    if (string.IsNullOrEmpty(declineReason) && !string.IsNullOrEmpty(paymentIntent.LatestChargeId))
-                    {
-                        try
-                        {
-                            var chargeService = new ChargeService();
-                            var charge = await chargeService.GetAsync(paymentIntent.LatestChargeId);
-
-                            if (charge.Outcome != null)
-                            {
-                                declineReason = charge.Outcome.Reason ?? charge.Outcome.SellerMessage;
-                            }
-
-                            if (string.IsNullOrEmpty(declineReason) && charge.FailureMessage != null)
-                            {
-                                declineReason = charge.FailureMessage;
-                            }
-                        }
-                        catch
-                        {
-                            // If charge retrieval fails, continue without decline reason
-                        }
-                    }
-
-                    payment.DeclineReason = declineReason;
-                }
-                else
-                {
-                    // Clear decline reason for successful or pending payments
-                    payment.DeclineReason = null;
-                }
-
-                // Update StripeChargeId if available
-                if (!string.IsNullOrEmpty(paymentIntent.LatestChargeId))
-                {
-                    payment.StripeChargeId = paymentIntent.LatestChargeId;
-                }
-
-                // Update PaidAt if payment succeeded
-                if (paymentIntent.Status == "succeeded" && payment.PaidAt == null)
-                {
-                    payment.PaidAt = DateTime.UtcNow;
-                }
-
-                payment.UpdatedAt = DateTime.UtcNow;
-                await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
-            }
-            catch (StripeException)
-            {
-                // If Stripe API call fails, keep existing status
-                // This prevents errors from breaking the payment listing
-            }
         }
 
         [HttpPost("create-payment-intent")]
@@ -284,9 +279,24 @@ namespace SmartKB.Controllers
                 var service = new PaymentIntentService();
                 var paymentIntent = await service.CreateAsync(options);
 
-                // Update payment with Stripe Payment Intent ID and simplified status from Stripe
+                // Extract decline reason and refund date
+                var declineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                var refundedAt = await ExtractRefundDateFromStripe(paymentIntent);
+                
                 payment.StripePaymentIntentId = paymentIntent.Id;
-                payment.Status = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
+                
+                // Update StripeCustomerId if available (may be set if customer was attached)
+                if (!string.IsNullOrEmpty(paymentIntent.CustomerId))
+                {
+                    payment.StripeCustomerId = paymentIntent.CustomerId;
+                }
+                
+                // Update refund date
+                payment.RefundedAt = refundedAt;
+                
+                // Map status considering refund date
+                payment.Status = MapStripeStatusToSimplifiedStatus(paymentIntent.Status, declineReason, refundedAt);
+                payment.DeclineReason = declineReason;
                 await _paymentCollection.ReplaceOneAsync(
                     p => p.Id == payment.Id,
                     payment
@@ -329,32 +339,80 @@ namespace SmartKB.Controllers
                 var service = new PaymentIntentService();
                 var paymentIntent = await service.GetAsync(dto.PaymentIntentId);
 
-                // Map Stripe status to simplified status (succeeded, incomplete, failed)
-                var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
-                payment.Status = simplifiedStatus;
-                
-                // Capture decline reason if payment failed or incomplete
-                if (simplifiedStatus == "failed" || simplifiedStatus == "incomplete")
+                // Optimize: For successful payments, skip expensive API calls
+                string? declineReason = null;
+                DateTime? refundedAt = null;
+                string simplifiedStatus;
+
+                if (paymentIntent.Status == "succeeded")
                 {
-                    payment.DeclineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                    // Fast path for successful payments - no need to check decline reason or refunds
+                    simplifiedStatus = "succeeded";
+                    payment.Status = simplifiedStatus;
+                    payment.DeclineReason = null;
+                    
+                    // Only check for refunds if charge exists (unlikely for new payment, but check anyway)
+                    if (!string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                    {
+                        refundedAt = await ExtractRefundDateFromStripe(paymentIntent);
+                        payment.RefundedAt = refundedAt;
+                        
+                        // If refunded, update status
+                        if (refundedAt.HasValue)
+                        {
+                            simplifiedStatus = "refunded";
+                            payment.Status = simplifiedStatus;
+                        }
+                    }
+                    
+                    // Update payment record fields
+                    payment.StripeChargeId = paymentIntent.LatestChargeId;
+                    
+                    // Update StripeCustomerId if available
+                    if (!string.IsNullOrEmpty(paymentIntent.CustomerId))
+                    {
+                        payment.StripeCustomerId = paymentIntent.CustomerId;
+                    }
+                    
+                    if (payment.PaidAt == null)
+                    {
+                        payment.PaidAt = DateTime.UtcNow;
+                    }
                 }
                 else
                 {
-                    // Clear decline reason for succeeded payments
-                    payment.DeclineReason = null;
+                    // For non-successful payments, extract decline reason and refund date
+                    declineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                    refundedAt = await ExtractRefundDateFromStripe(paymentIntent);
+                    
+                    // Update refund date
+                    payment.RefundedAt = refundedAt;
+                    
+                    // Map Stripe status to simplified status
+                    simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status, declineReason, refundedAt);
+                    payment.Status = simplifiedStatus;
+                    payment.DeclineReason = declineReason;
+                    
+                    // Update StripeChargeId if available
+                    if (!string.IsNullOrEmpty(paymentIntent.LatestChargeId))
+                    {
+                        payment.StripeChargeId = paymentIntent.LatestChargeId;
+                    }
+                    
+                    // Update StripeCustomerId if available
+                    if (!string.IsNullOrEmpty(paymentIntent.CustomerId))
+                    {
+                        payment.StripeCustomerId = paymentIntent.CustomerId;
+                    }
+                    
+                    if (simplifiedStatus != "succeeded" && simplifiedStatus != "refunded")
+                    {
+                        payment.UpdatedAt = DateTime.UtcNow;
+                        await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                        return BadRequest(new { error = $"Payment not completed. Status: {simplifiedStatus}", declineReason = payment.DeclineReason });
+                    }
                 }
                 
-                payment.UpdatedAt = DateTime.UtcNow;
-                await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
-
-                if (simplifiedStatus != "succeeded")
-                {
-                    return BadRequest(new { error = $"Payment not completed. Status: {simplifiedStatus}", declineReason = payment.DeclineReason });
-                }
-
-                // Payment succeeded - update payment record
-                payment.StripeChargeId = paymentIntent.LatestChargeId;
-                payment.PaidAt = DateTime.UtcNow;
                 payment.UpdatedAt = DateTime.UtcNow;
                 await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
 
@@ -458,17 +516,29 @@ namespace SmartKB.Controllers
                         try
                         {
                             var paymentIntent = await service.GetAsync(payment.StripePaymentIntentId);
-                            var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
+                            
+                            // Extract decline reason and refund date (needed for proper status mapping)
+                            var declineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                            var refundedAt = await ExtractRefundDateFromStripe(paymentIntent);
+                            
+                            // Update refund date
+                            payment.RefundedAt = refundedAt;
+                            
+                            // Map Stripe status to simplified status, considering decline reason and refund date
+                            var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status, declineReason, refundedAt);
                             payment.Status = simplifiedStatus;
+                            payment.DeclineReason = declineReason;
 
-                            // Capture decline reason if payment failed or incomplete
-                            if (simplifiedStatus == "failed" || simplifiedStatus == "incomplete")
+                            // Update StripeChargeId if available (only exists for successful payments)
+                            if (!string.IsNullOrEmpty(paymentIntent.LatestChargeId))
                             {
-                                payment.DeclineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                                payment.StripeChargeId = paymentIntent.LatestChargeId;
                             }
-                            else
+
+                            // Update StripeCustomerId if available
+                            if (!string.IsNullOrEmpty(paymentIntent.CustomerId))
                             {
-                                payment.DeclineReason = null;
+                                payment.StripeCustomerId = paymentIntent.CustomerId;
                             }
 
                             if (simplifiedStatus == "succeeded" && payment.PaidAt == null)
@@ -517,17 +587,29 @@ namespace SmartKB.Controllers
                         try
                         {
                             var paymentIntent = await service.GetAsync(payment.StripePaymentIntentId);
-                            var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status);
+                            
+                            // Extract decline reason and refund date (needed for proper status mapping)
+                            var declineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                            var refundedAt = await ExtractRefundDateFromStripe(paymentIntent);
+                            
+                            // Update refund date
+                            payment.RefundedAt = refundedAt;
+                            
+                            // Map Stripe status to simplified status, considering decline reason and refund date
+                            var simplifiedStatus = MapStripeStatusToSimplifiedStatus(paymentIntent.Status, declineReason, refundedAt);
                             payment.Status = simplifiedStatus;
+                            payment.DeclineReason = declineReason;
 
-                            // Capture decline reason if payment failed or incomplete
-                            if (simplifiedStatus == "failed" || simplifiedStatus == "incomplete")
+                            // Update StripeChargeId if available (only exists for successful payments)
+                            if (!string.IsNullOrEmpty(paymentIntent.LatestChargeId))
                             {
-                                payment.DeclineReason = await ExtractDeclineReasonFromStripe(paymentIntent);
+                                payment.StripeChargeId = paymentIntent.LatestChargeId;
                             }
-                            else
+
+                            // Update StripeCustomerId if available
+                            if (!string.IsNullOrEmpty(paymentIntent.CustomerId))
                             {
-                                payment.DeclineReason = null;
+                                payment.StripeCustomerId = paymentIntent.CustomerId;
                             }
 
                             if (simplifiedStatus == "succeeded" && payment.PaidAt == null)
@@ -571,7 +653,8 @@ namespace SmartKB.Controllers
                         stripePaymentIntentId = payment.StripePaymentIntentId,
                         stripeChargeId = payment.StripeChargeId,
                         createdAt = payment.CreatedAt,
-                        paidAt = payment.PaidAt
+                        paidAt = payment.PaidAt,
+                        refundedAt = payment.RefundedAt
                     });
                 }
 
@@ -582,6 +665,7 @@ namespace SmartKB.Controllers
                 return StatusCode(500, new { error = "Failed to fetch payments", message = ex.Message });
             }
         }
+
     }
 
     // Helper class for Stripe operations

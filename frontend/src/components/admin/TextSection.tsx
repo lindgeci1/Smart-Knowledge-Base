@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { MessageSquare, Trash2, X, Download, Search, RefreshCw } from "lucide-react";
+import { MessageSquare, Trash2, X, Download, Search, RefreshCw, FileSpreadsheet, FileText, Code } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
+import { downloadData } from "../../utils/downloadUtils";
 interface Summary {
   id: string;
   userId: string;
@@ -150,6 +151,51 @@ export function TextSection({
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </button>
+        </div>
+        <div className="relative group">
+          <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors border border-slate-300">
+            <Download className="h-4 w-4" />
+            <span>Download</span>
+          </button>
+          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <button
+              onClick={() => downloadData(
+                filteredTexts.map(t => ({
+                  "User": t.userName,
+                  Type: t.type,
+                  "Created At": new Date(t.createdAt).toLocaleString(),
+                })),
+                "text-summaries",
+                "excel"
+              )}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-md"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              <span>Excel (CSV)</span>
+            </button>
+            <button
+              onClick={() => downloadData(
+                filteredTexts.map(t => ({
+                  "User": t.userName,
+                  Type: t.type,
+                  "Created At": new Date(t.createdAt).toLocaleString(),
+                })),
+                "text-summaries",
+                "pdf"
+              )}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <FileText className="h-4 w-4 text-red-600" />
+              <span>PDF (Text)</span>
+            </button>
+            <button
+              onClick={() => downloadData(filteredTexts, "text-summaries", "json")}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-md"
+            >
+              <Code className="h-4 w-4 text-blue-600" />
+              <span>JSON</span>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -130,14 +130,18 @@ export function StripeCardElement({
           Card information
         </label>
         <div className="relative">
-          <div className="px-4 py-3 border border-slate-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors">
+          <div className={`px-4 py-3 border rounded-lg transition-colors ${
+            disabled 
+              ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed" 
+              : "border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+          }`}>
             <CardNumberElement
               options={cardElementOptions}
               onChange={handleCardChange}
               disabled={disabled}
             />
           </div>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none z-20">
             {cardBrand && getCardLogo()}
           </div>
         </div>
@@ -148,11 +152,17 @@ export function StripeCardElement({
           <label className="block text-xs font-medium text-slate-700 mb-2">
             MM / YY
           </label>
-          <div className="px-4 py-3 border border-slate-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors">
-            <CardExpiryElement
-              options={cardElementOptions}
-              disabled={disabled}
-            />
+          <div className="relative">
+            <div className={`px-4 py-3 border rounded-lg transition-colors ${
+              disabled 
+                ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed" 
+                : "border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+            }`}>
+              <CardExpiryElement
+                options={cardElementOptions}
+                disabled={disabled}
+              />
+            </div>
           </div>
         </div>
         <div>
@@ -160,13 +170,17 @@ export function StripeCardElement({
             CVC
           </label>
           <div className="relative">
-            <div className="px-4 py-3 border border-slate-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors">
+            <div className={`px-4 py-3 border rounded-lg transition-colors ${
+              disabled 
+                ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed" 
+                : "border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+            }`}>
               <CardCvcElement
                 options={cardElementOptions}
                 disabled={disabled}
               />
             </div>
-            <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none z-20" />
           </div>
         </div>
       </div>
