@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { AdminSidebar } from "../components/admin/AdminSidebar";
+import { Menu, X } from "lucide-react";
 import { DashboardSection } from "../components/admin/DashboardSection";
 import { UsersSection } from "../components/admin/UsersSection";
 import { FilesSection } from "../components/admin/FilesSection";
@@ -20,6 +21,7 @@ interface Summary {
   summary: string;
   createdAt: string;
   filename?: string;
+  textName?: string;
 }
 interface UserData {
   id: string;
@@ -34,6 +36,8 @@ interface UserUsage {
   count: number;
   percentage: number;
   totalLimit?: number;
+  userEmail?: string;
+  userName?: string;
 }
 interface PackageData {
   id?: string;
@@ -68,9 +72,16 @@ export function AdminDashboard() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Extract section from pathname
-  const getActiveViewFromPath = (): "dashboard" | "users" | "files" | "text" | "summarize" | "packages" | "payments" => {
+  const getActiveViewFromPath = ():
+    | "dashboard"
+    | "users"
+    | "files"
+    | "text"
+    | "summarize"
+    | "packages"
+    | "payments" => {
     const path = location.pathname;
     if (path === "/admin") return "dashboard";
     if (path === "/admin/users") return "users";
@@ -81,7 +92,7 @@ export function AdminDashboard() {
     if (path === "/admin/payments") return "payments";
     return "dashboard";
   };
-  
+
   const activeView = getActiveViewFromPath();
   const [users, setUsers] = useState<UserData[]>([]);
   const [files, setFiles] = useState<Summary[]>([]);
@@ -90,9 +101,13 @@ export function AdminDashboard() {
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [fileCount, setFileCount] = useState(0);
+  const [textCount, setTextCount] = useState(0);
+  const [avgUsage, setAvgUsage] = useState(0);
   const [usersUsage, setUsersUsage] = useState<
-    Map<string, { overallUsage: number; totalLimit: number }>
+    Map<string, { overallUsage: number; totalLimit: number; userEmail?: string; userName?: string }>
   >(new Map());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Lazy loading states per tab
   const [loadingStates, setLoadingStates] = useState<{
@@ -116,7 +131,7 @@ export function AdminDashboard() {
       const usageData = response.data || [];
       const usageMap = new Map<
         string,
-        { overallUsage: number; totalLimit: number }
+        { overallUsage: number; totalLimit: number; userEmail?: string; userName?: string }
       >();
 
       usageData.forEach(
@@ -124,10 +139,14 @@ export function AdminDashboard() {
           userId: string;
           overallUsage: number;
           totalLimit: number;
+          userEmail?: string;
+          userName?: string;
         }) => {
           usageMap.set(item.userId, {
             overallUsage: item.overallUsage,
             totalLimit: item.totalLimit,
+            userEmail: item.userEmail,
+            userName: item.userName,
           });
         }
       );
@@ -153,6 +172,8 @@ export function AdminDashboard() {
         userId,
         count: usage.overallUsage,
         percentage: Math.round(percentage),
+        userEmail: usage.userEmail,
+        userName: usage.userName,
       });
     });
 
@@ -170,6 +191,30 @@ export function AdminDashboard() {
         console.error("Error loading total users", error);
       }
 
+      // Fetch file summaries count from API
+      try {
+        const response = await apiClient.get("/Documents/admin/count");
+        setFileCount(response.data.count || 0);
+      } catch (error) {
+        console.error("Error loading file summaries count", error);
+      }
+
+      // Fetch text summaries count from API
+      try {
+        const response = await apiClient.get("/Texts/admin/count");
+        setTextCount(response.data.count || 0);
+      } catch (error) {
+        console.error("Error loading text summaries count", error);
+      }
+
+      // Fetch average usage percentage from API
+      try {
+        const response = await apiClient.get("/Users/admin/avg-usage");
+        setAvgUsage(response.data.averagePercentage || 0);
+      } catch (error) {
+        console.error("Error loading average usage", error);
+      }
+
       // Fetch users usage from backend
       await fetchUsersUsage();
 
@@ -180,27 +225,47 @@ export function AdminDashboard() {
 
   // Trigger lazy loading when URL section changes
   useEffect(() => {
-    if (activeView === "users" && !loadingStates.users.hasData && !loadingStates.users.loading) {
+    if (
+      activeView === "users" &&
+      !loadingStates.users.hasData &&
+      !loadingStates.users.loading
+    ) {
       setLoadingStates((prev) => ({
         ...prev,
         users: { loading: true, hasData: false },
       }));
-    } else if (activeView === "files" && !loadingStates.files.hasData && !loadingStates.files.loading) {
+    } else if (
+      activeView === "files" &&
+      !loadingStates.files.hasData &&
+      !loadingStates.files.loading
+    ) {
       setLoadingStates((prev) => ({
         ...prev,
         files: { loading: true, hasData: false },
       }));
-    } else if (activeView === "text" && !loadingStates.text.hasData && !loadingStates.text.loading) {
+    } else if (
+      activeView === "text" &&
+      !loadingStates.text.hasData &&
+      !loadingStates.text.loading
+    ) {
       setLoadingStates((prev) => ({
         ...prev,
         text: { loading: true, hasData: false },
       }));
-    } else if (activeView === "packages" && !loadingStates.packages.hasData && !loadingStates.packages.loading) {
+    } else if (
+      activeView === "packages" &&
+      !loadingStates.packages.hasData &&
+      !loadingStates.packages.loading
+    ) {
       setLoadingStates((prev) => ({
         ...prev,
         packages: { loading: true, hasData: false },
       }));
-    } else if (activeView === "payments" && !loadingStates.payments.hasData && !loadingStates.payments.loading) {
+    } else if (
+      activeView === "payments" &&
+      !loadingStates.payments.hasData &&
+      !loadingStates.payments.loading
+    ) {
       setLoadingStates((prev) => ({
         ...prev,
         payments: { loading: true, hasData: false },
@@ -307,26 +372,87 @@ export function AdminDashboard() {
   }
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <AdminSidebar activeView={activeView} setActiveView={handleTabChange} />
+      {/* Mobile menu button */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 transition-colors"
+        aria-label="Toggle menu"
+      >
+        {isSidebarOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <Menu className="h-6 w-6" />
+        )}
+      </button>
 
-      <div className="flex-1 md:ml-64">
-        <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      {/* Mobile overlay */}
+      {isSidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <AdminSidebar
+        activeView={activeView}
+        setActiveView={(view) => {
+          handleTabChange(view);
+          setIsSidebarOpen(false); // Close sidebar on mobile after navigation
+        }}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
+
+      <div className="flex-1 md:ml-64 w-full">
+        <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 pt-16 md:pt-8">
           {activeView === "dashboard" && (
             <DashboardSection
               stats={{
                 users: totalUsers,
-                files: files.length,
-                texts: texts.length,
+                files: fileCount,
+                texts: textCount,
+                avgUsage: avgUsage,
               }}
               userUsageMap={userUsageMap}
               onRefresh={async () => {
                 // Refresh all dashboard data
                 try {
-                  const response = await apiClient.get("/Users/admin/total-users");
+                  const response = await apiClient.get(
+                    "/Users/admin/total-users"
+                  );
                   setTotalUsers(response.data.count || 0);
                 } catch (error) {
                   console.error("Error loading total users", error);
                 }
+
+                // Refresh file summaries count
+                try {
+                  const response = await apiClient.get(
+                    "/Documents/admin/count"
+                  );
+                  setFileCount(response.data.count || 0);
+                } catch (error) {
+                  console.error("Error loading file summaries count", error);
+                }
+
+                // Refresh text summaries count
+                try {
+                  const response = await apiClient.get("/Texts/admin/count");
+                  setTextCount(response.data.count || 0);
+                } catch (error) {
+                  console.error("Error loading text summaries count", error);
+                }
+
+                // Refresh average usage percentage
+                try {
+                  const response = await apiClient.get(
+                    "/Users/admin/avg-usage"
+                  );
+                  setAvgUsage(response.data.averagePercentage || 0);
+                } catch (error) {
+                  console.error("Error loading average usage", error);
+                }
+
                 await fetchUsersUsage();
               }}
             />

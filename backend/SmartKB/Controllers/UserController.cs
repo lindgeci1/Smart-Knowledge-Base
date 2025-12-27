@@ -89,30 +89,61 @@ namespace SmartKB.Controllers
 
                 int roleId = userRole.RoleId;
                 
-                // Only get usage for regular users (role 2), not admins
+                // Only get usage for regular users (role 2), exclude admins completely
                 if (roleId == 2)
                 {
                     var usage = await _usageCollection.Find(u => u.UserId == user.UserId).FirstOrDefaultAsync();
                     result.Add(new
                     {
                         userId = user.UserId,
+                        userEmail = user.Email,
+                        userName = user.Username,
                         overallUsage = usage?.OverallUsage ?? 0,
                         totalLimit = usage?.TotalLimit ?? 100
                     });
                 }
-                else
-                {
-                    // For admins, return 0 usage
-                    result.Add(new
-                    {
-                        userId = user.UserId,
-                        overallUsage = 0,
-                        totalLimit = 100
-                    });
-                }
+                // Skip admins - don't include them in the response
             }
 
             return Ok(result);
+        }
+
+        [Authorize(Roles = "1")]
+        [HttpGet("admin/avg-usage")]
+        public async Task<IActionResult> GetAverageUsagePercentage()
+        {
+            // Get all users
+            var users = await _userCollection.Find(_ => true).ToListAsync();
+            var usagePercentages = new List<double>();
+
+            foreach (var user in users)
+            {
+                // Get user role
+                var userRole = await _userRoleCollection.Find(ur => ur.UserId == user.UserId).FirstOrDefaultAsync();
+                if (userRole == null) continue;
+
+                int roleId = userRole.RoleId;
+                
+                // Only calculate usage for regular users (role 2), not admins
+                if (roleId == 2)
+                {
+                    var usage = await _usageCollection.Find(u => u.UserId == user.UserId).FirstOrDefaultAsync();
+                    var overallUsage = usage?.OverallUsage ?? 0;
+                    var totalLimit = usage?.TotalLimit ?? 100;
+                    
+                    if (totalLimit > 0)
+                    {
+                        var percentage = Math.Min((double)overallUsage / totalLimit * 100, 100);
+                        usagePercentages.Add(percentage);
+                    }
+                }
+            }
+
+            var averagePercentage = usagePercentages.Count > 0
+                ? Math.Round(usagePercentages.Average(), 2)
+                : 0.0;
+
+            return Ok(new { averagePercentage = averagePercentage });
         }
 
         [Authorize(Roles = "1")]
@@ -169,6 +200,22 @@ namespace SmartKB.Controllers
             };
 
             await _userRoleCollection.InsertOneAsync(userRole);
+
+            // Create usage record only for regular users (role 2), not for admins (role 1)
+            // Admins have unlimited usage, so they don't need a usage record
+            // Note: This CreateUser endpoint always creates regular users (roleId = 2)
+            if (roleId == 2)
+            {
+                var usage = new Usage
+                {
+                    UserId = user.UserId,
+                    OverallUsage = 0,
+                    TotalLimit = 100,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _usageCollection.InsertOneAsync(usage);
+            }
 
             return Ok(new
             {

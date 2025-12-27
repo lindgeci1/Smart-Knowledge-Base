@@ -28,6 +28,7 @@ interface Summary {
   summary: string;
   createdAt: string;
   filename?: string; // Only for file type
+  textName?: string; // For text type - always "text summary"
 }
 export function UserDashboard() {
   const { user, logout } = useAuth();
@@ -80,6 +81,7 @@ export function UserDashboard() {
           item.text?.substring(0, 50) + (item.text?.length > 50 ? "..." : "") ||
           "",
         summary: item.summary || "",
+        textName: item.textName || "text summary",
         createdAt: item.createdAt || new Date().toISOString(),
       }));
 
@@ -156,6 +158,7 @@ export function UserDashboard() {
         content:
           textInput.substring(0, 50) + (textInput.length > 50 ? "..." : ""),
         summary: summary,
+        textName: "text summary",
         createdAt: new Date().toISOString(),
       };
 
@@ -289,7 +292,9 @@ export function UserDashboard() {
     }
   };
   const handleDownloadSummary = (summary: Summary) => {
-    const blob = new Blob([summary.summary], {
+    // Use summary content in the downloaded file for both text and file types
+    const fileContent = summary.summary || "";
+    const blob = new Blob([fileContent], {
       type: "text/plain",
     });
     const url = URL.createObjectURL(blob);
@@ -677,7 +682,7 @@ export function UserDashboard() {
                             <h4 className="text-sm font-medium text-slate-900 truncate">
                               {item.type === "file"
                                 ? item.filename
-                                : "Text Analysis"}
+                                : item.textName || "text summary"}
                             </h4>
                             <p className="text-xs text-slate-500 flex items-center">
                               <Clock className="h-3 w-3 mr-1" />

@@ -12,6 +12,9 @@ namespace SmartKB.Models
         [BsonElement("text")]
         public string Text { get; set; }
 
+        [BsonElement("textName")]
+        public string TextName { get; set; } = "text summary";
+
         [BsonElement("summary")]
         public string Summary { get; set; }
 
