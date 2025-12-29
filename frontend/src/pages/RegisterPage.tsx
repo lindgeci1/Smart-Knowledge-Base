@@ -5,21 +5,49 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { PasswordInput } from "../components/ui/PasswordInput";
 import { UserPlus, ArrowLeft } from "lucide-react";
+import { apiClient } from "../lib/authClient";
 export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isValidating, setIsValidating] = useState(false);
   const { register, isLoading } = useAuth();
   const navigate = useNavigate();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsValidating(true);
+
     try {
+      // Check username availability
+      const usernameResponse = await apiClient.post("/Users/check-username", {
+        username,
+      });
+      if (usernameResponse.data.exists) {
+        setError("This username is already taken");
+        setIsValidating(false);
+        return;
+      }
+
+      // Check email availability
+      const emailResponse = await apiClient.post("/Users/check-email", {
+        email,
+      });
+      if (emailResponse.data.exists) {
+        setError("This email is already registered");
+        setIsValidating(false);
+        return;
+      }
+
+      // If both validations pass, register
       await register(email, username, password);
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to create account");
+    } finally {
+      setIsValidating(false);
     }
   };
   return (
@@ -54,7 +82,7 @@ export function RegisterPage() {
               placeholder="johndoe"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || isValidating}
             />
 
             <Input
@@ -64,7 +92,7 @@ export function RegisterPage() {
               placeholder="john@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || isValidating}
             />
 
             <PasswordInput
@@ -73,7 +101,7 @@ export function RegisterPage() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || isValidating}
             />
           </div>
 
@@ -81,7 +109,12 @@ export function RegisterPage() {
             <div className="text-sm text-red-600 text-center">{error}</div>
           )}
 
-          <Button type="submit" className="w-full" isLoading={isLoading}>
+          <Button
+            type="submit"
+            className="w-full"
+            isLoading={isLoading || isValidating}
+            disabled={isLoading || isValidating}
+          >
             Create Account
           </Button>
 

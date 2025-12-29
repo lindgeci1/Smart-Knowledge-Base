@@ -31,6 +31,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateUserUsage: (increment: number) => void;
   updateUserLimit: (additionalLimit: number) => void;
+  updateUsername: (newUsername: string) => void;
 }
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined
@@ -196,6 +197,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     setUser(updatedUser);
   };
+
+  const updateUsername = (newUsername: string) => {
+    if (!user) return;
+    const updatedUser = {
+      ...user,
+      name: newUsername,
+    };
+    setUser(updatedUser);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -208,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         updateUserUsage,
         updateUserLimit,
+        updateUsername,
       }}
     >
       {children}

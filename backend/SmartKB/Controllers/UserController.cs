@@ -40,6 +40,30 @@ namespace SmartKB.Controllers
             return Ok(new { count = (int)count });
         }
 
+        [AllowAnonymous]
+        [HttpPost("check-username")]
+        public async Task<IActionResult> CheckUsername([FromBody] CheckUsernameDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Username))
+                return BadRequest("Username is required");
+
+            var existingUsername = await _userCollection.Find(u => u.Username == dto.Username).FirstOrDefaultAsync();
+            
+            return Ok(new { exists = existingUsername != null });
+        }
+
+        [AllowAnonymous]
+        [HttpPost("check-email")]
+        public async Task<IActionResult> CheckEmail([FromBody] CheckEmailDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required");
+
+            var existingEmail = await _userCollection.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            
+            return Ok(new { exists = existingEmail != null });
+        }
+
         [Authorize(Roles = "1")]
         [HttpGet("admin/total-users")]
         public async Task<IActionResult> GetTotalUsers()
@@ -292,6 +316,73 @@ namespace SmartKB.Controllers
             {
                 overallUsage = usage.OverallUsage,
                 totalLimit = usage.TotalLimit
+            });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateUserProfile([FromBody] UpdateUserDto dto)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+            var user = await _userCollection.Find(u => u.UserId == userId).FirstOrDefaultAsync();
+            
+            if (user == null)
+                return NotFound("User not found");
+
+            // Check if new username already exists (if provided and different from current)
+            if (!string.IsNullOrWhiteSpace(dto.Username) && dto.Username != user.Username)
+            {
+                var existingUsername = await _userCollection.Find(u => u.Username == dto.Username && u.UserId != userId).FirstOrDefaultAsync();
+                if (existingUsername != null)
+                    return BadRequest("Username already exists");
+            }
+
+            // Check if new email already exists (if provided and different from current)
+            if (!string.IsNullOrWhiteSpace(dto.Email) && dto.Email != user.Email)
+            {
+                var existingEmail = await _userCollection.Find(u => u.Email == dto.Email && u.UserId != userId).FirstOrDefaultAsync();
+                if (existingEmail != null)
+                    return BadRequest("Email already exists");
+            }
+
+            // Update user
+            var updateBuilder = Builders<User>.Update.Set(u => u.UpdatedAt, DateTime.UtcNow);
+            
+            if (!string.IsNullOrWhiteSpace(dto.Username))
+                updateBuilder = updateBuilder.Set(u => u.Username, dto.Username);
+            
+            if (!string.IsNullOrWhiteSpace(dto.Email))
+                updateBuilder = updateBuilder.Set(u => u.Email, dto.Email);
+
+            await _userCollection.UpdateOneAsync(u => u.UserId == userId, updateBuilder);
+
+            return Ok(new { message = "User profile updated successfully" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetUserProfile()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+            var user = await _userCollection.Find(u => u.UserId == userId).FirstOrDefaultAsync();
+            
+            if (user == null)
+                return NotFound("User not found");
+
+            return Ok(new
+            {
+                id = user.UserId,
+                username = user.Username,
+                email = user.Email,
+                createdAt = user.CreatedAt
             });
         }
     }

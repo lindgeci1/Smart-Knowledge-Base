@@ -50,7 +50,7 @@ namespace SmartKB.Controllers
         [Authorize(Roles = "1, 2")]
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadDocument(IFormFile file)
+        public async Task<IActionResult> UploadDocument(IFormFile file, [FromForm] string? folderId = null)
         {
             
             if (file == null || file.Length == 0)
@@ -63,6 +63,14 @@ namespace SmartKB.Controllers
 
             var userId = userIdClaim.Value;
 
+            var folderCollection = _documentCollection.Database.GetCollection<Folder>("folders");
+
+            // Folder optional: only validate if provided; otherwise keep null
+            if (!string.IsNullOrWhiteSpace(folderId))
+            {
+                var folder = await folderCollection.Find(f => f.FolderId == folderId && f.UserId == userId).FirstOrDefaultAsync();
+                if (folder == null)
+                    return BadRequest("Folder not found or you don't have access");
             // Check if user has reached their usage limit (only for regular users, not admins)
             var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
             if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
@@ -118,7 +126,8 @@ namespace SmartKB.Controllers
                 FileData = extractedText,
                 Summary = null,
                 Status = "Pending",
-                UserId = userId
+                UserId = userId,
+                FolderId = string.IsNullOrWhiteSpace(folderId) ? null : folderId
             };
 
             _documentCollection.InsertOne(document);
@@ -177,10 +186,74 @@ namespace SmartKB.Controllers
                 fileName = d.FileName,
                 fileType = d.FileType,
                 summary = d.Summary,
-                status = d.Status
+                status = d.Status,
+                folderId = d.FolderId
             }).ToList();
 
             return Ok(result);
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> UpdateDocument(string id, [FromBody] dynamic updateData)
+        {
+            // Get userId from JWT token
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // Verify document belongs to user
+            var document = await _documentCollection.Find(d => d.Id == id && d.UserId == userId).FirstOrDefaultAsync();
+            if (document == null)
+                return NotFound("Document not found");
+
+            var updateDef = Builders<Document>.Update;
+            var updates = new List<UpdateDefinition<Document>>();
+
+            // Handle folderId update safely (JsonElement or POCO)
+            try
+            {
+                string? folderId = null;
+
+                if (updateData is System.Text.Json.JsonElement element)
+                {
+                    if (element.TryGetProperty("folderId", out var prop) && prop.ValueKind != System.Text.Json.JsonValueKind.Undefined && prop.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    {
+                        folderId = prop.GetString();
+                    }
+                }
+                else if (((IDictionary<string, object>)updateData).ContainsKey("folderId"))
+                {
+                    folderId = (string?)updateData.folderId;
+                }
+
+                if (folderId != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(folderId))
+                    {
+                        var folderCollection = _documentCollection.Database.GetCollection<Folder>("folders");
+                        var folder = await folderCollection.Find(f => f.FolderId == folderId && f.UserId == userId).FirstOrDefaultAsync();
+                        if (folder == null)
+                            return BadRequest("Folder not found or you don't have access");
+                    }
+
+                    updates.Add(updateDef.Set(d => d.FolderId, folderId));
+                }
+            }
+            catch
+            {
+                return BadRequest("Invalid request body");
+            }
+
+            if (updates.Count > 0)
+            {
+                var combined = updateDef.Combine(updates);
+                await _documentCollection.UpdateOneAsync(d => d.Id == id, combined);
+            }
+
+            return Ok(new { message = "Document updated successfully" });
         }
 
         [Authorize(Roles = "1")]

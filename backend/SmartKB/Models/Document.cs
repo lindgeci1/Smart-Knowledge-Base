@@ -26,5 +26,8 @@ namespace SmartKB.Models
 
         [BsonElement("userId")]
         public string UserId { get; set; }
+
+        [BsonElement("folder_id")]
+        public string? FolderId { get; set; }
     }
 }
