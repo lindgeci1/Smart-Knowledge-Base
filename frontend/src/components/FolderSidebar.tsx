@@ -3,6 +3,7 @@ import {
   Plus,
   Trash2,
   Folder,
+  RefreshCw,
   X,
   ChevronDown,
   ChevronRight,
@@ -28,7 +29,7 @@ interface FolderSidebarProps {
   onSelectFolder: (folderId: string | null) => void;
   onRefresh?: () => void;
   summaries?: Summary[];
-  onPreviewSummary?: (summary: Summary) => void;
+  onPreviewSummary?: (summary: any) => void;
   refreshKey?: number;
 }
 
@@ -50,11 +51,14 @@ export function FolderSidebar({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set()
   );
-  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [dragOverFolder, setDragOverFolder] = useState<string | "root" | null>(
+    null
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [draggingSummaryId, setDraggingSummaryId] = useState<string | null>(
     null
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Refresh folders when signal changes
   useEffect(() => {
@@ -62,6 +66,18 @@ export function FolderSidebar({
       fetchFolders();
     }
   }, [refreshKey, fetchFolders]);
+
+  // Prevent body scroll when create folder modal is open
+  useEffect(() => {
+    if (showCreateModal || folderToDelete) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showCreateModal, folderToDelete]);
 
   const handleDeleteFolder = async () => {
     if (!folderToDelete) return;
@@ -137,7 +153,10 @@ export function FolderSidebar({
     setDraggingSummaryId(summary.id);
   };
 
-  const handleDragOver = (e: React.DragEvent, folderId: string | null) => {
+  const handleDragOver = (
+    e: React.DragEvent,
+    folderId: string | "root" | null
+  ) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     setDragOverFolder(folderId);
@@ -188,29 +207,35 @@ export function FolderSidebar({
     setDragOverFolder(null);
   };
 
+  useEffect(() => {
+    const onWindowDragEnd = () => handleDragEnd();
+    window.addEventListener("dragend", onWindowDragEnd);
+    return () => window.removeEventListener("dragend", onWindowDragEnd);
+  }, []);
+
   return (
     <>
-      {isDragging && <div className="fixed inset-0 bg-black/30 z-40" />}
-      <div className="bg-white rounded-xl shadow-md p-6 space-y-4 relative z-50">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-bold text-lg text-gray-900">Folders</h3>
+          <h3 className="text-lg font-medium text-slate-900">Folders</h3>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => fetchFolders()}
-              className="p-2 hover:bg-slate-100 rounded-xl text-slate-600 transition"
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await fetchFolders();
+                  if (onRefresh) onRefresh();
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+              className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-60"
+              disabled={isRefreshing}
               title="Refresh folders"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="h-5 w-5"
-              >
-                <path d="M21 12a9 9 0 1 1-3-6.7" />
-                <path d="M21 3v6h-6" />
-              </svg>
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -225,14 +250,14 @@ export function FolderSidebar({
         <div className="space-y-2">
           {/* All Items - Root */}
           <div
-            onDragOver={(e) => handleDragOver(e, null)}
+            onDragOver={(e) => handleDragOver(e, "root")}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, null)}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition font-medium ${
               selectedFolder === null
-                ? "bg-blue-100 text-blue-700"
-                : "text-gray-700 hover:bg-gray-100"
-            } ${dragOverFolder === null ? "ring-2 ring-blue-400" : ""}`}
+                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                : "text-slate-700 hover:bg-slate-50"
+            } ${dragOverFolder === "root" ? "ring-2 ring-blue-400" : ""}`}
             onClick={() => {
               onSelectFolder(null);
               setIsCollapsed((prev) => !prev);
@@ -240,7 +265,7 @@ export function FolderSidebar({
           >
             <Folder size={20} />
             <span className="flex-1">All Items</span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-slate-500">
               {isCollapsed ? "Show" : "Hide"}
             </span>
           </div>
@@ -250,8 +275,8 @@ export function FolderSidebar({
             <>
               {folders.length === 0 ? (
                 <div className="px-4 py-8 text-center">
-                  <p className="text-sm text-gray-500">No folders yet</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-sm text-slate-500">No folders yet</p>
+                  <p className="text-xs text-slate-400 mt-1">
                     Create one to organize
                   </p>
                 </div>
@@ -275,8 +300,8 @@ export function FolderSidebar({
                             onDrop={(e) => handleDrop(e, folder.folderId)}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition group ${
                               selectedFolder === folder.folderId
-                                ? "bg-blue-50 text-blue-800 ring-2 ring-blue-500 border border-blue-200 shadow-sm"
-                                : "text-gray-700 hover:bg-gray-100"
+                                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                : "text-slate-700 hover:bg-slate-50"
                             } ${
                               dragOverFolder === folder.folderId
                                 ? "ring-2 ring-blue-400"
@@ -291,7 +316,7 @@ export function FolderSidebar({
                                 onClick={(e) =>
                                   toggleFolderExpansion(folder.folderId, e)
                                 }
-                                className="p-0.5 hover:bg-gray-200 rounded"
+                                className="p-0.5 hover:bg-slate-200 rounded"
                               >
                                 {isExpanded ? (
                                   <ChevronDown size={16} />
@@ -305,13 +330,8 @@ export function FolderSidebar({
                               <div className="font-medium text-sm truncate">
                                 {folder.name}
                               </div>
-                              {folder.description && (
-                                <div className="text-xs text-gray-500 truncate">
-                                  {folder.description}
-                                </div>
-                              )}
                             </div>
-                            <div className="text-xs font-semibold bg-gray-200 text-gray-700 px-2.5 py-1 rounded-md flex-shrink-0">
+                            <div className="text-xs font-semibold bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md flex-shrink-0">
                               {folder.itemCount || 0}
                             </div>
                             <button
@@ -319,7 +339,7 @@ export function FolderSidebar({
                                 e.stopPropagation();
                                 setFolderToDelete(folder.folderId);
                               }}
-                              className="p-1.5 hover:bg-red-200 text-red-600 rounded-xl transition flex-shrink-0"
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-xl transition flex-shrink-0"
                               title="Delete folder"
                             >
                               <Trash2 size={18} />
@@ -336,11 +356,12 @@ export function FolderSidebar({
                                   onDragStart={(e) =>
                                     handleDragStart(e, summary)
                                   }
+                                  onDragEnd={handleDragEnd}
                                   onClick={() =>
                                     onPreviewSummary &&
                                     onPreviewSummary(summary)
                                   }
-                                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-xl cursor-pointer transition"
+                                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl cursor-pointer transition"
                                 >
                                   {summary.type === "file" ? (
                                     <FileText
@@ -380,7 +401,7 @@ export function FolderSidebar({
 
       {/* Delete Confirmation Modal */}
       {folderToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Delete Folder</h3>

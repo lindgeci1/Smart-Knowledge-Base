@@ -10,7 +10,6 @@ import {
   MessageSquare,
   LogOut,
   Clock,
-  CheckCircle2,
   X,
   File as FileIcon,
   Loader2,
@@ -18,7 +17,9 @@ import {
   AlertCircle,
   Download,
   Settings,
-  FolderOpen,
+  Grid3x3,
+  List,
+  RefreshCw,
 } from "lucide-react";
 import { apiClient } from "../lib/authClient";
 import { FolderSidebar } from "../components/FolderSidebar";
@@ -59,9 +60,7 @@ export function UserDashboard() {
   const [foldersRefreshKey, setFoldersRefreshKey] = useState(0);
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [currentResult, setCurrentResult] = useState<Summary | null>(null);
-  const [currentResultFolder, setCurrentResultFolder] = useState<string | null>(
-    null
-  );
+  // Removed folder banner UI; no need to track saved folder separately
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backendUsage, setBackendUsage] = useState<number>(0);
@@ -70,6 +69,17 @@ export function UserDashboard() {
   const [profileUsername, setProfileUsername] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [activeSettingTab, setActiveSettingTab] = useState<
+    "profile" | "appearance"
+  >("profile");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [helperMessage, setHelperMessage] = useState<string | null>(null);
+  const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
+  const [isRefreshingSummaries, setIsRefreshingSummaries] = useState(false);
+  const [isSavingToFolder, setIsSavingToFolder] = useState(false);
+  const [isMovingToFolder, setIsMovingToFolder] = useState(false);
 
   // Function to fetch usage from backend
   const fetchUsage = useCallback(async () => {
@@ -98,6 +108,16 @@ export function UserDashboard() {
       const textSummaries = textResponse.data || [];
       const fileSummaries = fileResponse.data || [];
 
+      // Helper function to extract timestamp from MongoDB ObjectId
+      const getTimestampFromObjectId = (objectId: string): Date => {
+        try {
+          const timestamp = parseInt(objectId.substring(0, 8), 16) * 1000;
+          return new Date(timestamp);
+        } catch {
+          return new Date();
+        }
+      };
+
       // Map text summaries
       const mappedTextSummaries: Summary[] = textSummaries.map((item: any) => ({
         id: item.id,
@@ -108,7 +128,8 @@ export function UserDashboard() {
         content: item.text || "",
         summary: item.summary || "",
         textName: item.textName || "text summary",
-        createdAt: item.createdAt || new Date().toISOString(),
+        createdAt:
+          item.createdAt || getTimestampFromObjectId(item.id).toISOString(),
         folderId: item.folderId || undefined,
       }));
 
@@ -121,7 +142,8 @@ export function UserDashboard() {
         content: item.fileName || "",
         filename: item.fileName ? `${item.fileName}.${item.fileType}` : "",
         summary: item.summary || "",
-        createdAt: new Date().toISOString(), // Documents don't have CreatedAt field, use current time as fallback
+        createdAt:
+          item.createdAt || getTimestampFromObjectId(item.id).toISOString(),
         folderId: item.folderId || undefined,
       }));
 
@@ -155,6 +177,35 @@ export function UserDashboard() {
     fetchSummaries();
     fetchUsage();
   }, [fetchSummaries, fetchUsage]);
+
+  // Initialize theme from localStorage on component mount (per user)
+  useEffect(() => {
+    if (!user) return;
+    const themeKey = `theme_${user.id}`;
+    const savedTheme =
+      (localStorage.getItem(themeKey) as "light" | "dark" | null) || "light";
+    setTheme(savedTheme);
+
+    // Apply theme to document
+    if (savedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [user]);
+
+  // Prevent body scroll when modals are open
+  useEffect(() => {
+    if (showProfileModal || showMoveModal || showSaveModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showProfileModal, showMoveModal, showSaveModal]);
+
   const handleSummarizeText = async () => {
     if (!textInput.trim() || !user) return;
     if (textInput.length < 50) {
@@ -191,12 +242,17 @@ export function UserDashboard() {
       };
 
       setCurrentResult(newSummary);
-      setCurrentResultFolder(null);
+      // Show helper message with summary name
+      const summaryName = `text-summary-${
+        new Date().toISOString().split("T")[0]
+      }`;
+      setHelperMessage(summaryName);
+      // no folder banner UI
       setShowSaveModal(true);
       setTextInput("");
 
-      // Refresh summaries list and usage from backend
-      await fetchSummaries();
+      // Don't auto-add to My Summaries - wait for user choice
+      // Refresh usage from backend
       await fetchUsage();
     } catch (error: any) {
       console.error("Summarization failed:", error);
@@ -270,12 +326,14 @@ export function UserDashboard() {
       };
 
       setCurrentResult(newSummary);
-      setCurrentResultFolder(null);
+      // Show helper message with file name
+      setHelperMessage(selectedFile.name.replace(/\.[^/.]+$/, ""));
+      // no folder banner UI
       setShowSaveModal(true);
       setSelectedFile(null);
 
-      // Refresh summaries list and usage from backend
-      await fetchSummaries();
+      // Don't auto-add to My Summaries - wait for user choice
+      // Refresh usage from backend
       await fetchUsage();
     } catch (error: any) {
       console.error("File upload failed:", error);
@@ -363,6 +421,7 @@ export function UserDashboard() {
 
   const moveSelectedToFolder = async (folderId: string, folderName: string) => {
     const selected = summaries.filter((s) => selectedSummaryIds.has(s.id));
+    setIsMovingToFolder(true);
     try {
       for (const s of selected) {
         const endpoint =
@@ -373,11 +432,12 @@ export function UserDashboard() {
       setShowMoveModal(false);
       setIsSelectMode(false);
       setSelectedSummaryIds(new Set());
-      await fetchSummaries();
       setFoldersRefreshKey((k) => k + 1);
     } catch (error) {
       toast.error("Failed to move summaries");
       console.error(error);
+    } finally {
+      setIsMovingToFolder(false);
     }
   };
 
@@ -396,6 +456,13 @@ export function UserDashboard() {
       const response = await apiClient.get("/Users/profile");
       setProfileUsername(response.data.username);
       setProfileEmail(response.data.email);
+      if (user) {
+        const themeKey = `theme_${user.id}`;
+        const savedTheme =
+          (localStorage.getItem(themeKey) as "light" | "dark" | null) ||
+          "light";
+        setTheme(savedTheme);
+      }
       setShowProfileModal(true);
     } catch (error) {
       console.error("Failed to load profile", error);
@@ -403,8 +470,31 @@ export function UserDashboard() {
     }
   };
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogoutConfirm = async () => {
+    setShowLogoutConfirm(false);
+    await logout();
+    // Reset theme after navigation to prevent visible flash
+    document.documentElement.classList.remove("dark");
+    navigate("/login");
+  };
+
+  const handleThemeChange = (newTheme: "light" | "dark") => {
+    setTheme(newTheme);
+  };
+
+  const applyTheme = (themeToApply: "light" | "dark") => {
+    if (!user) return;
+    const themeKey = `theme_${user.id}`;
+    localStorage.setItem(themeKey, themeToApply);
+    if (themeToApply === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
+
+  const handleUpdateProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isUpdatingProfile) return;
 
     setIsUpdatingProfile(true);
@@ -440,6 +530,7 @@ export function UserDashboard() {
   const handleSaveToFolder = async (folderId: string, folderName: string) => {
     if (!currentResult) return;
 
+    setIsSavingToFolder(true);
     try {
       // Update the document with the folder ID
       if (currentResult.type === "text") {
@@ -452,16 +543,40 @@ export function UserDashboard() {
         });
       }
 
-      setCurrentResultFolder(folderName);
       setShowSaveModal(false);
+      setHelperMessage(null);
       toast.success(`Saved to "${folderName}" folder`);
-      await fetchSummaries();
       setFoldersRefreshKey((k) => k + 1);
       // Hide the Summary Ready panel after saving
       setCurrentResult(null);
-      setCurrentResultFolder("");
     } catch (error) {
       toast.error("Failed to save to folder");
+      console.error(error);
+    } finally {
+      setIsSavingToFolder(false);
+    }
+  };
+
+  const handleSkipToMySummaries = async () => {
+    if (!currentResult) return;
+
+    try {
+      setShowSaveModal(false);
+      setHelperMessage(null);
+
+      // Add to My Summaries list with pulse animation
+      setNewlyAddedId(currentResult.id);
+      await fetchSummaries();
+
+      // Remove pulse animation after 3 seconds
+      setTimeout(() => {
+        setNewlyAddedId(null);
+      }, 3000);
+
+      toast.success("Added to My Summaries");
+      setCurrentResult(null);
+    } catch (error) {
+      toast.error("Failed to add to My Summaries");
       console.error(error);
     }
   };
@@ -498,7 +613,7 @@ export function UserDashboard() {
               </button>
               <Button
                 variant="ghost"
-                onClick={logout}
+                onClick={() => setShowLogoutConfirm(true)}
                 className="text-slate-500 hover:text-red-600"
               >
                 <LogOut className="h-5 w-5" />
@@ -535,17 +650,19 @@ export function UserDashboard() {
 
           <div className="relative pt-1">
             <div className="flex mb-2 items-center justify-between">
-              <div className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
+              <div className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200 dark:text-blue-300 dark:bg-blue-900">
                 {Math.round(usagePercentage)}% Used
               </div>
             </div>
-            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-100">
+            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200 dark:bg-slate-500">
               <div
                 style={{
                   width: `${usagePercentage}%`,
                 }}
                 className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${
-                  usagePercentage > 90 ? "bg-red-500" : "bg-blue-500"
+                  usagePercentage > 90
+                    ? "bg-red-500 dark:bg-red-400"
+                    : "bg-blue-500 dark:bg-blue-400"
                 }`}
               ></div>
             </div>
@@ -561,8 +678,8 @@ export function UserDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left Sidebar: Folders & Summaries */}
-          <div className="md:col-span-1 order-2 md:order-1 space-y-6">
+          {/* Left Sidebar: Folders */}
+          <div className="md:col-span-1 space-y-6">
             <FolderSidebar
               selectedFolder={
                 activeTab === "text" ? selectedFolderText : selectedFolder
@@ -577,136 +694,10 @@ export function UserDashboard() {
               }}
               refreshKey={foldersRefreshKey}
             />
-
-            {/* My Summaries */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[calc(100vh-8rem)]">
-              <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-                <h3 className="text-lg font-medium text-slate-900">
-                  My Summaries
-                </h3>
-                <span className="bg-slate-100 text-slate-600 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                  {summaries.filter((s) => !s.folderId).length}
-                </span>
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setIsSelectMode((s) => !s);
-                      setSelectedSummaryIds(new Set());
-                    }}
-                    className={`px-3 py-1.5 text-xs rounded-lg border ${
-                      isSelectMode
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
-                    }`}
-                  >
-                    {isSelectMode ? "Cancel" : "Select"}
-                  </button>
-                  {isSelectMode && (
-                    <button
-                      onClick={() => setShowMoveModal(true)}
-                      disabled={selectedSummaryIds.size === 0}
-                      className={`px-3 py-1.5 text-xs rounded-lg ${
-                        selectedSummaryIds.size === 0
-                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
-                      }`}
-                    >
-                      Move to Folder
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {summaries.filter((s) => !s.folderId).length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="bg-slate-50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Clock className="h-8 w-8 text-slate-300" />
-                    </div>
-                    <h3 className="text-sm font-medium text-slate-900">
-                      No summaries yet
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1">
-                      Your generated summaries will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  summaries
-                    .filter((s) => !s.folderId)
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          if (isSelectMode) toggleSelectSummary(item.id);
-                          else handlePreviewSummary(item);
-                        }}
-                        className={`group relative bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${
-                          selectedSummaryIds.has(item.id)
-                            ? "ring-2 ring-blue-500"
-                            : ""
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center flex-1">
-                            {isSelectMode && (
-                              <span
-                                className={`h-5 w-5 mr-2 rounded-full border ${
-                                  selectedSummaryIds.has(item.id)
-                                    ? "bg-blue-600 border-blue-600"
-                                    : "bg-white border-slate-300"
-                                } flex items-center justify-center`}
-                              >
-                                {selectedSummaryIds.has(item.id) ? "✓" : ""}
-                              </span>
-                            )}
-                            <span
-                              className={`h-8 w-8 rounded-lg flex items-center justify-center mr-3 ${
-                                item.type === "file"
-                                  ? "bg-purple-100 text-purple-600"
-                                  : "bg-blue-100 text-blue-600"
-                              }`}
-                            >
-                              {item.type === "file" ? (
-                                <FileText className="h-4 w-4" />
-                              ) : (
-                                <MessageSquare className="h-4 w-4" />
-                              )}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-slate-900 truncate">
-                                {item.type === "file"
-                                  ? item.filename
-                                  : item.textName || "text summary"}
-                              </h4>
-                              <p className="text-xs text-slate-500 flex items-center">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {formatDate(item.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadSummary(item);
-                            }}
-                            className="text-green-600 hover:text-green-700 ml-2"
-                            title="Download summary"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <p className="text-sm text-slate-600 line-clamp-2 pl-11">
-                          {item.summary}
-                        </p>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
           </div>
 
-          {/* Center: Tools & Results */}
-          <div className="md:col-span-2 space-y-6 order-1 md:order-2">
+          {/* Center: Text Summary / File Upload Tools */}
+          <div className="md:col-span-1 space-y-6">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="border-b border-slate-200">
                 <div className="flex">
@@ -896,113 +887,424 @@ export function UserDashboard() {
               </div>
             </div>
 
-            {/* Result Display */}
-            {currentResult && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-slate-900 flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mr-2" />
-                    Summary Ready
-                  </h3>
-                  <span className="text-xs text-slate-500">Just now</span>
-                </div>
+            {/* Result Display intentionally hidden per design request */}
+          </div>
 
-                {currentResultFolder && (
-                  <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <FolderOpen size={16} className="text-blue-600" />
-                    <span className="text-sm text-blue-700">
-                      Saved in <strong>{currentResultFolder}</strong>
-                    </span>
+          {/* Right: My Summaries */}
+          <div className="md:col-span-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-8rem)]">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              {/* Title row with view toggle */}
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
+                    My Summaries
+                  </h3>
+                  <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                    {summaries.filter((s) => !s.folderId).length}
+                  </span>
+                </div>
+                {/* Right controls: Refresh + View Toggle */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        setIsRefreshingSummaries(true);
+                        await fetchSummaries();
+                      } finally {
+                        setIsRefreshingSummaries(false);
+                      }
+                    }}
+                    className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                    title="Refresh summaries"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${
+                        isRefreshingSummaries ? "animate-spin" : ""
+                      }`}
+                    />
+                  </button>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
                     <button
-                      onClick={() => setShowSaveModal(true)}
-                      className="ml-auto text-xs text-blue-600 hover:text-blue-700 underline"
+                      onClick={() => setViewMode("list")}
+                      className={`p-1.5 rounded-md transition-colors ${
+                        viewMode === "list"
+                          ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
+                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                      }`}
+                      title="List view"
                     >
-                      Change
+                      <List className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode("grid")}
+                      className={`p-1.5 rounded-md transition-colors ${
+                        viewMode === "grid"
+                          ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
+                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                      }`}
+                      title="Card view"
+                    >
+                      <Grid3x3 className="h-4 w-4" />
                     </button>
                   </div>
-                )}
-
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <p className="text-slate-700 leading-relaxed">
-                    {currentResult.summary}
-                  </p>
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(currentResult.summary);
-                    }}
-                  >
-                    Copy to Clipboard
-                  </Button>
-                  {!currentResultFolder && (
-                    <Button
-                      onClick={() => setShowSaveModal(true)}
-                      className="flex-1"
-                    >
-                      <FolderOpen size={16} className="mr-2" />
-                      Save to Folder
-                    </Button>
-                  )}
                 </div>
               </div>
-            )}
+
+              {/* Action buttons row */}
+              {(isSelectMode ||
+                summaries.filter((s) => !s.folderId).length > 0) && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      setIsSelectMode((s) => !s);
+                      setSelectedSummaryIds(new Set());
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                      isSelectMode
+                        ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                        : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 border-slate-300 dark:border-slate-600"
+                    }`}
+                  >
+                    {isSelectMode ? "Cancel" : "Select"}
+                  </button>
+                  {isSelectMode && (
+                    <>
+                      <button
+                        onClick={() => {
+                          const unselectedInFolder = summaries
+                            .filter(
+                              (s) =>
+                                !s.folderId && !selectedSummaryIds.has(s.id)
+                            )
+                            .map((s) => s.id);
+                          if (unselectedInFolder.length > 0) {
+                            setSelectedSummaryIds(
+                              new Set([
+                                ...selectedSummaryIds,
+                                ...unselectedInFolder,
+                              ])
+                            );
+                          } else {
+                            setSelectedSummaryIds(new Set());
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                      >
+                        {summaries
+                          .filter((s) => !s.folderId)
+                          .every((s) => selectedSummaryIds.has(s.id))
+                          ? "Deselect All"
+                          : "Select All"}
+                      </button>
+                      <button
+                        onClick={() => setShowMoveModal(true)}
+                        disabled={selectedSummaryIds.size === 0}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                          selectedSummaryIds.size === 0
+                            ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                      >
+                        Move ({selectedSummaryIds.size})
+                      </button>
+                      {selectedSummaryIds.size > 0 && (
+                        <span className="text-xs text-blue-600 dark:text-blue-400 font-medium ml-1">
+                          {selectedSummaryIds.size} selected
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {summaries.filter((s) => !s.folderId).length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="bg-slate-50 dark:bg-slate-700 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="h-8 w-8 text-slate-300 dark:text-slate-500" />
+                  </div>
+                  <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                    No summaries yet
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Your generated summaries will appear here.
+                  </p>
+                </div>
+              ) : viewMode === "list" ? (
+                <div className="space-y-2">
+                  {summaries
+                    .filter((s) => !s.folderId)
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (isSelectMode) toggleSelectSummary(item.id);
+                          else handlePreviewSummary(item);
+                        }}
+                        className={`group flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                          selectedSummaryIds.has(item.id)
+                            ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm"
+                        } ${
+                          newlyAddedId === item.id ? "animate-pulse-soft" : ""
+                        }`}
+                      >
+                        {isSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedSummaryIds.has(item.id)}
+                            onChange={() => toggleSelectSummary(item.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                          />
+                        )}
+                        <span
+                          className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            item.type === "file"
+                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                          }`}
+                        >
+                          {item.type === "file" ? (
+                            <FileText className="h-4 w-4" />
+                          ) : (
+                            <MessageSquare className="h-4 w-4" />
+                          )}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                            {item.type === "file"
+                              ? item.filename
+                              : item.textName || "text summary"}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            {item.summary}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {formatDate(item.createdAt)}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadSummary(item);
+                            }}
+                            className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 p-1"
+                            title="Download summary"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {summaries
+                    .filter((s) => !s.folderId)
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (isSelectMode) toggleSelectSummary(item.id);
+                          else handlePreviewSummary(item);
+                        }}
+                        className={`group relative bg-white dark:bg-slate-800 border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer ${
+                          selectedSummaryIds.has(item.id)
+                            ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                        } ${
+                          newlyAddedId === item.id ? "animate-pulse-soft" : ""
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {isSelectMode && (
+                            <div className="flex items-center justify-center h-5 w-5 mt-1 flex-shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={selectedSummaryIds.has(item.id)}
+                                onChange={() => toggleSelectSummary(item.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </div>
+                          )}
+                          <span
+                            className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              item.type === "file"
+                                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                            }`}
+                          >
+                            {item.type === "file" ? (
+                              <FileText className="h-4 w-4" />
+                            ) : (
+                              <MessageSquare className="h-4 w-4" />
+                            )}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words pr-2">
+                                {item.type === "file"
+                                  ? item.filename
+                                  : item.textName || "text summary"}
+                              </h4>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadSummary(item);
+                                }}
+                                className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 flex-shrink-0"
+                                title="Download summary"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mb-2">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {formatDate(item.createdAt)}
+                            </p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
+                              {item.summary}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
       {/* Profile Modal */}
       {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-slate-900">
-                Edit Profile
-              </h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col sm:flex-row">
+            {/* Left Sidebar */}
+            <div className="w-full sm:w-48 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 p-4 sm:p-6 flex sm:flex-col gap-2 sm:space-y-4 overflow-x-auto sm:overflow-y-auto">
               <button
-                onClick={() => setShowProfileModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                onClick={() => setActiveSettingTab("profile")}
+                className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeSettingTab === "profile"
+                    ? "bg-white text-indigo-600 border border-indigo-200"
+                    : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                }`}
               >
-                <X className="h-5 w-5" />
+                <span>Profile</span>
+              </button>
+              <button
+                onClick={() => setActiveSettingTab("appearance")}
+                className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeSettingTab === "appearance"
+                    ? "bg-white text-indigo-600 border border-indigo-200"
+                    : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                }`}
+              >
+                <span>Appearance</span>
               </button>
             </div>
 
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={profileUsername}
-                  onChange={(e) => setProfileUsername(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-                  required
-                />
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto flex flex-col">
+              <div className="flex justify-between items-center p-6 border-b border-slate-200">
+                <h3 className="text-lg font-medium text-slate-900">Settings</h3>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={profileEmail}
-                  disabled
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
-                />
+              <div className="p-6 space-y-6 flex-1">
+                {/* Profile Section */}
+                {activeSettingTab === "profile" && (
+                  <div className="space-y-6">
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      Update Username
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          value={profileUsername}
+                          onChange={(e) => setProfileUsername(e.target.value)}
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={profileEmail}
+                          disabled
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Appearance Section */}
+                {activeSettingTab === "appearance" && (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        Theme
+                      </h4>
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={theme === "light"}
+                            onChange={() => handleThemeChange("light")}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm text-slate-700">Light</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={theme === "dark"}
+                            onChange={() => handleThemeChange("dark")}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm text-slate-700">Dark</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
+              {/* Footer */}
+              <div className="border-t border-slate-200 p-6 bg-slate-50 flex justify-end gap-3 mt-auto">
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(false)}
                   className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={async () => {
+                    if (activeSettingTab === "profile") {
+                      await handleUpdateProfile();
+                    } else {
+                      applyTheme(theme);
+                    }
+                  }}
                   disabled={isUpdatingProfile}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
                 >
@@ -1012,11 +1314,11 @@ export function UserDashboard() {
                       Updating...
                     </>
                   ) : (
-                    "Update Profile"
+                    "Save Changes"
                   )}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -1025,7 +1327,10 @@ export function UserDashboard() {
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSave={handleSaveToFolder}
+        isSaving={isSavingToFolder}
         summaries={summaries}
+        helperMessage={helperMessage}
+        onSkipToMySummaries={handleSkipToMySummaries}
       />
 
       {/* Move to Folder Modal */}
@@ -1033,6 +1338,7 @@ export function UserDashboard() {
         isOpen={showMoveModal}
         onClose={() => setShowMoveModal(false)}
         onSave={moveSelectedToFolder}
+        isSaving={isMovingToFolder}
         summaries={summaries}
       />
 
@@ -1050,6 +1356,45 @@ export function UserDashboard() {
           }
         }}
       />
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-slate-900">Logout</h3>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-slate-600">
+                Are you sure you want to logout? You'll need to sign in again to
+                access your account.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLogoutConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -17,9 +17,6 @@ namespace SmartKB.Models
         [BsonElement("name")]
         public string Name { get; set; }
 
-        [BsonElement("description")]
-        public string? Description { get; set; }
-
         [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

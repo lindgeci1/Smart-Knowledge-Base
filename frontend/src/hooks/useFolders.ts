@@ -6,7 +6,6 @@ export interface Folder {
   id: string;
   folderId: string;
   name: string;
-  description?: string;
   parentFolderId?: string;
   createdAt: string;
   updatedAt: string;
@@ -41,11 +40,10 @@ export function useFolders() {
 
   // Create folder
   const createFolder = useCallback(
-    async (name: string, description?: string, parentFolderId?: string) => {
+    async (name: string, parentFolderId?: string) => {
       try {
         const response = await apiClient.post("/Folder", {
           name,
-          description,
           parentFolderId,
         });
         setFolders((prev) => [...prev, response.data]);
@@ -63,28 +61,23 @@ export function useFolders() {
   );
 
   // Update folder
-  const updateFolder = useCallback(
-    async (folderId: string, name?: string, description?: string) => {
-      try {
-        const response = await apiClient.put(`/Folder/${folderId}`, {
-          name,
-          description,
-        });
-        setFolders((prev) =>
-          prev.map((f) => (f.folderId === folderId ? response.data : f))
-        );
-        toast.success("Folder updated successfully");
-        return response.data;
-      } catch (err: any) {
-        const errorMsg =
-          err.response?.data?.message || "Failed to update folder";
-        setError(errorMsg);
-        toast.error(errorMsg);
-        throw err;
-      }
-    },
-    []
-  );
+  const updateFolder = useCallback(async (folderId: string, name?: string) => {
+    try {
+      const response = await apiClient.put(`/Folder/${folderId}`, {
+        name,
+      });
+      setFolders((prev) =>
+        prev.map((f) => (f.folderId === folderId ? response.data : f))
+      );
+      toast.success("Folder updated successfully");
+      return response.data;
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || "Failed to update folder";
+      setError(errorMsg);
+      toast.error(errorMsg);
+      throw err;
+    }
+  }, []);
 
   // Delete folder
   const deleteFolder = useCallback(async (folderId: string) => {

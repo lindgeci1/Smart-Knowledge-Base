@@ -60,6 +60,8 @@ namespace SmartKB.Controllers
                 var folder = await folderCollection.Find(f => f.FolderId == folderId && f.UserId == userId).FirstOrDefaultAsync();
                 if (folder == null)
                     return BadRequest("Folder not found or you don't have access");
+            }
+
             // Check if user has reached their usage limit (only for regular users, not admins)
             var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
             if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user

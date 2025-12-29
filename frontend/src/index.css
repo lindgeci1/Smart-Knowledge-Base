@@ -1,7 +1,262 @@
 /* URL IMPORTS (SUCH AS FONT IMPORTS) SHOULD BE KEPT ABOVE TAILWIND IMPORTS - DO NOT DELETE THIS COMMENT */
 
 /* PLEASE NOTE: THESE TAILWIND IMPORTS SHOULD NEVER BE DELETED - DO NOT DELETE THIS COMMENT */
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 /* DO NOT DELETE THESE TAILWIND IMPORTS, OTHERWISE THE STYLING WILL NOT RENDER AT ALL - DO NOT DELETE THIS COMMENT */
+
+/* Pulse Animation for Newly Added Items */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 1s ease-in-out 3;
+}
+
+/* Dark Mode Global Styles */
+.dark {
+  color-scheme: dark;
+}
+
+.dark,
+.dark * {
+  --color-bg-primary: #0f172a;
+  --color-bg-secondary: #1e293b;
+  --color-bg-tertiary: #334155;
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-border: #475569;
+}
+
+.dark {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Main containers and backgrounds */
+.dark main,
+.dark div,
+.dark section,
+.dark article {
+  background-color: transparent;
+}
+
+.dark .bg-white {
+  background-color: #1e293b;
+}
+
+.dark .bg-slate-50 {
+  background-color: #0f172a;
+}
+
+.dark .bg-slate-100 {
+  background-color: #1e293b;
+}
+
+.dark .bg-slate-200 {
+  background-color: #334155;
+}
+
+.dark .bg-slate-300 {
+  background-color: #475569;
+}
+
+.dark .bg-blue-50 {
+  background-color: #1e3a5f;
+}
+
+.dark .bg-indigo-50 {
+  background-color: #1e1b4b;
+}
+
+.dark .bg-gray-50 {
+  background-color: #0f172a;
+}
+
+/* Text colors */
+.dark .text-slate-900 {
+  color: #f1f5f9;
+}
+
+.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-600 {
+  color: #94a3b8;
+}
+
+.dark .text-slate-500 {
+  color: #64748b;
+}
+
+.dark .text-slate-400 {
+  color: #475569;
+}
+
+.dark .text-slate-300 {
+  color: #cbd5e1;
+}
+
+.dark .text-blue-900 {
+  color: #93c5fd;
+}
+
+.dark .text-gray-500 {
+  color: #94a3b8;
+}
+
+.dark .text-gray-700 {
+  color: #cbd5e1;
+}
+
+/* Border colors */
+.dark .border-slate-200 {
+  border-color: #334155;
+}
+
+.dark .border-slate-300 {
+  border-color: #475569;
+}
+
+.dark .border-blue-200 {
+  border-color: #3b82f6;
+}
+
+.dark .border-blue-100 {
+  border-color: #1e40af;
+}
+
+.dark .border-gray-200 {
+  border-color: #334155;
+}
+
+/* Input fields */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: #3b82f6;
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+.dark input:disabled,
+.dark input.bg-slate-50 {
+  background-color: #0f172a;
+  color: #64748b;
+  border-color: #334155;
+}
+
+/* Buttons */
+.dark button {
+  transition: all 0.2s;
+}
+
+.dark .bg-blue-600 {
+  background-color: #2563eb;
+}
+
+.dark .bg-blue-600:hover {
+  background-color: #1d4ed8;
+}
+
+.dark .bg-red-600 {
+  background-color: #dc2626;
+}
+
+.dark .bg-red-600:hover {
+  background-color: #b91c1c;
+}
+
+.dark .bg-indigo-600 {
+  background-color: #4f46e5;
+}
+
+.dark .bg-indigo-600:hover {
+  background-color: #4338ca;
+}
+
+/* Modal backgrounds and borders */
+.dark .bg-opacity-50 {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.dark [class*="shadow"] {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* Hover states */
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1e293b;
+}
+
+.dark .hover\:bg-slate-100:hover {
+  background-color: #334155;
+}
+
+.dark .hover\:bg-indigo-50:hover {
+  background-color: #1e1b4b;
+}
+
+.dark .hover\:bg-red-900\/20:hover {
+  background-color: rgba(127, 29, 29, 0.2);
+}
+
+.dark .hover\:text-slate-600:hover {
+  color: #94a3b8;
+}
+
+.dark .hover\:text-indigo-600:hover {
+  color: #818cf8;
+}
+
+.dark .hover\:text-red-400:hover {
+  color: #f87171;
+}
+
+/* Scrollbars */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

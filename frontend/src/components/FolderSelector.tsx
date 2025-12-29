@@ -77,11 +77,6 @@ export function FolderSelector({
                   <FolderOpen size={16} />
                   <div>
                     <div className="font-medium">{folder.name}</div>
-                    {folder.description && (
-                      <div className="text-xs text-gray-500">
-                        {folder.description}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="text-xs bg-gray-200 px-2 py-1 rounded">
