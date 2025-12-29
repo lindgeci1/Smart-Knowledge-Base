@@ -261,37 +261,37 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-white">
-      {/* Left Side - Order Summary (Dark) - Fixed */}
-      <div className="bg-slate-900 text-white p-8 w-2/5 flex flex-col h-full fixed left-0 top-0">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-white">
+      {/* Left Side - Order Summary (Dark) */}
+      <div className="bg-slate-900 text-white p-4 sm:p-6 lg:p-8 w-full lg:w-2/5 lg:fixed lg:left-0 lg:top-0 lg:h-full flex flex-col">
         {/* Back Button */}
         <button
           onClick={() => navigate("/packages")}
           disabled={isProcessing}
-          className="flex items-center text-slate-400 hover:text-white mb-6 transition-colors"
+          className="flex items-center text-slate-400 hover:text-white mb-4 sm:mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           <span className="text-sm">Back</span>
         </button>
 
         {/* Package Title */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-2">
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-semibold mb-2">
             Subscribe to {checkoutPackage.name}
           </h2>
-          <p className="text-3xl font-bold">
+          <p className="text-2xl sm:text-3xl font-bold">
             {checkoutPackage.priceFormatted}
-            <span className="text-sm font-normal text-slate-400 ml-2">
+            <span className="text-xs sm:text-sm font-normal text-slate-400 ml-2">
               {checkoutPackage.priceType}
             </span>
           </p>
         </div>
 
         {/* Package Details */}
-        <div className="mb-6 flex-1">
-          <div className="flex items-start mb-6">
+        <div className="mb-4 sm:mb-6 flex-1">
+          <div className="flex items-start mb-4 sm:mb-6">
             <div
-              className={`w-10 h-10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0 ${
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center mr-3 sm:mr-4 flex-shrink-0 ${
                 checkoutPackage.color === "blue"
                   ? "bg-blue-600"
                   : checkoutPackage.color === "purple"
@@ -301,38 +301,38 @@ export function CheckoutPage() {
                   : "bg-slate-600"
               }`}
             >
-              <checkoutPackage.icon className="h-5 w-5 text-white" />
+              <checkoutPackage.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base mb-1">
+              <h3 className="font-semibold text-sm sm:text-base mb-1">
                 {checkoutPackage.name}
               </h3>
-              <p className="text-slate-400 text-sm mb-1">
+              <p className="text-slate-400 text-xs sm:text-sm mb-1">
                 {checkoutPackage.description}
               </p>
               <p className="text-slate-500 text-xs">One-time payment</p>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="font-semibold text-sm">
+            <div className="text-right flex-shrink-0 ml-2">
+              <p className="font-semibold text-xs sm:text-sm">
                 {checkoutPackage.priceFormatted}
               </p>
             </div>
           </div>
 
           {/* Summary */}
-          <div className="border-t border-slate-700 pt-6 space-y-3">
-            <div className="flex justify-between text-sm">
+          <div className="border-t border-slate-700 pt-4 sm:pt-6 space-y-2 sm:space-y-3">
+            <div className="flex justify-between text-xs sm:text-sm">
               <span className="text-slate-400">Subtotal</span>
               <span>{checkoutPackage.priceFormatted}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-xs sm:text-sm">
               <div className="flex items-center">
                 <span className="text-slate-400">Tax</span>
                 <Info className="h-3 w-3 ml-1 text-slate-500" />
               </div>
               <span>$0.00</span>
             </div>
-            <div className="flex justify-between text-base font-semibold pt-3 border-t border-slate-700">
+            <div className="flex justify-between text-sm sm:text-base font-semibold pt-2 sm:pt-3 border-t border-slate-700">
               <span>Total due today</span>
               <span>{checkoutPackage.priceFormatted}</span>
             </div>
@@ -341,19 +341,19 @@ export function CheckoutPage() {
       </div>
 
       {/* Right Side - Payment Form (Light) - Scrollable */}
-      <div className="bg-white p-8 w-3/5 ml-[40%] h-full overflow-y-auto">
-        <form onSubmit={handlePayment} className="max-w-2xl w-full space-y-6">
+      <div className="bg-white p-4 sm:p-6 lg:p-8 w-full lg:w-3/5 lg:ml-[40%] min-h-screen lg:h-full lg:overflow-y-auto">
+        <form onSubmit={handlePayment} className="max-w-2xl w-full space-y-4 sm:space-y-6">
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
-              <AlertCircle className="h-5 w-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-start">
+              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
+              <p className="text-xs sm:text-sm text-red-800">{error}</p>
             </div>
           )}
 
           {/* Contact Information */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 mb-2">
               Contact information
             </h3>
             <input
@@ -363,17 +363,17 @@ export function CheckoutPage() {
               readOnly
               required
               disabled={isProcessing}
-              className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg bg-slate-50 text-slate-600 cursor-not-allowed"
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border border-slate-300 rounded-lg bg-slate-50 text-slate-600 cursor-not-allowed"
             />
           </div>
 
           {/* Payment Method */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 mb-2">
               Payment method
             </h3>
             <div className="space-y-2">
-              <label className="flex items-center p-3 border-2 border-blue-500 bg-blue-50 rounded-lg cursor-pointer transition-all">
+              <label className="flex items-center p-2 sm:p-3 border-2 border-blue-500 bg-blue-50 rounded-lg cursor-pointer transition-all">
                 <input
                   type="radio"
                   name="paymentMethod"
@@ -383,8 +383,8 @@ export function CheckoutPage() {
                   className="mr-2"
                   disabled={isProcessing}
                 />
-                <CreditCard className="h-4 w-4 mr-2 text-slate-600" />
-                <span className="font-medium text-sm">Card</span>
+                <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-slate-600" />
+                <span className="font-medium text-xs sm:text-sm">Card</span>
               </label>
             </div>
 
@@ -397,7 +397,7 @@ export function CheckoutPage() {
             </div>
 
             {/* Cardholder Name */}
-            <div className="mt-4">
+            <div className="mt-3 sm:mt-4">
               <label className="block text-xs font-medium text-slate-700 mb-2">
                 Cardholder name
               </label>
@@ -420,7 +420,7 @@ export function CheckoutPage() {
                 }}
                 required
               disabled={isProcessing}
-              className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   isProcessing 
                     ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
                     : fieldErrors.cardholderName 
@@ -436,16 +436,16 @@ export function CheckoutPage() {
 
           {/* Billing Address */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 mb-2">
               Billing address
             </h3>
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div>
                 <select
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   disabled={isProcessing}
-                  className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing 
                       ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
                       : "border-slate-300 bg-white"
@@ -478,7 +478,7 @@ export function CheckoutPage() {
                   }}
                   required
                   disabled={isProcessing}
-                  className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing 
                       ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
                       : fieldErrors.addressLine1 
@@ -497,14 +497,14 @@ export function CheckoutPage() {
                   value={addressLine2}
                   onChange={(e) => setAddressLine2(e.target.value)}
                   disabled={isProcessing}
-                  className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing 
                       ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
                       : "border-slate-300"
                   }`}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <input
                     type="text"
@@ -525,7 +525,7 @@ export function CheckoutPage() {
                     }}
                     required
                     disabled={isProcessing}
-                    className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       isProcessing 
                         ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
                         : fieldErrors.postalCode 
@@ -557,7 +557,7 @@ export function CheckoutPage() {
                     }}
                     required
                     disabled={isProcessing}
-                    className={`w-full px-4 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       isProcessing 
                         ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
                         : fieldErrors.city 
@@ -594,11 +594,11 @@ export function CheckoutPage() {
           <Button
             type="submit"
             disabled={isProcessing || !isFormValid}
-            className="w-full py-3 text-sm bg-slate-900 hover:bg-slate-800 text-white font-semibold mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 sm:py-3 text-xs sm:text-sm bg-slate-900 hover:bg-slate-800 text-white font-semibold mt-3 sm:mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                 Processing Payment...
               </>
             ) : (

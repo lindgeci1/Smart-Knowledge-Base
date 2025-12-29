@@ -444,7 +444,7 @@ export function SummarizeSection() {
                   </div>
                   <button
                     onClick={() => setSelectedFile(null)}
-                    className="text-indigo-400 hover:text-indigo-600"
+                    className="text-indigo-400 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isProcessing}
                   >
                     <X className="h-4 w-4" />

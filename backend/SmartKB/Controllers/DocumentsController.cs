@@ -12,6 +12,8 @@ namespace SmartKB.Controllers
     {
         private readonly IMongoCollection<Document> _documentCollection;
         private readonly IMongoCollection<User> _userCollection;
+        private readonly IMongoCollection<UserRole> _userRoleCollection;
+        private readonly IMongoCollection<Usage> _usageCollection;
         private readonly SummarizationService _summarizationService;
 
         public DocumentsController(IConfiguration configuration)
@@ -21,10 +23,9 @@ namespace SmartKB.Controllers
 
             _documentCollection = database.GetCollection<Document>("documents");
             _userCollection = database.GetCollection<User>("users");
-            
-            var userRoleCollection = database.GetCollection<UserRole>("userRoles");
-            var usageCollection = database.GetCollection<Usage>("usage");
-            _summarizationService = new SummarizationService(userRoleCollection, usageCollection);
+            _userRoleCollection = database.GetCollection<UserRole>("userRoles");
+            _usageCollection = database.GetCollection<Usage>("usage");
+            _summarizationService = new SummarizationService(_userRoleCollection, _usageCollection);
         }
 
         [AllowAnonymous]
@@ -70,6 +71,15 @@ namespace SmartKB.Controllers
                 var folder = await folderCollection.Find(f => f.FolderId == folderId && f.UserId == userId).FirstOrDefaultAsync();
                 if (folder == null)
                     return BadRequest("Folder not found or you don't have access");
+            // Check if user has reached their usage limit (only for regular users, not admins)
+            var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
+            if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
+            {
+                var usage = await _usageCollection.Find(u => u.UserId == userId).FirstOrDefaultAsync();
+                if (usage != null && usage.OverallUsage >= usage.TotalLimit)
+                {
+                    return BadRequest("You have reached your usage limit. Please upgrade to continue generating summaries.");
+                }
             }
 
             var allowed = new[] { "pdf", "txt", "doc", "docx", "xls", "xlsx" };

@@ -870,7 +870,8 @@ export function UserDashboard() {
                         </div>
                         <button
                           onClick={() => setSelectedFile(null)}
-                          className="text-blue-400 hover:text-blue-600"
+                          className="text-blue-400 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={isProcessing}
                         >
                           <X className="h-4 w-4" />
                         </button>

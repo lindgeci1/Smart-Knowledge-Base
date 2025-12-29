@@ -185,11 +185,12 @@ export function LandingPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [usersResponse, textsResponse, documentsResponse] = await Promise.all([
-          apiClient.get("/Users/count"),
-          apiClient.get("/Texts/count"),
-          apiClient.get("/Documents/count"),
-        ]);
+        const [usersResponse, textsResponse, documentsResponse] =
+          await Promise.all([
+            apiClient.get("/Users/count"),
+            apiClient.get("/Texts/count"),
+            apiClient.get("/Documents/count"),
+          ]);
         setUserCount(usersResponse.data?.count || 0);
         setSummaryCount(textsResponse.data?.count || 0);
         setFileCount(documentsResponse.data?.count || 0);
@@ -213,30 +214,31 @@ export function LandingPage() {
     <div className="min-h-screen bg-white font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-100 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center space-x-2">
-              <div className="bg-blue-600 p-1.5 rounded-lg">
-                <Layout className="h-5 w-5 text-white" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+          <div className="flex justify-between h-14 sm:h-16 items-center">
+            <div className="flex items-center space-x-1.5 sm:space-x-2">
+              <div className="bg-blue-600 p-1 sm:p-1.5 rounded-lg">
+                <Layout className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900 tracking-tight">
+              <span className="text-base sm:text-xl font-bold text-slate-900 tracking-tight">
                 Summarize<span className="text-blue-600">AI</span>
               </span>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {isAuthenticated && user ? (
                 <>
                   <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
                     <Button
                       variant="ghost"
-                      className="text-slate-600 hover:text-slate-900"
+                      className="hidden sm:inline-flex text-slate-600 hover:text-slate-900 text-sm"
                     >
                       {user.role === "admin" ? "Admin Dashboard" : "Dashboard"}
                     </Button>
                   </Link>
                   <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">
-                      Go to Dashboard
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200 text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2">
+                      <span className="hidden sm:inline">Go to Dashboard</span>
+                      <span className="sm:hidden">Dashboard</span>
                     </Button>
                   </Link>
                 </>
@@ -245,13 +247,13 @@ export function LandingPage() {
                   <Link to="/login">
                     <Button
                       variant="ghost"
-                      className="text-slate-600 hover:text-slate-900"
+                      className="text-slate-600 hover:text-slate-900 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
                     >
                       Log in
                     </Button>
                   </Link>
                   <Link to="/register">
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200 text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2">
                       Get Started
                     </Button>
                   </Link>
