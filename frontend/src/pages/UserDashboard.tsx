@@ -80,6 +80,11 @@ export function UserDashboard() {
   const [isRefreshingSummaries, setIsRefreshingSummaries] = useState(false);
   const [isSavingToFolder, setIsSavingToFolder] = useState(false);
   const [isMovingToFolder, setIsMovingToFolder] = useState(false);
+  const [newlyMovedToFolderIds, setNewlyMovedToFolderIds] = useState<
+    Set<string>
+  >(new Set());
+  const [expandFolderId, setExpandFolderId] = useState<string | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<string>("Free Plan");
 
   // Function to fetch usage from backend
   const fetchUsage = useCallback(async () => {
@@ -172,11 +177,45 @@ export function UserDashboard() {
     limit > 0 ? Math.min((currentUsage / limit) * 100, 100) : 0;
   const isLimitReached = currentUsage + usageCost > limit;
 
+  // Function to fetch current plan
+  const fetchCurrentPlan = useCallback(async () => {
+    if (!user || user.role === "admin") {
+      setCurrentPlan("Admin Plan");
+      return;
+    }
+    try {
+      const response = await apiClient.get("/Users/current-plan");
+      setCurrentPlan(response.data?.planName || "Free Plan");
+    } catch (error) {
+      console.error("Failed to load current plan", error);
+      setCurrentPlan("Free Plan");
+    }
+  }, [user]);
+
   // Load summaries and usage on mount
   useEffect(() => {
     fetchSummaries();
     fetchUsage();
-  }, [fetchSummaries, fetchUsage]);
+    fetchCurrentPlan();
+  }, [fetchSummaries, fetchUsage, fetchCurrentPlan]);
+
+  // Refresh plan when component becomes visible or window gains focus (e.g., after payment)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchCurrentPlan();
+      }
+    };
+    const handleFocus = () => {
+      fetchCurrentPlan();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [fetchCurrentPlan]);
 
   // Initialize theme from localStorage on component mount (per user)
   useEffect(() => {
@@ -428,11 +467,30 @@ export function UserDashboard() {
           s.type === "text" ? `/Texts/${s.id}` : `/Documents/${s.id}`;
         await apiClient.patch(endpoint, { folderId });
       }
-      toast.success(`Moved ${selected.length} to "${folderName}"`);
+
+      // Refresh summaries first so the moved summaries appear in the folder
+      await fetchSummaries();
+      setFoldersRefreshKey((k) => k + 1);
+
+      // Auto-expand the folder and trigger glow for ALL moved summaries
+      if (folderId) {
+        setExpandFolderId(folderId);
+        // Add all moved summary IDs to the glow set
+        const summaryIds = new Set(selected.map((s) => s.id));
+        setNewlyMovedToFolderIds(summaryIds);
+        // Remove glow after 3 seconds
+        setTimeout(() => {
+          setNewlyMovedToFolderIds(new Set());
+          setExpandFolderId(null);
+        }, 3000);
+      }
+
+      const count = selected.length;
+      const label = count === 1 ? "summary" : "summaries";
+      toast.success(`Moved ${count} ${label} to "${folderName}"`);
       setShowMoveModal(false);
       setIsSelectMode(false);
       setSelectedSummaryIds(new Set());
-      setFoldersRefreshKey((k) => k + 1);
     } catch (error) {
       toast.error("Failed to move summaries");
       console.error(error);
@@ -486,11 +544,14 @@ export function UserDashboard() {
     if (!user) return;
     const themeKey = `theme_${user.id}`;
     localStorage.setItem(themeKey, themeToApply);
-    if (themeToApply === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // Use requestAnimationFrame for smoother theme transition
+    requestAnimationFrame(() => {
+      if (themeToApply === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    });
   };
 
   const handleUpdateProfile = async (e?: React.FormEvent) => {
@@ -503,8 +564,13 @@ export function UserDashboard() {
       await apiClient.put("/Users/profile", {
         username: profileUsername,
       });
-      // Update the user context immediately
-      updateUsername(profileUsername);
+
+      // Fetch updated profile to get the latest username from database
+      const profileResponse = await apiClient.get("/Users/profile");
+      const updatedUsername = profileResponse.data?.username || profileUsername;
+
+      // Update the user context with the actual username from database
+      updateUsername(updatedUsername);
       toast.success("Profile updated successfully!");
       setShowProfileModal(false);
     } catch (error: unknown) {
@@ -530,6 +596,12 @@ export function UserDashboard() {
   const handleSaveToFolder = async (folderId: string, folderName: string) => {
     if (!currentResult) return;
 
+    const savedSummaryId = currentResult.id;
+    const savedSummaryLabel =
+      currentResult.type === "file"
+        ? currentResult.filename || "file"
+        : currentResult.textName || "text summary";
+
     setIsSavingToFolder(true);
     try {
       // Update the document with the folder ID
@@ -543,10 +615,21 @@ export function UserDashboard() {
         });
       }
 
+      await fetchSummaries();
+      setFoldersRefreshKey((k) => k + 1);
+
+      if (folderId) {
+        setExpandFolderId(folderId);
+        setNewlyMovedToFolderIds(new Set([savedSummaryId]));
+        setTimeout(() => {
+          setNewlyMovedToFolderIds(new Set());
+          setExpandFolderId(null);
+        }, 3000);
+      }
+
       setShowSaveModal(false);
       setHelperMessage(null);
-      toast.success(`Saved to "${folderName}" folder`);
-      setFoldersRefreshKey((k) => k + 1);
+      toast.success(`Moved "${savedSummaryLabel}" to "${folderName}"`);
       // Hide the Summary Ready panel after saving
       setCurrentResult(null);
     } catch (error) {
@@ -566,7 +649,10 @@ export function UserDashboard() {
 
       // Add to My Summaries list with pulse animation
       setNewlyAddedId(currentResult.id);
-      await fetchSummaries();
+      // Use requestAnimationFrame for smoother updates
+      requestAnimationFrame(async () => {
+        await fetchSummaries();
+      });
 
       // Remove pulse animation after 3 seconds
       setTimeout(() => {
@@ -601,7 +687,7 @@ export function UserDashboard() {
                   {user?.name}
                 </span>
                 <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full">
-                  Standard Plan
+                  {currentPlan}
                 </span>
               </div>
               <button
@@ -693,6 +779,21 @@ export function UserDashboard() {
                 fetchSummaries();
               }}
               refreshKey={foldersRefreshKey}
+              onSummaryMovedToFolder={(summaryId, folderId) => {
+                setNewlyMovedToFolderIds(
+                  (prev) => new Set([...prev, summaryId])
+                );
+                // Remove glow after 3 seconds
+                setTimeout(() => {
+                  setNewlyMovedToFolderIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(summaryId);
+                    return next;
+                  });
+                }, 3000);
+              }}
+              newlyMovedToFolderIds={newlyMovedToFolderIds}
+              expandFolderId={expandFolderId}
             />
           </div>
 
@@ -1181,7 +1282,7 @@ export function UserDashboard() {
       </main>
       {/* Profile Modal */}
       {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col sm:flex-row">
             {/* Left Sidebar */}
             <div className="w-full sm:w-48 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 p-4 sm:p-6 flex sm:flex-col gap-2 sm:space-y-4 overflow-x-auto sm:overflow-y-auto">
@@ -1359,10 +1460,10 @@ export function UserDashboard() {
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-slate-900">Logout</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex justify-between items-center px-5 pt-5 pb-3">
+              <h3 className="text-lg font-semibold text-slate-900">Logout</h3>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
                 className="text-slate-400 hover:text-slate-600"
@@ -1370,24 +1471,24 @@ export function UserDashboard() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="mb-6">
+            <div className="px-5 pb-5">
               <p className="text-sm text-slate-600">
                 Are you sure you want to logout? You'll need to sign in again to
                 access your account.
               </p>
             </div>
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end gap-3 px-5 pb-5">
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-md hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleLogoutConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
               >
                 Logout
               </button>

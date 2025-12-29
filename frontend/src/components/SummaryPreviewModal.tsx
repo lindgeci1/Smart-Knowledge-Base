@@ -36,7 +36,7 @@ export function SummaryPreviewModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
@@ -81,7 +81,7 @@ export function SummaryPreviewModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6">
           <div className="space-y-6">
             {/* Original Content */}
             {summary.content && (
@@ -89,7 +89,13 @@ export function SummaryPreviewModal({
                 <h3 className="text-sm font-semibold text-slate-700 mb-2">
                   Original Content
                 </h3>
-                <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-wrap break-words break-all max-w-full overflow-x-auto">
+                <div
+                  className="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-wrap break-words"
+                  style={{
+                    wordBreak: "break-word",
+                    overflowWrap: "break-word",
+                  }}
+                >
                   {summary.content}
                 </div>
               </div>
@@ -100,7 +106,13 @@ export function SummaryPreviewModal({
               <h3 className="text-sm font-semibold text-slate-700 mb-2">
                 Summary
               </h3>
-              <div className="bg-blue-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-wrap break-words break-all max-w-full overflow-x-auto">
+              <div
+                className="bg-blue-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-wrap break-words"
+                style={{
+                  wordBreak: "break-word",
+                  overflowWrap: "break-word",
+                }}
+              >
                 {summary.summary}
               </div>
             </div>
