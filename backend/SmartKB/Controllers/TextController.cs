@@ -50,6 +50,17 @@ namespace SmartKB.Controllers
 
             var userId = userIdClaim.Value;
 
+            var folderCollection = _textCollection.Database.GetCollection<Folder>("folders");
+
+            // Folder optional: only validate if provided; otherwise keep null
+            string? folderId = dto.FolderId;
+            if (!string.IsNullOrWhiteSpace(folderId))
+            {
+                var folder = await folderCollection.Find(f => f.FolderId == folderId && f.UserId == userId).FirstOrDefaultAsync();
+                if (folder == null)
+                    return BadRequest("Folder not found or you don't have access");
+            }
+
             var textDocument = new TextDocument
             {
                 Text = dto.Text,
@@ -57,6 +68,7 @@ namespace SmartKB.Controllers
                 Summary = null,
                 Status = "Pending",
                 UserId = userId,
+                FolderId = string.IsNullOrWhiteSpace(folderId) ? null : folderId,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -117,10 +129,74 @@ namespace SmartKB.Controllers
                 textName = t.TextName,
                 summary = t.Summary,
                 createdAt = t.CreatedAt,
-                status = t.Status
+                status = t.Status,
+                folderId = t.FolderId
             }).ToList();
 
             return Ok(result);
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> UpdateText(string id, [FromBody] dynamic updateData)
+        {
+            // Get userId from JWT token
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // Verify text belongs to user
+            var text = await _textCollection.Find(t => t.Id == id && t.UserId == userId).FirstOrDefaultAsync();
+            if (text == null)
+                return NotFound("Text not found");
+
+            var updateDef = Builders<TextDocument>.Update;
+            var updates = new List<UpdateDefinition<TextDocument>>();
+
+            // Handle folderId update safely (JsonElement or POCO)
+            try
+            {
+                string? folderId = null;
+
+                if (updateData is System.Text.Json.JsonElement element)
+                {
+                    if (element.TryGetProperty("folderId", out var prop) && prop.ValueKind != System.Text.Json.JsonValueKind.Undefined && prop.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    {
+                        folderId = prop.GetString();
+                    }
+                }
+                else if (((IDictionary<string, object>)updateData).ContainsKey("folderId"))
+                {
+                    folderId = (string?)updateData.folderId;
+                }
+
+                if (folderId != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(folderId))
+                    {
+                        var folderCollection = _textCollection.Database.GetCollection<Folder>("folders");
+                        var folder = await folderCollection.Find(f => f.FolderId == folderId && f.UserId == userId).FirstOrDefaultAsync();
+                        if (folder == null)
+                            return BadRequest("Folder not found or you don't have access");
+                    }
+
+                    updates.Add(updateDef.Set(t => t.FolderId, folderId));
+                }
+            }
+            catch
+            {
+                return BadRequest("Invalid request body");
+            }
+
+            if (updates.Count > 0)
+            {
+                var combined = updateDef.Combine(updates);
+                await _textCollection.UpdateOneAsync(t => t.Id == id, combined);
+            }
+
+            return Ok(new { message = "Text updated successfully" });
         }
 
         [Authorize(Roles = "1")]

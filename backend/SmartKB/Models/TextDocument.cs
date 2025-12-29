@@ -24,6 +24,9 @@ namespace SmartKB.Models
         [BsonElement("userId")]
         public string UserId { get; set; }
 
+        [BsonElement("folder_id")]
+        public string? FolderId { get; set; }
+
         [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

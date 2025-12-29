@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Search, RefreshCw, Download, FileSpreadsheet, FileText, Code } from "lucide-react";
+import {
+  Search,
+  RefreshCw,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Code,
+} from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 import toast from "react-hot-toast";
 import { downloadData } from "../../utils/downloadUtils";
@@ -159,7 +166,6 @@ export function PaymentsSection({
     downloadData(data, "payments", format, format === "pdf");
   };
 
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat("en-US", {
@@ -191,7 +197,9 @@ export function PaymentsSection({
             className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
           <div className="relative group">
@@ -345,7 +353,9 @@ export function PaymentsSection({
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                      {payment.refundedAt ? formatDate(payment.refundedAt) : "—"}
+                      {payment.refundedAt
+                        ? formatDate(payment.refundedAt)
+                        : "—"}
                     </td>
                   </tr>
                 ))

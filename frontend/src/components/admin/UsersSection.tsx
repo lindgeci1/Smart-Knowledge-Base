@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, Plus, Trash2, X, UserCheck, RefreshCw, Download, FileSpreadsheet, FileText, Code } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Trash2,
+  X,
+  UserCheck,
+  RefreshCw,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Code,
+} from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 import { downloadData } from "../../utils/downloadUtils";
 interface UserData {
@@ -231,7 +242,9 @@ export function UsersSection({
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">User Management</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+            User Management
+          </h2>
           <button
             onClick={() => setIsCreating(!isCreating)}
             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 flex items-center"
@@ -251,7 +264,9 @@ export function UsersSection({
             className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
           <div className="relative group">
@@ -552,60 +567,63 @@ export function UsersSection({
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex-1 min-w-[80px]">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-slate-700">
-                                {usage.percentage}%
-                              </span>
-                              <span className="text-xs text-slate-500">
-                                {usage.count} / {usage.totalLimit || 100}{" "}
-                                credits
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${getUsageColor(
-                                  usage.percentage
-                                )}`}
-                                style={{
-                                  width: `${usage.percentage}%`,
-                                }}
-                              />
+                        {userData.role === "admin" ? (
+                          <span className="text-slate-500 text-xs">
+                            No Action
+                          </span>
+                        ) : (
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-1 min-w-[80px]">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-slate-700">
+                                  {usage.percentage}%
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                  {usage.count} / {usage.totalLimit || 100}{" "}
+                                  credits
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${getUsageColor(
+                                    usage.percentage
+                                  )}`}
+                                  style={{
+                                    width: `${usage.percentage}%`,
+                                  }}
+                                />
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-2">
-                          {userData.status === "inactive" ? (
-                            <button
-                              onClick={() => setReactivatingUser(userData)}
-                              disabled={isReactivating}
-                              className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                              title="Reactivate user"
-                            >
-                              <UserCheck className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setDeletingUser(userData)}
-                              disabled={userData.role === "admin"}
-                              className={`${
-                                userData.role === "admin"
-                                  ? "text-slate-300 cursor-not-allowed"
-                                  : "text-red-600 hover:text-red-900"
-                              }`}
-                              title={
-                                userData.role === "admin"
-                                  ? "Cannot deactivate admin users"
-                                  : "Deactivate"
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
+                        {userData.role === "admin" ? (
+                          <span className="text-slate-500 text-xs">
+                            No Action
+                          </span>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            {userData.status === "inactive" ? (
+                              <button
+                                onClick={() => setReactivatingUser(userData)}
+                                disabled={isReactivating}
+                                className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                                title="Reactivate user"
+                              >
+                                <UserCheck className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setDeletingUser(userData)}
+                                className="text-red-600 hover:text-red-900"
+                                title="Deactivate"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
