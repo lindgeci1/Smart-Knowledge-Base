@@ -52,7 +52,6 @@ namespace SmartKB.Controllers
                 {
                     Id = folder.FolderId,
                     Name = folder.Name,
-                    Description = folder.Description,
                     CreatedAt = folder.CreatedAt,
                     UpdatedAt = folder.UpdatedAt,
                     ItemCount = (int)(documentCount + textCount)
@@ -83,7 +82,6 @@ namespace SmartKB.Controllers
             {
                 Id = folder.FolderId,
                 Name = folder.Name,
-                Description = folder.Description,
                 CreatedAt = folder.CreatedAt,
                 UpdatedAt = folder.UpdatedAt,
                 ItemCount = (int)(documentCount + textCount)
@@ -107,7 +105,6 @@ namespace SmartKB.Controllers
             {
                 UserId = userId,
                 Name = dto.Name,
-                Description = dto.Description,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -140,9 +137,6 @@ namespace SmartKB.Controllers
 
             if (!string.IsNullOrWhiteSpace(dto.Name))
                 updateBuilder = updateBuilder.Set(f => f.Name, dto.Name);
-
-            if (dto.Description != null)
-                updateBuilder = updateBuilder.Set(f => f.Description, dto.Description);
 
             await _folderCollection.UpdateOneAsync(f => f.FolderId == id, updateBuilder);
 

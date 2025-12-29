@@ -13,14 +13,35 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 interface AdminSidebarProps {
-  activeView: "dashboard" | "users" | "files" | "text" | "summarize" | "packages" | "payments";
+  activeView:
+    | "dashboard"
+    | "users"
+    | "files"
+    | "text"
+    | "summarize"
+    | "packages"
+    | "payments";
   setActiveView: (
-    view: "dashboard" | "users" | "files" | "text" | "summarize" | "packages" | "payments"
+    view:
+      | "dashboard"
+      | "users"
+      | "files"
+      | "text"
+      | "summarize"
+      | "packages"
+      | "payments"
   ) => void;
   isOpen?: boolean;
   onClose?: () => void;
+  onLogout?: () => void;
 }
-export function AdminSidebar({ activeView, setActiveView, isOpen = false, onClose }: AdminSidebarProps) {
+export function AdminSidebar({
+  activeView,
+  setActiveView,
+  isOpen = false,
+  onClose,
+  onLogout,
+}: AdminSidebarProps) {
   const { logout, user } = useAuth();
   const navItems = [
     {
@@ -123,7 +144,7 @@ export function AdminSidebar({ activeView, setActiveView, isOpen = false, onClos
         {/* Logout */}
         <div className="p-4 border-t border-slate-800">
           <button
-            onClick={logout}
+            onClick={onLogout || logout}
             className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 rounded-lg hover:bg-red-900/20 hover:text-red-400 transition-colors"
           >
             <LogOut className="mr-3 h-5 w-5" />
@@ -136,55 +157,55 @@ export function AdminSidebar({ activeView, setActiveView, isOpen = false, onClos
       <div className="hidden md:flex flex-col w-64 bg-slate-900 h-screen fixed left-0 top-0 text-white">
         {/* Logo */}
         <div className="p-6 border-b border-slate-800 flex items-center">
-        <div className="bg-indigo-600 p-1.5 rounded-lg mr-3">
-          <Shield className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-xl font-bold tracking-tight">
-          Admin<span className="text-indigo-400">Portal</span>
-        </span>
-      </div>
-
-      {/* User Info */}
-      <div className="p-6 border-b border-slate-800 bg-slate-800/50">
-        <div className="flex items-center">
-          <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold">
-            {user?.name.charAt(0)}
+          <div className="bg-indigo-600 p-1.5 rounded-lg mr-3">
+            <Shield className="h-5 w-5 text-white" />
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium">{user?.name}</p>
-            <p className="text-xs text-slate-400">System Admin</p>
+          <span className="text-xl font-bold tracking-tight">
+            Admin<span className="text-indigo-400">Portal</span>
+          </span>
+        </div>
+
+        {/* User Info */}
+        <div className="p-6 border-b border-slate-800 bg-slate-800/50">
+          <div className="flex items-center">
+            <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold">
+              {user?.name.charAt(0)}
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-xs text-slate-400">System Admin</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveView(item.id)}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                activeView === item.id
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <item.icon className="mr-3 h-5 w-5" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Logout */}
+        <div className="p-4 border-t border-slate-800">
           <button
-            key={item.id}
-            onClick={() => setActiveView(item.id)}
-            className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-              activeView === item.id
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            onClick={onLogout || logout}
+            className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 rounded-lg hover:bg-red-900/20 hover:text-red-400 transition-colors"
           >
-            <item.icon className="mr-3 h-5 w-5" />
-            {item.label}
+            <LogOut className="mr-3 h-5 w-5" />
+            Sign Out
           </button>
-        ))}
-      </nav>
-
-      {/* Logout */}
-      <div className="p-4 border-t border-slate-800">
-        <button
-          onClick={logout}
-          className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 rounded-lg hover:bg-red-900/20 hover:text-red-400 transition-colors"
-        >
-          <LogOut className="mr-3 h-5 w-5" />
-          Sign Out
-        </button>
-      </div>
+        </div>
       </div>
     </>
   );

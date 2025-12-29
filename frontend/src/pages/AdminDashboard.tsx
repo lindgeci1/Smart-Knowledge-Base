@@ -69,7 +69,7 @@ interface PaymentData {
   paidAt?: string;
 }
 export function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -105,9 +105,18 @@ export function AdminDashboard() {
   const [textCount, setTextCount] = useState(0);
   const [avgUsage, setAvgUsage] = useState(0);
   const [usersUsage, setUsersUsage] = useState<
-    Map<string, { overallUsage: number; totalLimit: number; userEmail?: string; userName?: string }>
+    Map<
+      string,
+      {
+        overallUsage: number;
+        totalLimit: number;
+        userEmail?: string;
+        userName?: string;
+      }
+    >
   >(new Map());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Lazy loading states per tab
   const [loadingStates, setLoadingStates] = useState<{
@@ -131,7 +140,12 @@ export function AdminDashboard() {
       const usageData = response.data || [];
       const usageMap = new Map<
         string,
-        { overallUsage: number; totalLimit: number; userEmail?: string; userName?: string }
+        {
+          overallUsage: number;
+          totalLimit: number;
+          userEmail?: string;
+          userName?: string;
+        }
       >();
 
       usageData.forEach(
@@ -340,6 +354,14 @@ export function AdminDashboard() {
       }));
     }
   };
+
+  const handleLogoutConfirm = async () => {
+    await logout();
+    // Reset theme after navigation to prevent visible flash
+    document.documentElement.classList.remove("dark");
+    navigate("/login");
+  };
+
   const getUserUsage = (userId: string): UserUsage => {
     const usage = userUsageMap.get(userId);
     const backendUsage = usersUsage.get(userId);
@@ -401,6 +423,7 @@ export function AdminDashboard() {
         }}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        onLogout={() => setShowLogoutConfirm(true)}
       />
 
       <div className="flex-1 md:ml-64 w-full">
@@ -544,6 +567,45 @@ export function AdminDashboard() {
           )}
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-slate-900">Logout</h3>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-slate-600">
+                Are you sure you want to logout? You'll need to sign in again to
+                access your account.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLogoutConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
