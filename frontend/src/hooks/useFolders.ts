@@ -47,7 +47,6 @@ export function useFolders() {
           parentFolderId,
         });
         setFolders((prev) => [...prev, response.data]);
-        toast.success("Folder created successfully");
         return response.data;
       } catch (err: any) {
         const errorMsg =
@@ -84,7 +83,6 @@ export function useFolders() {
     try {
       await apiClient.delete(`/Folder/${folderId}`);
       setFolders((prev) => prev.filter((f) => f.folderId !== folderId));
-      toast.success("Folder deleted successfully");
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || "Failed to delete folder";
       setError(errorMsg);

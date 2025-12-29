@@ -6,7 +6,7 @@ import { useFolders } from "../hooks/useFolders";
 interface FolderCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onFolderCreated?: () => void;
+  onFolderCreated?: (folder?: { folderId: string; name: string }) => void;
 }
 
 export function FolderCreateModal({
@@ -26,10 +26,13 @@ export function FolderCreateModal({
 
     setIsLoading(true);
     try {
-      await createFolder(name);
+      const newFolder = await createFolder(name);
       setName("");
-      onFolderCreated?.();
-      onClose();
+      // Use requestAnimationFrame for smoother UI updates
+      requestAnimationFrame(() => {
+        onFolderCreated?.(newFolder);
+        onClose();
+      });
     } finally {
       setIsLoading(false);
     }
@@ -38,8 +41,8 @@ export function FolderCreateModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+    <div className="fixed inset-0 w-screen h-screen bg-black/60 flex items-center justify-center z-[100] p-4">
+      <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-lg font-semibold">Create New Folder</h2>
           <button

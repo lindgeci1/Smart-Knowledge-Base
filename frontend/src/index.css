@@ -6,6 +6,23 @@
 @import "tailwindcss/utilities";
 /* DO NOT DELETE THESE TAILWIND IMPORTS, OTHERWISE THE STYLING WILL NOT RENDER AT ALL - DO NOT DELETE THIS COMMENT */
 
+/* Smooth transitions for theme changes - optimized */
+* {
+  transition: background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* Optimize scrolling performance */
+.overflow-y-auto,
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Optimize drag and drop performance */
+[draggable="true"] {
+  will-change: transform, opacity;
+}
+
 /* Pulse Animation for Newly Added Items */
 @keyframes pulse-soft {
   0%,
@@ -21,6 +38,35 @@
 
 .animate-pulse-soft {
   animation: pulse-soft 1s ease-in-out 3;
+}
+
+/* Pulsing animation for valid drop targets */
+@keyframes drop-target-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+    transform: scale(1.02);
+  }
+}
+
+.drop-target-pulse {
+  animation: drop-target-pulse 1.5s ease-in-out infinite;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+/* Drag cursor styles */
+.cursor-grab {
+  cursor: grab;
+}
+
+.cursor-grab:active,
+.cursor-grabbing {
+  cursor: grabbing !important;
 }
 
 /* Dark Mode Global Styles */

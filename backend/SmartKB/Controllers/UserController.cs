@@ -17,6 +17,8 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Role> _roleCollection;
         private readonly IMongoCollection<UserRole> _userRoleCollection;
         private readonly IMongoCollection<Usage> _usageCollection;
+        private readonly IMongoCollection<Payment> _paymentCollection;
+        private readonly IMongoCollection<Package> _packageCollection;
         private readonly SummarizationService _summarizationService;
 
         public UserController(IConfiguration configuration)
@@ -28,6 +30,8 @@ namespace SmartKB.Controllers
             _roleCollection = database.GetCollection<Role>("roles");
             _userRoleCollection = database.GetCollection<UserRole>("userRoles");
             _usageCollection = database.GetCollection<Usage>("usage");
+            _paymentCollection = database.GetCollection<Payment>("payments");
+            _packageCollection = database.GetCollection<Package>("packages");
             
             _summarizationService = new SummarizationService(_userRoleCollection, _usageCollection);
         }
@@ -383,6 +387,58 @@ namespace SmartKB.Controllers
                 username = user.Username,
                 email = user.Email,
                 createdAt = user.CreatedAt
+            });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpGet("current-plan")]
+        public async Task<IActionResult> GetCurrentPlan()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // Find all succeeded payments with a package
+            var payments = await _paymentCollection
+                .Find(p => p.UserId == userId && p.Status == "succeeded" && !string.IsNullOrEmpty(p.PackageId))
+                .ToListAsync();
+
+            // Sort in memory by PaidAt (if exists) or CreatedAt, then get the most recent
+            var payment = payments
+                .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
+                .FirstOrDefault();
+
+            if (payment == null || string.IsNullOrEmpty(payment.PackageId))
+            {
+                // No payment found, return Free Plan
+                return Ok(new
+                {
+                    planName = "Free Plan",
+                    packageId = (string?)null
+                });
+            }
+
+            // Get the package details
+            var package = await _packageCollection
+                .Find(p => p.Id == payment.PackageId)
+                .FirstOrDefaultAsync();
+
+            if (package == null)
+            {
+                return Ok(new
+                {
+                    planName = "Free Plan",
+                    packageId = (string?)null
+                });
+            }
+
+            return Ok(new
+            {
+                planName = $"{package.Name} Plan",
+                packageId = package.Id,
+                packageName = package.Name
             });
         }
     }
