@@ -24,8 +24,22 @@ export function LoginPage() {
       navigate(from, {
         replace: true,
       });
-    } catch (err) {
-      setError("Invalid email or password");
+    } catch (err: any) {
+      // Check if it's a network error (backend down)
+      if (
+        err.message?.includes("ERR_CONNECTION_REFUSED") ||
+        err.message?.includes("Network Error") ||
+        err.code === "ERR_NETWORK"
+      ) {
+        setError("Unable to connect to server. Please try again later.");
+      } else if (
+        err.message?.includes("401") ||
+        err.message?.includes("Invalid")
+      ) {
+        setError("Invalid email or password");
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
     }
   };
   return (

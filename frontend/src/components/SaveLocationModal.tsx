@@ -123,7 +123,7 @@ export function SaveLocationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-black/60 flex items-center justify-center z-[100] p-4">
+    <div className="fixed inset-0 w-screen h-screen bg-black/60 dark:bg-black/80 flex items-center justify-center z-[100] p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full max-h-[85vh] overflow-y-auto">
         <div className="flex justify-between items-center px-5 pt-5 pb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">

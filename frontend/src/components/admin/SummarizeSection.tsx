@@ -10,7 +10,10 @@ import {
   Download,
   AlertCircle,
   RefreshCw,
+  List,
+  Grid3x3,
 } from "lucide-react";
+import { SummaryPreviewModal } from "../SummaryPreviewModal";
 interface Summary {
   id: string;
   userId: string;
@@ -21,6 +24,7 @@ interface Summary {
   createdAt: string;
   filename?: string;
   textName?: string;
+  documentName?: string;
 }
 export function SummarizeSection() {
   const { user } = useAuth();
@@ -31,10 +35,16 @@ export function SummarizeSection() {
   const [error, setError] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [previewSummary, setPreviewSummary] = useState<Summary | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const fetchSummaries = useCallback(async () => {
     if (!user) return;
 
+    setIsLoading(true);
     try {
       const [textResponse, fileResponse] = await Promise.all([
         apiClient.get("/Texts/summaries"),
@@ -49,6 +59,7 @@ export function SummarizeSection() {
         (item: {
           id: string;
           text?: string;
+          textContent?: string;
           textName?: string;
           summary?: string;
           createdAt?: string;
@@ -57,13 +68,9 @@ export function SummarizeSection() {
           userId: user.userId,
           userName: user.name || user.email || "You",
           type: "text" as const,
-          content:
-            (item.text
-              ? item.text.substring(0, 50) +
-                (item.text.length > 50 ? "..." : "")
-              : "") || "",
+          content: item.textContent || item.text || "",
           summary: item.summary || "",
-          textName: item.textName || "text summary",
+          textName: item.textName || null,
           createdAt: item.createdAt || new Date().toISOString(),
         })
       );
@@ -75,6 +82,7 @@ export function SummarizeSection() {
           fileName?: string;
           fileType?: string;
           summary?: string;
+          documentName?: string;
           createdAt?: string;
         }) => ({
           id: item.id,
@@ -84,6 +92,7 @@ export function SummarizeSection() {
           content: item.fileName || "",
           filename: item.fileName ? `${item.fileName}.${item.fileType}` : "",
           summary: item.summary || "",
+          documentName: item.documentName || null,
           createdAt: item.createdAt || new Date().toISOString(),
         })
       );
@@ -98,8 +107,12 @@ export function SummarizeSection() {
       );
 
       setSummaries(allSummaries);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error("Failed to load summaries", error);
+      setHasLoadedOnce(true);
+    } finally {
+      setIsLoading(false);
     }
   }, [user]);
 
@@ -231,6 +244,11 @@ export function SummarizeSection() {
     }
   };
 
+  const handlePreviewSummary = (summary: Summary) => {
+    setPreviewSummary(summary);
+    setIsPreviewOpen(true);
+  };
+
   const handleDownloadSummary = (summary: Summary) => {
     // Use summary content in the downloaded file for both text and file types
     const fileContent = summary.summary || "";
@@ -245,9 +263,15 @@ export function SummarizeSection() {
         summary.filename?.replace(/\.[^/.]+$/, "-summary.txt") ||
         "file-summary.txt";
     } else {
-      a.download = `text-summary-${
-        new Date(summary.createdAt).toISOString().split("T")[0]
-      }.txt`;
+      // Use TextName as filename, sanitize it for file system
+      let filename = summary.textName || "Untitled Summary";
+      // Remove invalid characters for filenames
+      filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
+      // Limit length and add .txt extension
+      if (filename.length > 100) {
+        filename = filename.substring(0, 100);
+      }
+      a.download = `${filename}.txt`;
     }
     document.body.appendChild(a);
     a.click();
@@ -287,16 +311,16 @@ export function SummarizeSection() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="border-b border-slate-200">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="border-b border-slate-200 dark:border-slate-700">
           <div className="flex">
             <button
               onClick={() => setActiveTab("text")}
               disabled={isProcessing}
               className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${
                 activeTab === "text"
-                  ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  ? "text-indigo-600 dark:text-indigo-300 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/30 dark:bg-indigo-900/30"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               } ${
                 isProcessing
                   ? "opacity-50 cursor-not-allowed pointer-events-none"
@@ -311,8 +335,8 @@ export function SummarizeSection() {
               disabled={isProcessing}
               className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${
                 activeTab === "file"
-                  ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  ? "text-indigo-600 dark:text-indigo-300 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/30 dark:bg-indigo-900/30"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               } ${
                 isProcessing
                   ? "opacity-50 cursor-not-allowed pointer-events-none"
@@ -471,34 +495,91 @@ export function SummarizeSection() {
       </div>
 
       {/* Summaries List */}
-      {summaries.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Recent Summaries
-            </h3>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">
+            Recent Summaries
+          </h3>
+          <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-md transition-colors ${
+                viewMode === "list"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-1.5 rounded-md transition-colors ${
+                viewMode === "grid"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+              title="Grid view"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </button>
           </div>
-          <div className="divide-y divide-slate-200">
-            {summaries.map((summary) => (
+        </div>
+        {isLoading && !hasLoadedOnce ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        ) : (() => {
+          // Filter summaries based on active tab
+          const filteredSummaries = summaries.filter(
+            (summary) => summary.type === activeTab
+          );
+          
+          return filteredSummaries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-6">
+              <div className="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+                {activeTab === "text" ? (
+                  <MessageSquare className="h-8 w-8 text-indigo-600" />
+                ) : (
+                  <Upload className="h-8 w-8 text-indigo-600" />
+                )}
+              </div>
+              <p className="text-sm font-medium text-slate-900 mb-1">No records</p>
+              <p className="text-xs text-slate-500 text-center">
+                {activeTab === "text"
+                  ? "No text summaries have been created yet"
+                  : "No file summaries have been uploaded yet"}
+              </p>
+            </div>
+          ) : viewMode === "list" ? (
+            <div className="divide-y divide-slate-200">
+              {filteredSummaries.map((summary) => (
               <div
                 key={summary.id}
-                className="p-6 hover:bg-slate-50 transition-colors"
+                onClick={() => handlePreviewSummary(summary)}
+                className="p-6 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start space-x-3 flex-1">
-                    <div className="mt-1">
+                    <span
+                      className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-1 ${
+                        summary.type === "file"
+                          ? "bg-purple-100 text-purple-600"
+                          : "bg-blue-100 text-blue-600"
+                      }`}
+                    >
                       {summary.type === "file" ? (
-                        <FileText className="h-5 w-5 text-indigo-600" />
+                        <FileText className="h-4 w-4" />
                       ) : (
-                        <MessageSquare className="h-5 w-5 text-blue-600" />
+                        <MessageSquare className="h-4 w-4" />
                       )}
-                    </div>
+                    </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
-                        <h4 className="text-sm font-medium text-slate-900 truncate">
+                        <h4 className="text-sm font-semibold text-slate-900 truncate">
                           {summary.type === "file"
-                            ? summary.filename || summary.content
-                            : summary.textName || "text summary"}
+                            ? summary.documentName || summary.filename || summary.content || "File Summary"
+                            : summary.textName || "Untitled Summary"}
                         </h4>
                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           {summary.type}
@@ -510,7 +591,10 @@ export function SummarizeSection() {
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDownloadSummary(summary)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadSummary(summary);
+                    }}
                     className="ml-4 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
                     title="Download summary"
                   >
@@ -523,9 +607,74 @@ export function SummarizeSection() {
                   </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredSummaries.map((summary) => (
+                <div
+                  key={summary.id}
+                  onClick={() => handlePreviewSummary(summary)}
+                  className="group relative bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer"
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        summary.type === "file"
+                          ? "bg-purple-100 text-purple-600"
+                          : "bg-blue-100 text-blue-600"
+                      }`}
+                    >
+                      {summary.type === "file" ? (
+                        <FileText className="h-4 w-4" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h4 className="text-sm font-semibold text-slate-900 break-words pr-2">
+                          {summary.type === "file"
+                            ? summary.documentName || summary.filename || summary.content || "File Summary"
+                            : summary.textName || "Untitled Summary"}
+                        </h4>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadSummary(summary);
+                          }}
+                          className="text-green-600 hover:text-green-700 flex-shrink-0"
+                          title="Download summary"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-2">
+                        By {summary.userName} • {formatDate(summary.createdAt)}
+                      </p>
+                      <p className="text-sm text-slate-600 line-clamp-2">
+                        {summary.summary}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Preview Modal */}
+      {isPreviewOpen && previewSummary && (
+        <SummaryPreviewModal
+          isOpen={isPreviewOpen}
+          onClose={() => {
+            setIsPreviewOpen(false);
+            setPreviewSummary(null);
+          }}
+          summary={previewSummary}
+          onDownload={() => handleDownloadSummary(previewSummary)}
+        />
       )}
     </div>
   );

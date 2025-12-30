@@ -201,7 +201,9 @@ export const downloadData = (
 
         // First pass: calculate how many lines each cell needs
         headers.forEach((header, colIndex) => {
-          const value = String(row[header] || "");
+          // Handle null/undefined specifically, but keep 0 and other falsy values
+          const rawValue = row[header];
+          const value = rawValue === null || rawValue === undefined ? "" : String(rawValue);
           const lines: string[] = [];
           const cellWidth = colWidths[colIndex];
 

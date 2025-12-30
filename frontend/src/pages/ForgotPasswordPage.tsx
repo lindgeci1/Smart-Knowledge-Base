@@ -3,29 +3,33 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Mail, ArrowLeft } from "lucide-react";
-import toast from "react-hot-toast";
 import { apiClient } from "../lib/authClient";
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
 
     try {
       await apiClient.post("/auth/forgot-password", { email });
       setIsSubmitted(true);
-      toast.success("If an account exists with that email, a reset code has been sent.");
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Failed to send reset link. Please try again.";
-      toast.error(errorMessage);
+    } catch (err: any) {
+      // Check if it's a network error (backend down)
+      if (
+        err.code === "ERR_NETWORK" ||
+        err.message?.includes("Network Error")
+      ) {
+        setError("Unable to connect to server. Please try again later.");
+      } else {
+        setError(err.message || "Failed to send reset link. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +74,18 @@ export function ForgotPasswordPage() {
                 disabled={isLoading}
               />
             </div>
+
+            {error && (
+              <div className="rounded-md bg-red-50 p-4">
+                <div className="flex">
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">
+                      {error}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <Button type="submit" className="w-full" isLoading={isLoading}>

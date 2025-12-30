@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Package, Trash2, X, Search, Star, RotateCcw, RefreshCw, Download, FileSpreadsheet, FileText, Code } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
+import toast from "react-hot-toast";
 import { downloadData } from "../../utils/downloadUtils";
 
 interface PackageData {
@@ -124,9 +125,10 @@ export function PackagesSection({
       setDeletingPackage(null);
       // Refresh packages list to get updated status
       await fetchPackages();
+      toast.success("Package deactivated successfully");
     } catch (error) {
       console.error("Error deactivating package", error);
-      alert("Failed to deactivate package. Please try again.");
+      toast.error("Failed to deactivate package. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -140,9 +142,10 @@ export function PackagesSection({
       setReactivatingPackage(null);
       // Refresh packages list to get updated status
       await fetchPackages();
+      toast.success("Package reactivated successfully");
     } catch (error) {
       console.error("Error reactivating package", error);
-      alert("Failed to reactivate package. Please try again.");
+      toast.error("Failed to reactivate package. Please try again.");
     } finally {
       setIsReactivating(false);
     }
@@ -230,8 +233,10 @@ export function PackagesSection({
 
       {/* Deactivate Modal */}
       {deletingPackage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+        <>
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 z-40" style={{ margin: 0, padding: 0 }} />
+          <div className="fixed top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 p-4" style={{ margin: 0 }}>
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full relative z-50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Deactivate Package</h3>
               <button
@@ -268,13 +273,16 @@ export function PackagesSection({
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Reactivate Modal */}
       {reactivatingPackage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+        <>
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 z-40" style={{ margin: 0, padding: 0 }} />
+          <div className="fixed top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 p-4" style={{ margin: 0 }}>
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full relative z-50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Reactivate Package</h3>
               <button
@@ -311,7 +319,8 @@ export function PackagesSection({
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100vh-250px)]">

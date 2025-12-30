@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Download, Calendar } from "lucide-react";
+import { FileText, MessageSquare, Download, Calendar, X } from "lucide-react";
 import { Button } from "./ui/Button";
 
 interface SummaryPreviewModalProps {
@@ -10,6 +10,7 @@ interface SummaryPreviewModalProps {
     summary: string;
     filename?: string;
     textName?: string;
+    documentName?: string;
     createdAt: string;
     content?: string;
   } | null;
@@ -36,16 +37,19 @@ export function SummaryPreviewModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-[100] p-4"
+      style={{ margin: 0 }}
+    >
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <span
               className={`h-10 w-10 rounded-lg flex items-center justify-center ${
                 summary.type === "file"
-                  ? "bg-purple-100 text-purple-600"
-                  : "bg-blue-100 text-blue-600"
+                  ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                  : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
               }`}
             >
               {summary.type === "file" ? (
@@ -55,12 +59,12 @@ export function SummaryPreviewModal({
               )}
             </span>
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 {summary.type === "file"
-                  ? summary.filename
+                  ? summary.documentName || summary.filename || "File Summary"
                   : summary.textName || "Text Summary"}
               </h2>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
                 <Calendar className="h-3 w-3" />
                 {formatDate(summary.createdAt)}
               </div>
@@ -70,7 +74,7 @@ export function SummaryPreviewModal({
             {onDownload && (
               <button
                 onClick={onDownload}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-700"
+                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 title="Download"
                 aria-label="Download"
               >
@@ -86,11 +90,11 @@ export function SummaryPreviewModal({
             {/* Original Content */}
             {summary.content && (
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">
-                  Original Content
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Original Content{summary.type === "file" ? " (file)" : ""}
                 </h3>
                 <div
-                  className="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-wrap break-words"
+                  className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words border border-slate-300 dark:border-slate-600"
                   style={{
                     wordBreak: "break-word",
                     overflowWrap: "break-word",
@@ -103,11 +107,11 @@ export function SummaryPreviewModal({
 
             {/* Summary */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Summary
               </h3>
               <div
-                className="bg-blue-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-wrap break-words"
+                className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words border border-slate-300 dark:border-slate-600"
                 style={{
                   wordBreak: "break-word",
                   overflowWrap: "break-word",
@@ -120,11 +124,11 @@ export function SummaryPreviewModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-200">
+        <div className="p-6 border-t border-slate-300 dark:border-slate-700">
           <Button
             onClick={onClose}
             variant="secondary"
-            className="w-full rounded-lg"
+            className="w-full rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-600"
           >
             Close
           </Button>

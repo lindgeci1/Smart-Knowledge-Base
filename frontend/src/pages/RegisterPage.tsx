@@ -45,7 +45,16 @@ export function RegisterPage() {
       await register(email, username, password);
       navigate("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Failed to create account");
+      // Check if it's a network error (backend down)
+      if (
+        err.message?.includes("ERR_CONNECTION_REFUSED") ||
+        err.message?.includes("Network Error") ||
+        err.code === "ERR_NETWORK"
+      ) {
+        setError("Unable to connect to server. Please try again later.");
+      } else {
+        setError(err.message || "Failed to create account");
+      }
     } finally {
       setIsValidating(false);
     }
@@ -106,7 +115,13 @@ export function RegisterPage() {
           </div>
 
           {error && (
-            <div className="text-sm text-red-600 text-center">{error}</div>
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                </div>
+              </div>
+            </div>
           )}
 
           <Button

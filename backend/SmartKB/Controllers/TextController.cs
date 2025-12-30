@@ -11,7 +11,7 @@ namespace SmartKB.Controllers
     [Route("api/Texts")]
     public class TextController : ControllerBase
     {
-        private readonly IMongoCollection<TextDocument> _textCollection;
+        private readonly IMongoCollection<Text> _textCollection;
         private readonly IMongoCollection<User> _userCollection;
         private readonly IMongoCollection<UserRole> _userRoleCollection;
         private readonly IMongoCollection<Usage> _usageCollection;
@@ -22,7 +22,7 @@ namespace SmartKB.Controllers
             var client = new MongoClient(configuration["MongoDbSettings:ConnectionString"]);
             var database = client.GetDatabase(configuration["MongoDbSettings:DatabaseName"]);
 
-            _textCollection = database.GetCollection<TextDocument>("texts");
+            _textCollection = database.GetCollection<Text>("texts");
             _userCollection = database.GetCollection<User>("users");
             _userRoleCollection = database.GetCollection<UserRole>("userRoles");
             _usageCollection = database.GetCollection<Usage>("usage");
@@ -73,10 +73,10 @@ namespace SmartKB.Controllers
                 }
             }
 
-            var textDocument = new TextDocument
+            var text = new Text
             {
-                Text = dto.Text,
-                TextName = "text summary",
+                TextContent = dto.Text,
+                TextName = null,
                 Summary = null,
                 Status = "Pending",
                 UserId = userId,
@@ -84,34 +84,40 @@ namespace SmartKB.Controllers
                 CreatedAt = DateTime.UtcNow
             };
 
-            _textCollection.InsertOne(textDocument);
+            _textCollection.InsertOne(text);
 
             try
             {
-                string summary = await _summarizationService.SummarizeWithOllama(dto.Text, "text");
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeyword(dto.Text, "text");
+                var textName = $"Text Summary of {keyword}";
 
-                var update = Builders<TextDocument>.Update
+                var update = Builders<Text>.Update
                     .Set(t => t.Summary, summary)
+                    .Set(t => t.TextName, textName)
                     .Set(t => t.Status, "Completed");
 
-                _textCollection.UpdateOne(t => t.Id == textDocument.Id, update);
+                _textCollection.UpdateOne(t => t.Id == text.Id, update);
 
                 // Increment usage for regular users (role 2), not admins (role 1)
                 await _summarizationService.IncrementUsageIfUser(userId);
 
+                // Fetch the updated text to get the textName
+                var updatedText = await _textCollection.Find(t => t.Id == text.Id).FirstOrDefaultAsync();
+
                 return Ok(new
                 {
                     message = "Text added and summarized",
-                    documentId = textDocument.Id,
-                    summary
+                    documentId = text.Id,
+                    summary,
+                    textName = updatedText?.TextName
                 });
             }
             catch
             {
-                var update = Builders<TextDocument>.Update
+                var update = Builders<Text>.Update
                     .Set(t => t.Status, "Error");
 
-                _textCollection.UpdateOne(t => t.Id == textDocument.Id, update);
+                _textCollection.UpdateOne(t => t.Id == text.Id, update);
 
                 return StatusCode(500, "Summarization failed");
             }
@@ -137,7 +143,7 @@ namespace SmartKB.Controllers
             var result = summaries.Select(t => new
             {
                 id = t.Id,
-                text = t.Text,
+                text = t.TextContent,
                 textName = t.TextName,
                 summary = t.Summary,
                 createdAt = t.CreatedAt,
@@ -164,8 +170,8 @@ namespace SmartKB.Controllers
             if (text == null)
                 return NotFound("Text not found");
 
-            var updateDef = Builders<TextDocument>.Update;
-            var updates = new List<UpdateDefinition<TextDocument>>();
+            var updateDef = Builders<Text>.Update;
+            var updates = new List<UpdateDefinition<Text>>();
 
             // Handle folderId update safely (JsonElement or POCO)
             try
@@ -235,7 +241,7 @@ namespace SmartKB.Controllers
                 result.Add(new
                 {
                     id = text.Id,
-                    text = text.Text,
+                    text = text.TextContent,
                     textName = text.TextName,
                     summary = text.Summary,
                     userId = text.UserId,
