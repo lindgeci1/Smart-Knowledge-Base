@@ -224,7 +224,7 @@ export function DashboardSection({
       </div>
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
         <h3 className="text-lg font-medium text-slate-900 mb-2">
-          Welcome to the Admin Portal
+          Welcome to the Admin Panel
         </h3>
         <p className="text-slate-500 max-w-2xl mx-auto">
           Use the sidebar navigation to manage users, files, and text summaries.

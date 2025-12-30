@@ -103,7 +103,7 @@ export function AdminSidebar({
               <Shield className="h-5 w-5 text-white" />
             </div>
             <span className="text-xl font-bold tracking-tight">
-              Admin<span className="text-indigo-400">Portal</span>
+              Admin<span className="text-indigo-400"> Panel</span>
             </span>
           </div>
           <button
@@ -169,7 +169,7 @@ export function AdminSidebar({
             <Shield className="h-5 w-5 text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight">
-            Admin<span className="text-indigo-400">Portal</span>
+            Admin<span className="text-indigo-400"> Panel</span>
           </span>
         </div>
 

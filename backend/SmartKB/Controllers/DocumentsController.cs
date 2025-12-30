@@ -312,5 +312,32 @@ namespace SmartKB.Controllers
             await _documentCollection.DeleteOneAsync(d => d.Id == id);
             return Ok(new { message = "Document deleted successfully" });
         }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("bulk")]
+        public async Task<IActionResult> DeleteDocumentsBulk([FromBody] List<string> ids)
+        {
+            if (ids == null || ids.Count == 0)
+                return BadRequest("No IDs provided");
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // For regular users, only allow deleting their own documents
+            var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
+            if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
+            {
+                var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.Id) && d.UserId == userId);
+                return Ok(new { message = "Documents deleted successfully", deletedCount = result.DeletedCount });
+            }
+            else // Admin can delete any
+            {
+                var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.Id));
+                return Ok(new { message = "Documents deleted successfully", deletedCount = result.DeletedCount });
+            }
+        }
     }
 }

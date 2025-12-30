@@ -10,9 +10,11 @@ import {
   Download,
   AlertCircle,
   RefreshCw,
-  List,
-  Grid3x3,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { SummaryPreviewModal } from "../SummaryPreviewModal";
 interface Summary {
   id: string;
@@ -37,9 +39,13 @@ export function SummarizeSection() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [previewSummary, setPreviewSummary] = useState<Summary | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [filterType, setFilterType] = useState<"all" | "text" | "file">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const fetchSummaries = useCallback(async () => {
     if (!user) return;
@@ -54,6 +60,16 @@ export function SummarizeSection() {
       const textSummaries = textResponse.data || [];
       const fileSummaries = fileResponse.data || [];
 
+      // Helper function to extract timestamp from MongoDB ObjectId
+      const getTimestampFromObjectId = (objectId: string): Date => {
+        try {
+          const timestamp = parseInt(objectId.substring(0, 8), 16) * 1000;
+          return new Date(timestamp);
+        } catch {
+          return new Date();
+        }
+      };
+
       // Map text summaries - these are already filtered to current user by the API
       const mappedTextSummaries: Summary[] = textSummaries.map(
         (item: {
@@ -65,13 +81,13 @@ export function SummarizeSection() {
           createdAt?: string;
         }) => ({
           id: item.id,
-          userId: user.userId,
+          userId: user.id,
           userName: user.name || user.email || "You",
           type: "text" as const,
           content: item.textContent || item.text || "",
           summary: item.summary || "",
           textName: item.textName || null,
-          createdAt: item.createdAt || new Date().toISOString(),
+          createdAt: item.createdAt || getTimestampFromObjectId(item.id).toISOString(),
         })
       );
 
@@ -86,14 +102,14 @@ export function SummarizeSection() {
           createdAt?: string;
         }) => ({
           id: item.id,
-          userId: user.userId,
+          userId: user.id,
           userName: user.name || user.email || "You",
           type: "file" as const,
           content: item.fileName || "",
           filename: item.fileName ? `${item.fileName}.${item.fileType}` : "",
           summary: item.summary || "",
           documentName: item.documentName || null,
-          createdAt: item.createdAt || new Date().toISOString(),
+          createdAt: item.createdAt || getTimestampFromObjectId(item.id).toISOString(),
         })
       );
 
@@ -287,6 +303,103 @@ export function SummarizeSection() {
       hour: "numeric",
       minute: "numeric",
     }).format(date);
+  };
+
+  // Filter summaries based on filter type
+  const filteredSummaries = summaries.filter((summary) => {
+    if (filterType === "all") return true;
+    return summary.type === filterType;
+  });
+
+  // Reset selection when filter changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filterType]);
+
+  // Reset delete mode and selection when delete mode is turned off
+  useEffect(() => {
+    if (!isDeleteMode) {
+      setSelectedIds(new Set());
+    }
+  }, [isDeleteMode]);
+
+  // Handle select/deselect all
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredSummaries.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSummaries.map((s) => s.id)));
+    }
+  };
+
+  // Handle individual selection
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Please select at least one summary to delete");
+      return;
+    }
+
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Please select at least one summary to delete");
+      return;
+    }
+
+    setIsDeleting(true);
+    setShowDeleteConfirm(false);
+    try {
+      const ids = Array.from(selectedIds);
+      const textIds: string[] = [];
+      const fileIds: string[] = [];
+
+      // Separate text and file summaries
+      summaries.forEach((summary) => {
+        if (ids.includes(summary.id)) {
+          if (summary.type === "text") {
+            textIds.push(summary.id);
+          } else {
+            fileIds.push(summary.id);
+          }
+        }
+      });
+
+      // Delete in parallel
+      const promises: Promise<any>[] = [];
+      if (textIds.length > 0) {
+        promises.push(apiClient.delete("/Texts/bulk", { data: textIds }));
+      }
+      if (fileIds.length > 0) {
+        promises.push(apiClient.delete("/Documents/bulk", { data: fileIds }));
+      }
+
+      await Promise.all(promises);
+
+      setSelectedIds(new Set());
+      setIsDeleteMode(false);
+      await fetchSummaries();
+      toast.success(`Successfully deleted ${ids.length} summary/summaries`);
+    } catch (error) {
+      console.error("Bulk delete failed:", error);
+      toast.error("Failed to delete summaries. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -495,129 +608,155 @@ export function SummarizeSection() {
       </div>
 
       {/* Summaries List */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-900">
-            Recent Summaries
-          </h3>
-          <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-md transition-colors ${
-                viewMode === "list"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded-md transition-colors ${
-                viewMode === "grid"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-              title="Grid view"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </button>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-200 flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Recent Summaries
+            </h3>
+            <div className="flex items-center gap-2">
+              {isDeleteMode ? (
+                <button
+                  onClick={() => setIsDeleteMode(false)}
+                  className="px-3 py-1.5 text-xs font-medium rounded transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsDeleteMode(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              )}
+              {isDeleteMode && selectedIds.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete ({selectedIds.size})
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setFilterType("all")}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  filterType === "all"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilterType("text")}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  filterType === "text"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Text
+              </button>
+              <button
+                onClick={() => setFilterType("file")}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  filterType === "file"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                File
+              </button>
+            </div>
+            {isDeleteMode && (
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
+                title={selectedIds.size === filteredSummaries.length ? "Deselect all" : "Select all"}
+              >
+                {selectedIds.size === filteredSummaries.length && filteredSummaries.length > 0 ? (
+                  <CheckSquare className="h-3.5 w-3.5" />
+                ) : (
+                  <Square className="h-3.5 w-3.5" />
+                )}
+                <span>{selectedIds.size === filteredSummaries.length && filteredSummaries.length > 0 ? "Deselect All" : "Select All"}</span>
+              </button>
+            )}
           </div>
         </div>
         {isLoading && !hasLoadedOnce ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
           </div>
-        ) : (() => {
-          // Filter summaries based on active tab
-          const filteredSummaries = summaries.filter(
-            (summary) => summary.type === activeTab
-          );
-          
-          return filteredSummaries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-6">
-              <div className="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-                {activeTab === "text" ? (
-                  <MessageSquare className="h-8 w-8 text-indigo-600" />
-                ) : (
-                  <Upload className="h-8 w-8 text-indigo-600" />
-                )}
-              </div>
-              <p className="text-sm font-medium text-slate-900 mb-1">No records</p>
-              <p className="text-xs text-slate-500 text-center">
-                {activeTab === "text"
-                  ? "No text summaries have been created yet"
-                  : "No file summaries have been uploaded yet"}
-              </p>
+        ) : summaries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-6">
+            <div className="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+              <MessageSquare className="h-8 w-8 text-indigo-600" />
             </div>
-          ) : viewMode === "list" ? (
-            <div className="divide-y divide-slate-200">
-              {filteredSummaries.map((summary) => (
-              <div
-                key={summary.id}
-                onClick={() => handlePreviewSummary(summary)}
-                className="p-6 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-start space-x-3 flex-1">
-                    <span
-                      className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-1 ${
-                        summary.type === "file"
-                          ? "bg-purple-100 text-purple-600"
-                          : "bg-blue-100 text-blue-600"
-                      }`}
-                    >
-                      {summary.type === "file" ? (
-                        <FileText className="h-4 w-4" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4" />
-                      )}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h4 className="text-sm font-semibold text-slate-900 truncate">
-                          {summary.type === "file"
-                            ? summary.documentName || summary.filename || summary.content || "File Summary"
-                            : summary.textName || "Untitled Summary"}
-                        </h4>
-                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                          {summary.type}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        By {summary.userName} • {formatDate(summary.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadSummary(summary);
-                    }}
-                    className="ml-4 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                    title="Download summary"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <p className="text-sm text-slate-700 leading-relaxed line-clamp-3">
-                    {summary.summary}
-                  </p>
-                </div>
-              </div>
-              ))}
+            <p className="text-sm font-medium text-slate-900 mb-1">No records</p>
+            <p className="text-xs text-slate-500 text-center">
+              No summaries have been created yet
+            </p>
+          </div>
+        ) : filteredSummaries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-6">
+            <div className="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+              <MessageSquare className="h-8 w-8 text-indigo-600" />
             </div>
-          ) : (
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <p className="text-sm font-medium text-slate-900 mb-1">No records</p>
+            <p className="text-xs text-slate-500 text-center">
+              No {filterType === "all" ? "" : filterType} summaries found
+            </p>
+          </div>
+        ) : (
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto" style={{ maxHeight: '320px' }}>
               {filteredSummaries.map((summary) => (
                 <div
                   key={summary.id}
-                  onClick={() => handlePreviewSummary(summary)}
-                  className="group relative bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer"
+                  className={`group relative bg-white border rounded-lg p-4 hover:shadow-md transition-all ${
+                    isDeleteMode && selectedIds.has(summary.id)
+                      ? "border-indigo-500 ring-2 ring-indigo-200"
+                      : "border-slate-200 cursor-pointer"
+                  }`}
+                  onClick={() => {
+                    if (!isDeleteMode) {
+                      handlePreviewSummary(summary);
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-3">
+                    {isDeleteMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelect(summary.id);
+                        }}
+                        className="mt-1 flex-shrink-0"
+                      >
+                        {selectedIds.has(summary.id) ? (
+                          <CheckSquare className="h-4 w-4 text-indigo-600" />
+                        ) : (
+                          <Square className="h-4 w-4 text-slate-400" />
+                        )}
+                      </button>
+                    )}
                     <span
                       className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                         summary.type === "file"
@@ -660,9 +799,54 @@ export function SummarizeSection() {
                 </div>
               ))}
             </div>
-          );
-        })()}
+        )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <>
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 z-40" style={{ margin: 0, padding: 0 }} />
+          <div className="fixed top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 p-4" style={{ margin: 0 }}>
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full relative z-50">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium">Delete Summaries</h3>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="mb-6">
+                <p className="text-sm text-slate-600">
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold text-slate-900">
+                    {selectedIds.size}
+                  </span>{" "}
+                  {selectedIds.size === 1 ? "summary" : "summaries"}? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Preview Modal */}
       {isPreviewOpen && previewSummary && (

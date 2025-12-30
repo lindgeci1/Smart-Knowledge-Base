@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="12" fill="#4F46E5"/>
+  <!-- Neural Network / AI Nodes -->
+  <g fill="white" opacity="0.95">
+    <!-- Top layer nodes -->
+    <circle cx="22" cy="22" r="3"/>
+    <circle cx="32" cy="20" r="3.5"/>
+    <circle cx="42" cy="22" r="3"/>
+    <!-- Middle layer nodes -->
+    <circle cx="26" cy="32" r="3"/>
+    <circle cx="32" cy="32" r="3.5"/>
+    <circle cx="38" cy="32" r="3"/>
+    <!-- Bottom layer nodes -->
+    <circle cx="28" cy="42" r="3"/>
+    <circle cx="32" cy="44" r="3.5"/>
+    <circle cx="36" cy="42" r="3"/>
+    <!-- Connection lines -->
+    <path d="M22 22L32 20L42 22M26 32L32 20L38 32M28 42L32 32L36 42M26 32L32 32L38 32" 
+          stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  </g>
+</svg>
