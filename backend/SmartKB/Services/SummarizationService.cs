@@ -64,7 +64,7 @@ namespace SmartKB.Services
             var summaryRequest = new
             {
                 model = "llama3.2",
-                prompt = $"Summarize this text in 2-3 sentences:\n{text}"
+                prompt = $"Summarize this:\n{text}"
             };
 
             var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);

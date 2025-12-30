@@ -264,6 +264,33 @@ namespace SmartKB.Controllers
             await _textCollection.DeleteOneAsync(t => t.Id == id);
             return Ok(new { message = "Text summary deleted successfully" });
         }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("bulk")]
+        public async Task<IActionResult> DeleteTextSummariesBulk([FromBody] List<string> ids)
+        {
+            if (ids == null || ids.Count == 0)
+                return BadRequest("No IDs provided");
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // For regular users, only allow deleting their own summaries
+            var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
+            if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
+            {
+                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.Id) && t.UserId == userId);
+                return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
+            }
+            else // Admin can delete any
+            {
+                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.Id));
+                return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
+            }
+        }
     }
 }
 
