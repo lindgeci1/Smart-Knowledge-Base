@@ -10,6 +10,7 @@ import {
   Package,
   CreditCard,
   X,
+  Folder,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 interface AdminSidebarProps {
@@ -20,7 +21,8 @@ interface AdminSidebarProps {
     | "text"
     | "summarize"
     | "packages"
-    | "payments";
+    | "payments"
+    | "folders";
   setActiveView: (
     view:
       | "dashboard"
@@ -30,6 +32,7 @@ interface AdminSidebarProps {
       | "summarize"
       | "packages"
       | "payments"
+      | "folders"
   ) => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -78,6 +81,11 @@ export function AdminSidebar({
       id: "payments",
       label: "Payments",
       icon: CreditCard,
+    },
+    {
+      id: "folders",
+      label: "Folders",
+      icon: Folder,
     },
   ] as const;
   return (

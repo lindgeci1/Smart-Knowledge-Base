@@ -1,19 +1,19 @@
-﻿using MongoDB.Bson;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace SmartKB.Models
 {
-    public class TextDocument
+    public class Text
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
         public string? Id { get; set; }
 
-        [BsonElement("text")]
-        public string Text { get; set; }
+        [BsonElement("textContent")]
+        public string TextContent { get; set; }
 
         [BsonElement("textName")]
-        public string TextName { get; set; } = "text summary";
+        public string? TextName { get; set; }
 
         [BsonElement("summary")]
         public string Summary { get; set; }
@@ -31,3 +31,4 @@ namespace SmartKB.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }
+

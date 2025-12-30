@@ -128,10 +128,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearJwtCookie();
       setToken(null);
       setUser(null);
+
+      // Check for network errors
+      if (
+        error.code === "ERR_NETWORK" ||
+        error.message?.includes("Network Error")
+      ) {
+        throw new Error("Network Error");
+      }
+
+      // Check for 401 Unauthorized
+      if (error.response?.status === 401) {
+        throw new Error("Invalid email or password");
+      }
+
+      // Other errors
       const message = error.response?.data || error.message || "Login failed";
-      throw new Error(
-        typeof message === "string" ? message : "Invalid email or password"
-      );
+      throw new Error(typeof message === "string" ? message : "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -156,6 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearJwtCookie();
       setToken(null);
       setUser(null);
+
+      // Check for network errors
+      if (
+        error.code === "ERR_NETWORK" ||
+        error.message?.includes("Network Error")
+      ) {
+        throw new Error("Network Error");
+      }
+
+      // Other errors
       const message =
         error.response?.data || error.message || "Registration failed";
       throw new Error(

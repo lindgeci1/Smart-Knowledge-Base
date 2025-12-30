@@ -3,6 +3,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace SmartKB.Models
 {
+    [BsonIgnoreExtraElements]
     public class Document
     {
         [BsonId]
@@ -20,6 +21,9 @@ namespace SmartKB.Models
 
         [BsonElement("summary")]
         public string Summary { get; set; }
+
+        [BsonElement("documentName")]
+        public string? DocumentName { get; set; }
 
         [BsonElement("status")]
         public string Status { get; set; } = "Pending";

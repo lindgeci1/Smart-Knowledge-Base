@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../../lib/authClient";
 import { downloadData } from "../../utils/downloadUtils";
+import toast from "react-hot-toast";
 interface Summary {
   id: string;
   userId: string;
@@ -81,9 +82,9 @@ export function TextSection({
         userId: text.userId,
         userName: text.userEmail || "Unknown",
         type: "text" as const,
-        content: text.text,
+        content: "",
         summary: text.summary,
-        textName: text.textName || "text summary",
+        textName: text.textName || null,
         createdAt: text.createdAt,
       }));
       setTexts(summaries);
@@ -120,9 +121,10 @@ export function TextSection({
       await apiClient.delete(`/Texts/admin/${deletingText.id}`);
       setTexts(texts.filter((t) => t.id !== deletingText.id));
       setDeletingText(null);
+      toast.success("Text summary deleted successfully");
     } catch (error) {
       console.error("Error deleting text summary", error);
-      alert("Failed to delete text summary. Please try again.");
+      toast.error("Failed to delete text summary. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -136,9 +138,17 @@ export function TextSection({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `text-summary-${
-      new Date(text.createdAt).toISOString().split("T")[0]
-    }.txt`;
+    
+    // Use TextName as filename, sanitize it for file system
+    let filename = text.textName || "Untitled Summary";
+    // Remove invalid characters for filenames
+    filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
+    // Limit length and add .txt extension
+    if (filename.length > 100) {
+      filename = filename.substring(0, 100);
+    }
+    a.download = `${filename}.txt`;
+    
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -225,8 +235,10 @@ export function TextSection({
 
       {/* Delete Modal */}
       {deletingText && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+        <>
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 z-40" style={{ margin: 0, padding: 0 }} />
+          <div className="fixed top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 p-4" style={{ margin: 0 }}>
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full relative z-50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Delete Text Summary</h3>
               <button
@@ -243,7 +255,7 @@ export function TextSection({
               </p>
               <div className="mt-3 p-3 bg-slate-50 rounded-md border border-slate-200">
                 <p className="text-xs text-slate-500 line-clamp-2">
-                  {deletingText.textName || "text summary"}
+                  {deletingText.textName || "Untitled Summary"}
                 </p>
               </div>
             </div>
@@ -265,7 +277,8 @@ export function TextSection({
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100vh-250px)]">
@@ -291,7 +304,7 @@ export function TextSection({
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Preview
+                  Text Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   User
@@ -319,11 +332,11 @@ export function TextSection({
               ) : (
                 filteredTexts.map((text) => (
                   <tr key={text.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <MessageSquare className="h-4 w-4 text-slate-400 mr-2" />
-                        <span className="text-sm text-slate-500 max-w-[200px] truncate">
-                          {text.textName || "text summary"}
+                        <MessageSquare className="h-4 w-4 text-slate-400 mr-2 flex-shrink-0" />
+                        <span className="text-sm font-medium text-slate-900">
+                          {text.textName || "Untitled Summary"}
                         </span>
                       </div>
                     </td>

@@ -53,6 +53,85 @@ namespace SmartKB.Services
             return finalOutput.Trim();
         }
 
+        public async Task<(string summary, string keyword)> SummarizeWithKeyword(string text, string type = "text")
+        {
+            var startTime = DateTime.UtcNow;
+            Console.WriteLine($"Summarization with keyword extraction started - {type}");
+
+            using var client = new HttpClient();
+            
+            // First, get the summary
+            var summaryRequest = new
+            {
+                model = "llama3.2",
+                prompt = $"Summarize this text in 2-3 sentences:\n{text}"
+            };
+
+            var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);
+            var summaryContent = new StringContent(summaryJson, System.Text.Encoding.UTF8, "application/json");
+
+            var summaryResponse = await client.PostAsync("http://localhost:11434/api/generate", summaryContent);
+            summaryResponse.EnsureSuccessStatusCode();
+
+            var summaryStream = await summaryResponse.Content.ReadAsStreamAsync();
+            using var summaryReader = new StreamReader(summaryStream);
+
+            string summary = "";
+            while (!summaryReader.EndOfStream)
+            {
+                var line = await summaryReader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var doc = System.Text.Json.JsonDocument.Parse(line);
+                if (doc.RootElement.TryGetProperty("response", out var resp))
+                    summary += resp.GetString();
+            }
+
+            // Then, extract the main keyword/topic
+            var keywordRequest = new
+            {
+                model = "llama3.2",
+                prompt = $"Based on this text, identify the single most important keyword or topic (one word or short phrase, 1-3 words max) that best represents the main subject:\n{text}\n\nRespond with only the keyword/topic, nothing else."
+            };
+
+            var keywordJson = System.Text.Json.JsonSerializer.Serialize(keywordRequest);
+            var keywordContent = new StringContent(keywordJson, System.Text.Encoding.UTF8, "application/json");
+
+            var keywordResponse = await client.PostAsync("http://localhost:11434/api/generate", keywordContent);
+            keywordResponse.EnsureSuccessStatusCode();
+
+            var keywordStream = await keywordResponse.Content.ReadAsStreamAsync();
+            using var keywordReader = new StreamReader(keywordStream);
+
+            string keyword = "";
+            while (!keywordReader.EndOfStream)
+            {
+                var line = await keywordReader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var doc = System.Text.Json.JsonDocument.Parse(line);
+                if (doc.RootElement.TryGetProperty("response", out var resp))
+                    keyword += resp.GetString();
+            }
+
+            // Clean up the keyword - remove quotes, extra whitespace, and limit length
+            keyword = keyword.Trim().Trim('"', '\'', '.', ',', '!', '?');
+            if (keyword.Length > 30)
+            {
+                keyword = keyword.Substring(0, 30).Trim();
+            }
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = "Content";
+            }
+
+            var endTime = DateTime.UtcNow;
+            var responseTime = (endTime - startTime).TotalMilliseconds;
+            Console.WriteLine($"Summarization with keyword extraction finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
+
+            return (summary.Trim(), keyword.Trim());
+        }
+
         public async Task IncrementUsageIfUser(string userId)
         {
             // Check if user is a regular user (role 2), not admin (role 1)

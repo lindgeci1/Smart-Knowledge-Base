@@ -261,9 +261,9 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-white">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-white dark:bg-slate-900">
       {/* Left Side - Order Summary (Dark) */}
-      <div className="bg-slate-900 text-white p-4 sm:p-6 lg:p-8 w-full lg:w-2/5 lg:fixed lg:left-0 lg:top-0 lg:h-full flex flex-col">
+      <div className="bg-slate-900 dark:bg-slate-800 text-white p-4 sm:p-6 lg:p-8 w-full lg:w-2/5 lg:fixed lg:left-0 lg:top-0 lg:h-full flex flex-col border-r border-slate-700 dark:border-slate-700">
         {/* Back Button */}
         <button
           onClick={() => navigate("/packages")}
@@ -341,19 +341,19 @@ export function CheckoutPage() {
       </div>
 
       {/* Right Side - Payment Form (Light) - Scrollable */}
-      <div className="bg-white p-4 sm:p-6 lg:p-8 w-full lg:w-3/5 lg:ml-[40%] min-h-screen lg:h-full lg:overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 lg:p-8 w-full lg:w-3/5 lg:ml-[40%] min-h-screen lg:h-full lg:overflow-y-auto">
         <form onSubmit={handlePayment} className="max-w-2xl w-full space-y-4 sm:space-y-6">
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-start">
-              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
-              <p className="text-xs sm:text-sm text-red-800">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4 flex items-start">
+              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 dark:text-red-400 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
+              <p className="text-xs sm:text-sm text-red-800 dark:text-red-200">{error}</p>
             </div>
           )}
 
           {/* Contact Information */}
           <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 mb-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
               Contact information
             </h3>
             <input
@@ -363,17 +363,17 @@ export function CheckoutPage() {
               readOnly
               required
               disabled={isProcessing}
-              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border border-slate-300 rounded-lg bg-slate-50 text-slate-600 cursor-not-allowed"
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-not-allowed"
             />
           </div>
 
           {/* Payment Method */}
           <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 mb-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
               Payment method
             </h3>
             <div className="space-y-2">
-              <label className="flex items-center p-2 sm:p-3 border-2 border-blue-500 bg-blue-50 rounded-lg cursor-pointer transition-all">
+              <label className="flex items-center p-2 sm:p-3 border-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg cursor-pointer transition-all">
                 <input
                   type="radio"
                   name="paymentMethod"
@@ -383,8 +383,8 @@ export function CheckoutPage() {
                   className="mr-2"
                   disabled={isProcessing}
                 />
-                <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-slate-600" />
-                <span className="font-medium text-xs sm:text-sm">Card</span>
+                <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-slate-600 dark:text-slate-300" />
+                <span className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100">Card</span>
               </label>
             </div>
 
@@ -398,7 +398,7 @@ export function CheckoutPage() {
 
             {/* Cardholder Name */}
             <div className="mt-3 sm:mt-4">
-              <label className="block text-xs font-medium text-slate-700 mb-2">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Cardholder name
               </label>
               <input
@@ -420,23 +420,23 @@ export function CheckoutPage() {
                 }}
                 required
               disabled={isProcessing}
-              className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   isProcessing 
-                    ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                    ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
                     : fieldErrors.cardholderName 
-                      ? "border-red-300" 
-                      : "border-slate-300"
+                      ? "border-red-300 dark:border-red-600" 
+                      : "border-slate-300 dark:border-slate-600"
                 }`}
               />
               {fieldErrors.cardholderName && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.cardholderName}</p>
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.cardholderName}</p>
               )}
             </div>
           </div>
 
           {/* Billing Address */}
           <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 mb-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
               Billing address
             </h3>
             <div className="space-y-3 sm:space-y-4">
@@ -445,10 +445,10 @@ export function CheckoutPage() {
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing 
-                      ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
-                      : "border-slate-300 bg-white"
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
+                      : "border-slate-300 dark:border-slate-600"
                   }`}
                 >
                   <option value="United States">United States</option>
@@ -478,16 +478,16 @@ export function CheckoutPage() {
                   }}
                   required
                   disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing 
-                      ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
                       : fieldErrors.addressLine1 
-                        ? "border-red-300" 
-                        : "border-slate-300"
+                        ? "border-red-300 dark:border-red-600" 
+                        : "border-slate-300 dark:border-slate-600"
                   }`}
                 />
                 {fieldErrors.addressLine1 && (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.addressLine1}</p>
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.addressLine1}</p>
                 )}
               </div>
               <div>
@@ -497,10 +497,10 @@ export function CheckoutPage() {
                   value={addressLine2}
                   onChange={(e) => setAddressLine2(e.target.value)}
                   disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing 
-                      ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
-                      : "border-slate-300"
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
+                      : "border-slate-300 dark:border-slate-600"
                   }`}
                 />
               </div>
@@ -525,16 +525,16 @@ export function CheckoutPage() {
                     }}
                     required
                     disabled={isProcessing}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       isProcessing 
-                        ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
                         : fieldErrors.postalCode 
-                          ? "border-red-300" 
-                          : "border-slate-300"
+                          ? "border-red-300 dark:border-red-600" 
+                          : "border-slate-300 dark:border-slate-600"
                     }`}
                   />
                   {fieldErrors.postalCode && (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.postalCode}</p>
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.postalCode}</p>
                   )}
                 </div>
                 <div>
@@ -557,16 +557,16 @@ export function CheckoutPage() {
                     }}
                     required
                     disabled={isProcessing}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       isProcessing 
-                        ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed opacity-60" 
+                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
                         : fieldErrors.city 
-                          ? "border-red-300" 
-                          : "border-slate-300"
+                          ? "border-red-300 dark:border-red-600" 
+                          : "border-slate-300 dark:border-slate-600"
                     }`}
                   />
                   {fieldErrors.city && (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.city}</p>
                   )}
                 </div>
               </div>
@@ -581,11 +581,11 @@ export function CheckoutPage() {
               className="mt-1 mr-2"
               disabled={isProcessing}
             />
-            <label htmlFor="saveInfo" className="text-xs text-slate-600">
+            <label htmlFor="saveInfo" className="text-xs text-slate-600 dark:text-slate-400">
               Save my information for faster checkout
             </label>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Pay securely at Smart Knowledge Base and everywhere Stripe is
             accepted.
           </p>

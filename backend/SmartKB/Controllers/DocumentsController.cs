@@ -135,10 +135,12 @@ namespace SmartKB.Controllers
 
             try
             {
-                string summary = await _summarizationService.SummarizeWithOllama(extractedText, "file");
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeyword(extractedText, "file");
+                var documentName = $"File Summary of {keyword}";
 
                 var update = Builders<Document>.Update
                     .Set(d => d.Summary, summary)
+                    .Set(d => d.DocumentName, documentName)
                     .Set(d => d.Status, "Completed");
 
                 _documentCollection.UpdateOne(d => d.Id == document.Id, update);
@@ -146,11 +148,15 @@ namespace SmartKB.Controllers
                 // Increment usage for regular users (role 2), not admins (role 1)
                 await _summarizationService.IncrementUsageIfUser(userId);
 
+                // Fetch the updated document to get the documentName
+                var updatedDocument = await _documentCollection.Find(d => d.Id == document.Id).FirstOrDefaultAsync();
+
                 return Ok(new
                 {
                     message = "Document uploaded and summarized",
                     documentId = document.Id,
-                    summary
+                    summary,
+                    documentName = updatedDocument?.DocumentName
                 });
             }
             catch (Exception ex)
@@ -187,6 +193,7 @@ namespace SmartKB.Controllers
                 fileName = d.FileName,
                 fileType = d.FileType,
                 summary = d.Summary,
+                documentName = d.DocumentName,
                 status = d.Status,
                 folderId = d.FolderId
             }).ToList();
@@ -284,6 +291,7 @@ namespace SmartKB.Controllers
                     fileName = doc.FileName,
                     fileType = doc.FileType,
                     summary = doc.Summary,
+                    documentName = doc.DocumentName,
                     userId = doc.UserId,
                     userEmail = user?.Email ?? "Unknown",
                     createdAt = doc.Id != null ? MongoDB.Bson.ObjectId.Parse(doc.Id).CreationTime.ToString("yyyy-MM-ddTHH:mm:ssZ") : DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")

@@ -13,7 +13,8 @@ namespace SmartKB.Controllers
     {
         private readonly IMongoCollection<Folder> _folderCollection;
         private readonly IMongoCollection<Document> _documentCollection;
-        private readonly IMongoCollection<TextDocument> _textCollection;
+        private readonly IMongoCollection<Text> _textCollection;
+        private readonly IMongoCollection<User> _userCollection;
 
         public FolderController(IConfiguration configuration)
         {
@@ -22,7 +23,8 @@ namespace SmartKB.Controllers
 
             _folderCollection = database.GetCollection<Folder>("folders");
             _documentCollection = database.GetCollection<Document>("documents");
-            _textCollection = database.GetCollection<TextDocument>("texts");
+            _textCollection = database.GetCollection<Text>("texts");
+            _userCollection = database.GetCollection<User>("users");
         }
 
         // Get all folders for current user
@@ -161,7 +163,66 @@ namespace SmartKB.Controllers
             var documentUpdate = Builders<Document>.Update.Set(d => d.FolderId, null);
             await _documentCollection.UpdateManyAsync(d => d.FolderId == id, documentUpdate);
 
-            var textUpdate = Builders<TextDocument>.Update.Set(t => t.FolderId, null);
+            var textUpdate = Builders<Text>.Update.Set(t => t.FolderId, null);
+            await _textCollection.UpdateManyAsync(t => t.FolderId == id, textUpdate);
+
+            // Delete folder
+            await _folderCollection.DeleteOneAsync(f => f.FolderId == id);
+
+            return Ok(new { message = "Folder deleted successfully. Items moved to root." });
+        }
+
+        // Admin: Get all folders grouped by user
+        [Authorize(Roles = "1")]
+        [HttpGet("admin")]
+        public async Task<IActionResult> GetAllFoldersByUser()
+        {
+            var folders = await _folderCollection
+                .Find(_ => true)
+                .SortBy(f => f.Name)
+                .ToListAsync();
+
+            var result = new List<object>();
+
+            foreach (var folder in folders)
+            {
+                // Count items in folder
+                var documentCount = await _documentCollection.CountDocumentsAsync(d => d.FolderId == folder.FolderId);
+                var textCount = await _textCollection.CountDocumentsAsync(t => t.FolderId == folder.FolderId);
+
+                // Get user info
+                var user = await _userCollection.Find(u => u.UserId == folder.UserId).FirstOrDefaultAsync();
+
+                result.Add(new
+                {
+                    id = folder.FolderId,
+                    name = folder.Name,
+                    userId = folder.UserId,
+                    userName = user?.Username ?? "Unknown",
+                    userEmail = user?.Email ?? "Unknown",
+                    itemCount = (int)(documentCount + textCount),
+                    createdAt = folder.CreatedAt,
+                    updatedAt = folder.UpdatedAt
+                });
+            }
+
+            return Ok(result);
+        }
+
+        // Admin: Delete folder
+        [Authorize(Roles = "1")]
+        [HttpDelete("admin/{id}")]
+        public async Task<IActionResult> DeleteFolderAdmin(string id)
+        {
+            var folder = await _folderCollection.Find(f => f.FolderId == id).FirstOrDefaultAsync();
+            if (folder == null)
+                return NotFound("Folder not found");
+
+            // Move all documents and texts to root (null)
+            var documentUpdate = Builders<Document>.Update.Set(d => d.FolderId, null);
+            await _documentCollection.UpdateManyAsync(d => d.FolderId == id, documentUpdate);
+
+            var textUpdate = Builders<Text>.Update.Set(t => t.FolderId, null);
             await _textCollection.UpdateManyAsync(t => t.FolderId == id, textUpdate);
 
             // Delete folder

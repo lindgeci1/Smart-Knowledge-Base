@@ -10,6 +10,7 @@ import { TextSection } from "../components/admin/TextSection";
 import { SummarizeSection } from "../components/admin/SummarizeSection";
 import { PackagesSection } from "../components/admin/PackagesSection";
 import { PaymentsSection } from "../components/admin/PaymentsSection";
+import { FoldersSection } from "../components/admin/FoldersSection";
 import { apiClient } from "../lib/authClient";
 // Types
 interface Summary {
@@ -81,7 +82,8 @@ export function AdminDashboard() {
     | "text"
     | "summarize"
     | "packages"
-    | "payments" => {
+    | "payments"
+    | "folders" => {
     const path = location.pathname;
     if (path === "/admin") return "dashboard";
     if (path === "/admin/users") return "users";
@@ -90,6 +92,7 @@ export function AdminDashboard() {
     if (path === "/admin/summarize") return "summarize";
     if (path === "/admin/packages") return "packages";
     if (path === "/admin/payments") return "payments";
+    if (path === "/admin/folders") return "folders";
     return "dashboard";
   };
 
@@ -99,6 +102,7 @@ export function AdminDashboard() {
   const [texts, setTexts] = useState<Summary[]>([]);
   const [packages, setPackages] = useState<PackageData[]>([]);
   const [payments, setPayments] = useState<PaymentData[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
   const [fileCount, setFileCount] = useState(0);
@@ -125,12 +129,14 @@ export function AdminDashboard() {
     text: { loading: boolean; hasData: boolean };
     packages: { loading: boolean; hasData: boolean };
     payments: { loading: boolean; hasData: boolean };
+    folders: { loading: boolean; hasData: boolean };
   }>({
     users: { loading: false, hasData: false },
     files: { loading: false, hasData: false },
     text: { loading: false, hasData: false },
     packages: { loading: false, hasData: false },
     payments: { loading: false, hasData: false },
+    folders: { loading: false, hasData: false },
   });
 
   // Fetch users usage from backend
@@ -284,6 +290,15 @@ export function AdminDashboard() {
         ...prev,
         payments: { loading: true, hasData: false },
       }));
+    } else if (
+      activeView === "folders" &&
+      !loadingStates.folders.hasData &&
+      !loadingStates.folders.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        folders: { loading: true, hasData: false },
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
@@ -298,7 +313,8 @@ export function AdminDashboard() {
       | "summarize"
       | "packages"
       | "payments"
-  ) => {
+      | "folders"
+    ) => {
     // Navigate to the appropriate route
     if (view === "dashboard") {
       navigate("/admin");
@@ -351,6 +367,15 @@ export function AdminDashboard() {
       setLoadingStates((prev) => ({
         ...prev,
         payments: { loading: true, hasData: false },
+      }));
+    } else if (
+      view === "folders" &&
+      !loadingStates.folders.hasData &&
+      !loadingStates.folders.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        folders: { loading: true, hasData: false },
       }));
     }
   };
@@ -562,6 +587,22 @@ export function AdminDashboard() {
               }}
               onPaymentsFetched={(fetchedPayments) => {
                 setPayments(fetchedPayments);
+              }}
+            />
+          )}
+
+          {activeView === "folders" && (
+            <FoldersSection
+              folders={folders}
+              loading={loadingStates.folders.loading}
+              onDataLoaded={(hasData) => {
+                setLoadingStates((prev) => ({
+                  ...prev,
+                  folders: { loading: false, hasData },
+                }));
+              }}
+              onFoldersFetched={(fetchedFolders) => {
+                setFolders(fetchedFolders);
               }}
             />
           )}

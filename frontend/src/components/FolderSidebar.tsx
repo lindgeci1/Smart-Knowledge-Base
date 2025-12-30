@@ -379,6 +379,13 @@ export function FolderSidebar({
       const targetFolderId = overData.folderId;
       const movedSummary = summaries.find((s) => s.id === summaryId);
       const sourceFolderId = movedSummary?.folderId || null;
+      
+      // Skip if moving to the same folder
+      if (sourceFolderId === targetFolderId) {
+        setActiveId(null);
+        return;
+      }
+      
       const summaryLabel = movedSummary
         ? movedSummary.type === "file"
           ? movedSummary.filename || "file"
@@ -443,6 +450,10 @@ export function FolderSidebar({
 
   return (
     <>
+      {/* Dark backdrop overlay when dragging */}
+      {activeId && (
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-40" />
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -574,19 +585,31 @@ export function FolderSidebar({
 
       {/* Delete Confirmation Modal */}
       {folderToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full">
+        <div 
+          className="fixed bg-black/60 dark:bg-black/80 z-[100] flex items-center justify-center p-4" 
+          style={{ 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            width: '100vw', 
+            height: '100vh',
+            margin: 0,
+            padding: '1rem'
+          }}
+        >
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Delete Folder</h3>
+              <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">Delete Folder</h3>
               <button
                 onClick={() => setFolderToDelete(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="mb-6">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 Are you sure you want to delete
                 {folderToDeleteName
                   ? ` "${folderToDeleteName}"`
@@ -601,7 +624,7 @@ export function FolderSidebar({
                   setFolderToDelete(null);
                   setFolderToDeleteName(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50"
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600"
               >
                 Cancel
               </button>

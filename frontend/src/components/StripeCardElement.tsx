@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   useStripe,
   useElements,
@@ -21,15 +21,27 @@ export function StripeCardElement({
   const stripe = useStripe();
   const elements = useElements();
   const [cardBrand, setCardBrand] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   const cardElementOptions = useMemo(
     () => ({
       style: {
         base: {
           fontSize: "16px",
-          color: "#1e293b",
+          color: isDark ? "#f1f5f9" : "#1e293b",
           "::placeholder": {
-            color: "#94a3b8",
+            color: isDark ? "#64748b" : "#94a3b8",
           },
           fontFamily: "system-ui, -apple-system, sans-serif",
         },
@@ -40,7 +52,7 @@ export function StripeCardElement({
       },
       hidePostalCode: true,
     }),
-    []
+    [isDark]
   );
 
   const handleCardChange = (event: any) => {
@@ -126,14 +138,14 @@ export function StripeCardElement({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-slate-700 mb-2">
+        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
           Card information
         </label>
         <div className="relative">
-          <div className={`px-4 py-3 border rounded-lg transition-colors ${
+          <div className={`px-4 py-3 border rounded-lg bg-white dark:bg-slate-800 transition-colors ${
             disabled 
-              ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed" 
-              : "border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+              ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 opacity-60 cursor-not-allowed" 
+              : "border-slate-300 dark:border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
           }`}>
             <CardNumberElement
               options={cardElementOptions}
@@ -149,14 +161,14 @@ export function StripeCardElement({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-slate-700 mb-2">
+          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
             MM / YY
           </label>
           <div className="relative">
-            <div className={`px-4 py-3 border rounded-lg transition-colors ${
+            <div className={`px-4 py-3 border rounded-lg bg-white dark:bg-slate-800 transition-colors ${
               disabled 
-                ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed" 
-                : "border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+                ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 opacity-60 cursor-not-allowed" 
+                : "border-slate-300 dark:border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
             }`}>
               <CardExpiryElement
                 options={cardElementOptions}
@@ -166,21 +178,21 @@ export function StripeCardElement({
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-700 mb-2">
+          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
             CVC
           </label>
           <div className="relative">
-            <div className={`px-4 py-3 border rounded-lg transition-colors ${
+            <div className={`px-4 py-3 border rounded-lg bg-white dark:bg-slate-800 transition-colors ${
               disabled 
-                ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed" 
-                : "border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+                ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 opacity-60 cursor-not-allowed" 
+                : "border-slate-300 dark:border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
             }`}>
               <CardCvcElement
                 options={cardElementOptions}
                 disabled={disabled}
               />
             </div>
-            <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none z-20" />
+            <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none z-20" />
           </div>
         </div>
       </div>

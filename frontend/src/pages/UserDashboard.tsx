@@ -36,6 +36,7 @@ interface Summary {
   createdAt: string;
   filename?: string; // Only for file type
   textName?: string; // For text type - always "text summary"
+  documentName?: string; // For file type - "File Summary of [keyword]"
   folderId?: string; // Folder assignment
 }
 export function UserDashboard() {
@@ -147,6 +148,7 @@ export function UserDashboard() {
         content: item.fileName || "",
         filename: item.fileName ? `${item.fileName}.${item.fileType}` : "",
         summary: item.summary || "",
+        documentName: item.documentName || null,
         createdAt:
           item.createdAt || getTimestampFromObjectId(item.id).toISOString(),
         folderId: item.folderId || undefined,
@@ -265,7 +267,7 @@ export function UserDashboard() {
         text: textInput,
       });
 
-      const { summary, documentId } = response.data;
+      const { summary, documentId, textName } = response.data;
 
       // Create summary object for immediate display
       const newSummary: Summary = {
@@ -276,13 +278,13 @@ export function UserDashboard() {
         content:
           textInput.substring(0, 50) + (textInput.length > 50 ? "..." : ""),
         summary: summary,
-        textName: "text summary",
+        textName: textName || null,
         createdAt: new Date().toISOString(),
       };
 
       setCurrentResult(newSummary);
       // Show helper message with summary name
-      const summaryName = `text-summary-${
+      const summaryName = textName || `text-summary-${
         new Date().toISOString().split("T")[0]
       }`;
       setHelperMessage(summaryName);
@@ -350,7 +352,7 @@ export function UserDashboard() {
       // Don't set Content-Type header - axios will set it automatically with boundary for FormData
       const response = await apiClient.post("/Documents/upload", formData);
 
-      const { summary, documentId } = response.data;
+      const { summary, documentId, documentName } = response.data;
 
       // Create summary object for immediate display
       const newSummary: Summary = {
@@ -361,12 +363,13 @@ export function UserDashboard() {
         content: selectedFile.name,
         filename: selectedFile.name,
         summary: summary,
+        documentName: documentName || null,
         createdAt: new Date().toISOString(),
       };
 
       setCurrentResult(newSummary);
-      // Show helper message with file name
-      setHelperMessage(selectedFile.name.replace(/\.[^/.]+$/, ""));
+      // Show helper message with document name
+      setHelperMessage(documentName || selectedFile.name.replace(/\.[^/.]+$/, ""));
       // no folder banner UI
       setShowSaveModal(true);
       setSelectedFile(null);
@@ -434,9 +437,15 @@ export function UserDashboard() {
         summary.filename?.replace(/\.[^/.]+$/, "-summary.txt") ||
         "file-summary.txt";
     } else {
-      a.download = `text-summary-${
-        new Date(summary.createdAt).toISOString().split("T")[0]
-      }.txt`;
+      // Use TextName as filename, sanitize it for file system
+      let filename = summary.textName || "Untitled Summary";
+      // Remove invalid characters for filenames
+      filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
+      // Limit length and add .txt extension
+      if (filename.length > 100) {
+        filename = filename.substring(0, 100);
+      }
+      a.download = `${filename}.txt`;
     }
     document.body.appendChild(a);
     a.click();
@@ -799,16 +808,16 @@ export function UserDashboard() {
 
           {/* Center: Text Summary / File Upload Tools */}
           <div className="md:col-span-1 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="border-b border-slate-200">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="border-b border-slate-200 dark:border-slate-700">
                 <div className="flex">
                   <button
                     onClick={() => setActiveTab("text")}
                     disabled={isProcessing}
                     className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${
                       activeTab === "text"
-                        ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/30"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                        ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                     } ${
                       isProcessing
                         ? "opacity-50 cursor-not-allowed pointer-events-none"
@@ -823,8 +832,8 @@ export function UserDashboard() {
                     disabled={isProcessing}
                     className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${
                       activeTab === "file"
-                        ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/30"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                        ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                     } ${
                       isProcessing
                         ? "opacity-50 cursor-not-allowed pointer-events-none"
@@ -1176,7 +1185,7 @@ export function UserDashboard() {
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                             {item.type === "file"
-                              ? item.filename
+                              ? item.documentName || item.filename || "File Summary"
                               : item.textName || "text summary"}
                           </h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -1249,7 +1258,7 @@ export function UserDashboard() {
                             <div className="flex items-start justify-between gap-2 mb-1">
                               <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words pr-2">
                                 {item.type === "file"
-                                  ? item.filename
+                                  ? item.documentName || item.filename || "File Summary"
                                   : item.textName || "text summary"}
                               </h4>
                               <button
