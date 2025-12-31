@@ -34,6 +34,11 @@ interface Summary {
   filename?: string;
   textName?: string;
   folderId?: string;
+  userId: string;
+  userName: string;
+  createdAt: string;
+  content: string; // or optional if not always needed, but UserDashboard has it required
+  documentName?: string;
 }
 
 interface FolderSidebarProps {
@@ -46,6 +51,7 @@ interface FolderSidebarProps {
   onSummaryMovedToFolder?: (summaryId: string, folderId: string) => void;
   newlyMovedToFolderIds?: Set<string>;
   expandFolderId?: string | null;
+  variant?: "default" | "admin";
 }
 
 // Draggable Summary Item Component
@@ -70,8 +76,8 @@ function DraggableSummary({
 
   const style = transform
     ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
+      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    }
     : undefined;
 
   return (
@@ -81,9 +87,8 @@ function DraggableSummary({
       {...listeners}
       {...attributes}
       onClick={() => onPreviewSummary && onPreviewSummary(summary)}
-      className={`flex items-center gap-2 px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-lg cursor-grab active:cursor-grabbing transition hover:bg-slate-100 ${
-        isDragging ? "opacity-50" : ""
-      } ${newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft" : ""}`}
+      className={`flex items-center gap-2 px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-lg cursor-grab active:cursor-grabbing transition hover:bg-slate-100 ${isDragging ? "opacity-50" : ""
+        } ${newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft" : ""}`}
     >
       {summary.type === "file" ? (
         <FileText size={14} className="text-purple-600" />
@@ -124,7 +129,7 @@ function DroppableFolder({
   folderSummaries: Summary[];
   selectedFolder: string | null;
   onSelectFolder: (folderId: string) => void;
-  onDeleteFolder: (folderId: string, folderName: string) => void;
+  onToggleExpansion: (folderId: string) => void;
   onDeleteFolder: (folderId: string, folderName: string) => void;
   onPreviewSummary?: (summary: Summary) => void;
   newlyMovedToFolderIds?: Set<string>;
@@ -140,11 +145,10 @@ function DroppableFolder({
   return (
     <div ref={setNodeRef}>
       <div
-        className={`flex items-center gap-2 px-3 py-1 rounded-lg cursor-pointer transition group ${
-          selectedFolder === folderId
-            ? "bg-slate-100 text-slate-900 border border-slate-300"
-            : "text-slate-900 hover:bg-slate-50 border border-transparent"
-        } ${isOver ? "bg-slate-50" : ""}`}
+        className={`flex items-center gap-2 px-3 py-1 rounded-lg cursor-pointer transition group ${selectedFolder === folderId
+          ? "bg-slate-100 text-slate-900 border border-slate-300"
+          : "text-slate-900 hover:bg-slate-50 border border-transparent"
+          } ${isOver ? "bg-slate-50" : ""}`}
         onClick={() => {
           if (selectedFolder !== folderId) {
             onSelectFolder(folderId);
@@ -201,6 +205,7 @@ export function FolderSidebar({
   onSummaryMovedToFolder,
   newlyMovedToFolderIds = new Set(),
   expandFolderId = null,
+  variant = "default",
 }: FolderSidebarProps) {
   const { folders, deleteFolder, fetchFolders } = useFolders();
 
@@ -294,9 +299,8 @@ export function FolderSidebar({
 
       const movedText =
         movedCount > 0
-          ? ` and moved ${movedCount} ${
-              movedCount === 1 ? "summary" : "summaries"
-            } to My Summaries`
+          ? ` and moved ${movedCount} ${movedCount === 1 ? "summary" : "summaries"
+          } to My Summaries`
           : "";
       toast.success(`Deleted "${folderName}"${movedText}`);
     } catch (error) {
@@ -379,13 +383,13 @@ export function FolderSidebar({
       const targetFolderId = overData.folderId;
       const movedSummary = summaries.find((s) => s.id === summaryId);
       const sourceFolderId = movedSummary?.folderId || null;
-      
+
       // Skip if moving to the same folder
       if (sourceFolderId === targetFolderId) {
         setActiveId(null);
         return;
       }
-      
+
       const summaryLabel = movedSummary
         ? movedSummary.type === "file"
           ? movedSummary.filename || "file"
@@ -448,6 +452,22 @@ export function FolderSidebar({
     ? summaries.find((s) => `summary-${s.id}` === activeId)
     : null;
 
+  // Define styles based on variant
+  const containerStyles =
+    variant === "admin"
+      ? "h-full bg-slate-50 p-4 sm:p-6 space-y-4 relative"
+      : "bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4 relative";
+
+  const headerStyles =
+    variant === "admin"
+      ? "flex items-center justify-between mb-4 pb-4 border-b border-slate-200"
+      : "flex items-center justify-between mb-6";
+
+  const titleStyles =
+    variant === "admin"
+      ? "text-lg font-semibold text-slate-800"
+      : "text-lg font-medium text-slate-900";
+
   return (
     <>
       {/* Dark backdrop overlay when dragging */}
@@ -460,9 +480,9 @@ export function FolderSidebar({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4 relative z-50">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-slate-900">Folders</h3>
+        <div className={containerStyles}>
+          <div className={headerStyles}>
+            <h3 className={titleStyles}>Folders</h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={async () => {
@@ -484,8 +504,13 @@ export function FolderSidebar({
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="p-2 hover:bg-blue-100 rounded-xl text-blue-600 transition"
-                title="Create new folder"
+                disabled={folders.length >= 7}
+                className={`p-2 rounded-xl transition ${
+                  folders.length >= 7
+                    ? "text-slate-400 cursor-not-allowed opacity-50"
+                    : "hover:bg-blue-100 text-blue-600"
+                }`}
+                title={folders.length >= 7 ? "Maximum number of folders reached" : "Create new folder"}
               >
                 <Plus size={20} />
               </button>
@@ -495,11 +520,10 @@ export function FolderSidebar({
           <div className="space-y-2">
             {/* All Items - Root */}
             <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${
-                selectedFolder === null
-                  ? "bg-slate-100 text-slate-900 border border-slate-300"
-                  : "text-slate-900 hover:bg-slate-50 border border-transparent"
-              }`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${selectedFolder === null
+                ? "bg-slate-100 text-slate-900 border border-slate-300"
+                : "text-slate-900 hover:bg-slate-50 border border-transparent"
+                }`}
               onClick={() => {
                 onSelectFolder(null);
                 setIsCollapsed((prev) => !prev);
@@ -585,14 +609,14 @@ export function FolderSidebar({
 
       {/* Delete Confirmation Modal */}
       {folderToDelete && (
-        <div 
-          className="fixed bg-black/60 dark:bg-black/80 z-[100] flex items-center justify-center p-4" 
-          style={{ 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            width: '100vw', 
+        <div
+          className="fixed bg-black/60 dark:bg-black/80 z-[100] flex items-center justify-center p-4"
+          style={{
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
             height: '100vh',
             margin: 0,
             padding: '1rem'

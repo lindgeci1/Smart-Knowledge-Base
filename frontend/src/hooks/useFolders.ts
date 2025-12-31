@@ -50,7 +50,9 @@ export function useFolders() {
         return response.data;
       } catch (err: any) {
         const errorMsg =
-          err.response?.data?.message || "Failed to create folder";
+          err.response?.data?.message || 
+          (typeof err.response?.data === 'string' ? err.response.data : null) ||
+          "Failed to create folder";
         setError(errorMsg);
         toast.error(errorMsg);
         throw err;

@@ -103,10 +103,23 @@ namespace SmartKB.Controllers
 
             var userId = userIdClaim.Value;
 
+            // Check if user has reached the maximum of 7 folders
+            var folderCount = await _folderCollection.CountDocumentsAsync(f => f.UserId == userId);
+            if (folderCount >= 7)
+                return BadRequest("You cannot create more than 7 folders. Please delete an existing folder first.");
+
+            // Check if folder name already exists for this user (case-insensitive)
+            var existingFolder = await _folderCollection
+                .Find(f => f.UserId == userId && f.Name.ToLower() == dto.Name.Trim().ToLower())
+                .FirstOrDefaultAsync();
+            
+            if (existingFolder != null)
+                return BadRequest("A folder with this name already exists. Please choose a different name.");
+
             var folder = new Folder
             {
                 UserId = userId,
-                Name = dto.Name,
+                Name = dto.Name.Trim(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
