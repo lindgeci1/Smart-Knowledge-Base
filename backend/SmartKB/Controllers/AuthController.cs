@@ -30,8 +30,10 @@ namespace SmartKB.Controllers
             _config = config;
             _emailService = emailService;
 
-            var client = new MongoClient(config["MongoDbSettings:ConnectionString"]);
-            var db = client.GetDatabase(config["MongoDbSettings:DatabaseName"]);
+            var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? config["MongoDbSettings:ConnectionString"];
+            var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? config["MongoDbSettings:DatabaseName"];
+            var client = new MongoClient(connectionString);
+            var db = client.GetDatabase(databaseName);
 
             _users = db.GetCollection<User>("users");
             _roles = db.GetCollection<Role>("roles");

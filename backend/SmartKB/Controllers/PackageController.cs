@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
 using SmartKB.Models;
+using SmartKB.Services;
 
 namespace SmartKB.Controllers
 {
@@ -16,8 +17,10 @@ namespace SmartKB.Controllers
         {
             _configuration = configuration;
 
-            var client = new MongoClient(configuration["MongoDbSettings:ConnectionString"]);
-            var database = client.GetDatabase(configuration["MongoDbSettings:DatabaseName"]);
+            var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? configuration["MongoDbSettings:ConnectionString"];
+            var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? configuration["MongoDbSettings:DatabaseName"];
+            var client = new MongoClient(connectionString);
+            var database = client.GetDatabase(databaseName);
 
             _packageCollection = database.GetCollection<Package>("packages");
         }
