@@ -236,7 +236,7 @@ namespace SmartKB.Controllers
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Strict,
+                SameSite = SameSiteMode.None,
                 Expires = refreshExpires
             });
 
@@ -270,7 +270,13 @@ namespace SmartKB.Controllers
             }
 
             // 3. Always clear cookies (even if token was missing/expired)
-            Response.Cookies.Delete("refreshToken");
+            Response.Cookies.Delete("refreshToken", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/"
+            });
 
             return Ok(new { message = "Logged out" });
         }
