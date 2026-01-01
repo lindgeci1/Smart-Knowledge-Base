@@ -21,8 +21,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
-        policy.WithOrigins(frontendUrl)
+        var frontendUrls = (Environment.GetEnvironmentVariable("FRONTEND_URLS")
+                            ?? Environment.GetEnvironmentVariable("FRONTEND_URL")
+                            ?? "http://localhost:5173")
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        policy.WithOrigins(frontendUrls)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // Important: allows cookies (refresh token)
