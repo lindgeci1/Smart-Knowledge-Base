@@ -212,18 +212,20 @@ export function CheckoutPage() {
       }
 
       if (paymentIntent?.status === "succeeded") {
-        // Step 3: Confirm payment in backend
-        await apiClient.post("/Payment/confirm", {
-          paymentIntentId: paymentIntentId,
-          packageId: checkoutPackage.id,
-        });
+        // Step 3: Confirm payment in backend (fire and forget, don't wait)
+        apiClient
+          .post("/Payment/confirm", {
+            paymentIntentId: paymentIntentId,
+            packageId: checkoutPackage.id,
+          })
+          .catch((err) => console.error("Backend confirmation error:", err));
 
         // Step 4: Update user limit in frontend
         if (checkoutPackage.summaryLimit) {
           updateUserLimit(checkoutPackage.summaryLimit);
         }
 
-        // Step 5: Show success toast
+        // Step 5: Show success and reset state
         toast.success(
           `Payment successful! Your ${checkoutPackage.name} package has been activated.`,
           {
@@ -231,7 +233,8 @@ export function CheckoutPage() {
           }
         );
 
-        // Step 6: Navigate immediately without setTimeout to avoid state issues
+        // Step 6: Reset processing and navigate
+        setIsProcessing(false);
         navigate("/dashboard", { replace: true });
       } else {
         setError("Payment was not completed. Please try again.");
