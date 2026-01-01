@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using SmartKB.Models;
+using SmartKB.Services;
 
 namespace SmartKB.Middleware
 {
@@ -23,8 +24,10 @@ namespace SmartKB.Middleware
                 if (userIdClaim != null)
                 {
                     var userId = userIdClaim.Value;
-                    var client = new MongoClient(_configuration["MongoDbSettings:ConnectionString"]);
-                    var database = client.GetDatabase(_configuration["MongoDbSettings:DatabaseName"]);
+                    var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? _configuration["MongoDbSettings:ConnectionString"];
+                    var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? _configuration["MongoDbSettings:DatabaseName"];
+                    var client = new MongoClient(connectionString);
+                    var database = client.GetDatabase(databaseName);
                     var userCollection = database.GetCollection<User>("users");
 
                     var user = await userCollection.Find(u => u.UserId == userId).FirstOrDefaultAsync();
