@@ -232,12 +232,14 @@ namespace SmartKB.Controllers
             // Console.WriteLine($"[Login] Updating user with refresh token...");
             await _users.UpdateOneAsync(u => u.UserId == user.UserId, update);
 
+            // Use SameSite.Lax now that Vercel proxy makes this same-site request
             Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.None,
-                Expires = refreshExpires
+                SameSite = SameSiteMode.Lax,
+                Expires = refreshExpires,
+                Path = "/"
             });
 
             // Console.WriteLine($"[Login] Login successful - UserId: {user.UserId}, RoleId: {roleId}, Refresh token expires: {refreshExpires}");
@@ -270,11 +272,12 @@ namespace SmartKB.Controllers
             }
 
             // 3. Always clear cookies (even if token was missing/expired)
+            // Use SameSite.Lax now that Vercel proxy makes this same-site request
             Response.Cookies.Delete("refreshToken", new CookieOptions
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.None,
+                SameSite = SameSiteMode.Lax,
                 Path = "/"
             });
 

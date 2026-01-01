@@ -1,7 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5074/api";
+// Use relative path in production (Vercel proxy forwards to backend)
+// Use full URL in development (no proxy locally)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 // Helper functions for JWT cookie management
 export function setJwtCookie(jwt: string): void {
