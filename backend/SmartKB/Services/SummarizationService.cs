@@ -29,7 +29,9 @@ namespace SmartKB.Services
             var json = System.Text.Json.JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var response = await client.PostAsync("http://localhost:11434/api/generate", content);
+            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://localhost:11434";
+            var ollamaApiUrl = $"{ollamaUrl}/api/generate";
+            var response = await client.PostAsync(ollamaApiUrl, content);
             response.EnsureSuccessStatusCode();
 
             var stream = await response.Content.ReadAsStreamAsync();
@@ -58,6 +60,9 @@ namespace SmartKB.Services
             var startTime = DateTime.UtcNow;
             Console.WriteLine($"Summarization with keyword extraction started - {type}");
 
+            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://localhost:11434";
+            var ollamaApiUrl = $"{ollamaUrl}/api/generate";
+
             using var client = new HttpClient();
             
             // First, get the summary
@@ -70,7 +75,7 @@ namespace SmartKB.Services
             var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);
             var summaryContent = new StringContent(summaryJson, System.Text.Encoding.UTF8, "application/json");
 
-            var summaryResponse = await client.PostAsync("http://localhost:11434/api/generate", summaryContent);
+            var summaryResponse = await client.PostAsync(ollamaApiUrl, summaryContent);
             summaryResponse.EnsureSuccessStatusCode();
 
             var summaryStream = await summaryResponse.Content.ReadAsStreamAsync();
@@ -97,7 +102,7 @@ namespace SmartKB.Services
             var keywordJson = System.Text.Json.JsonSerializer.Serialize(keywordRequest);
             var keywordContent = new StringContent(keywordJson, System.Text.Encoding.UTF8, "application/json");
 
-            var keywordResponse = await client.PostAsync("http://localhost:11434/api/generate", keywordContent);
+            var keywordResponse = await client.PostAsync(ollamaApiUrl, keywordContent);
             keywordResponse.EnsureSuccessStatusCode();
 
             var keywordStream = await keywordResponse.Content.ReadAsStreamAsync();
