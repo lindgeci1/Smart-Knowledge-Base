@@ -139,7 +139,7 @@ export function CheckoutPage() {
   };
 
   // Check if all required fields are filled and valid
-  const isFormValid = 
+  const isFormValid =
     email.trim() !== "" &&
     isValidEmail(email) &&
     cardholderName.trim().length >= 2 &&
@@ -187,9 +187,8 @@ export function CheckoutPage() {
         throw new Error("Card element not found");
       }
 
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
-        {
+      const { error: stripeError, paymentIntent } =
+        await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
             card: cardElement,
             billing_details: {
@@ -204,8 +203,7 @@ export function CheckoutPage() {
               },
             },
           },
-        }
-      );
+        });
 
       if (stripeError) {
         setError(stripeError.message || "Payment failed");
@@ -225,7 +223,7 @@ export function CheckoutPage() {
           updateUserLimit(checkoutPackage.summaryLimit);
         }
 
-        // Step 5: Show success toast and redirect immediately
+        // Step 5: Show success toast
         toast.success(
           `Payment successful! Your ${checkoutPackage.name} package has been activated.`,
           {
@@ -233,10 +231,8 @@ export function CheckoutPage() {
           }
         );
 
-        // Step 6: Redirect to dashboard (reduced delay for faster UX)
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 800);
+        // Step 6: Navigate immediately without setTimeout to avoid state issues
+        navigate("/dashboard", { replace: true });
       } else {
         setError("Payment was not completed. Please try again.");
         setIsProcessing(false);
@@ -245,8 +241,8 @@ export function CheckoutPage() {
       console.error("Payment error:", err);
       setError(
         err.response?.data?.error ||
-        err.message ||
-        "An error occurred during payment. Please try again."
+          err.message ||
+          "An error occurred during payment. Please try again."
       );
       setIsProcessing(false);
     }
@@ -342,12 +338,17 @@ export function CheckoutPage() {
 
       {/* Right Side - Payment Form (Light) - Scrollable */}
       <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 lg:p-8 w-full lg:w-3/5 lg:ml-[40%] min-h-screen lg:h-full lg:overflow-y-auto">
-        <form onSubmit={handlePayment} className="max-w-2xl w-full space-y-4 sm:space-y-6">
+        <form
+          onSubmit={handlePayment}
+          className="max-w-2xl w-full space-y-4 sm:space-y-6"
+        >
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4 flex items-start">
               <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 dark:text-red-400 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
-              <p className="text-xs sm:text-sm text-red-800 dark:text-red-200">{error}</p>
+              <p className="text-xs sm:text-sm text-red-800 dark:text-red-200">
+                {error}
+              </p>
             </div>
           )}
 
@@ -384,7 +385,9 @@ export function CheckoutPage() {
                   disabled={isProcessing}
                 />
                 <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-slate-600 dark:text-slate-300" />
-                <span className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100">Card</span>
+                <span className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100">
+                  Card
+                </span>
               </label>
             </div>
 
@@ -410,26 +413,35 @@ export function CheckoutPage() {
                   const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
                   setCardholderName(value);
                   if (fieldErrors.cardholderName) {
-                    setFieldErrors(prev => ({ ...prev, cardholderName: undefined }));
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      cardholderName: undefined,
+                    }));
                   }
                 }}
                 onBlur={() => {
                   if (cardholderName.trim().length < 2) {
-                    setFieldErrors(prev => ({ ...prev, cardholderName: "Cardholder name must be at least 2 characters" }));
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      cardholderName:
+                        "Cardholder name must be at least 2 characters",
+                    }));
                   }
                 }}
                 required
-              disabled={isProcessing}
-              className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  isProcessing 
-                    ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
-                    : fieldErrors.cardholderName 
-                      ? "border-red-300 dark:border-red-600" 
-                      : "border-slate-300 dark:border-slate-600"
+                disabled={isProcessing}
+                className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  isProcessing
+                    ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
+                    : fieldErrors.cardholderName
+                    ? "border-red-300 dark:border-red-600"
+                    : "border-slate-300 dark:border-slate-600"
                 }`}
               />
               {fieldErrors.cardholderName && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.cardholderName}</p>
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {fieldErrors.cardholderName}
+                </p>
               )}
             </div>
           </div>
@@ -446,8 +458,8 @@ export function CheckoutPage() {
                   onChange={(e) => setCountry(e.target.value)}
                   disabled={isProcessing}
                   className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing 
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
+                    isProcessing
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
                       : "border-slate-300 dark:border-slate-600"
                   }`}
                 >
@@ -468,26 +480,34 @@ export function CheckoutPage() {
                   onChange={(e) => {
                     setAddressLine1(e.target.value);
                     if (fieldErrors.addressLine1) {
-                      setFieldErrors(prev => ({ ...prev, addressLine1: undefined }));
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        addressLine1: undefined,
+                      }));
                     }
                   }}
                   onBlur={() => {
                     if (addressLine1.trim().length < 5) {
-                      setFieldErrors(prev => ({ ...prev, addressLine1: "Address must be at least 5 characters" }));
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        addressLine1: "Address must be at least 5 characters",
+                      }));
                     }
                   }}
                   required
                   disabled={isProcessing}
                   className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing 
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
-                      : fieldErrors.addressLine1 
-                        ? "border-red-300 dark:border-red-600" 
-                        : "border-slate-300 dark:border-slate-600"
+                    isProcessing
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
+                      : fieldErrors.addressLine1
+                      ? "border-red-300 dark:border-red-600"
+                      : "border-slate-300 dark:border-slate-600"
                   }`}
                 />
                 {fieldErrors.addressLine1 && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.addressLine1}</p>
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    {fieldErrors.addressLine1}
+                  </p>
                 )}
               </div>
               <div>
@@ -498,8 +518,8 @@ export function CheckoutPage() {
                   onChange={(e) => setAddressLine2(e.target.value)}
                   disabled={isProcessing}
                   className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing 
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
+                    isProcessing
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
                       : "border-slate-300 dark:border-slate-600"
                   }`}
                 />
@@ -515,26 +535,34 @@ export function CheckoutPage() {
                       const value = e.target.value.replace(/[^0-9]/g, "");
                       setPostalCode(value);
                       if (fieldErrors.postalCode) {
-                        setFieldErrors(prev => ({ ...prev, postalCode: undefined }));
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          postalCode: undefined,
+                        }));
                       }
                     }}
                     onBlur={() => {
                       if (postalCode.trim().length < 4) {
-                        setFieldErrors(prev => ({ ...prev, postalCode: "Postal code must be at least 4 digits" }));
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          postalCode: "Postal code must be at least 4 digits",
+                        }));
                       }
                     }}
                     required
                     disabled={isProcessing}
                     className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isProcessing 
-                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
-                        : fieldErrors.postalCode 
-                          ? "border-red-300 dark:border-red-600" 
-                          : "border-slate-300 dark:border-slate-600"
+                      isProcessing
+                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
+                        : fieldErrors.postalCode
+                        ? "border-red-300 dark:border-red-600"
+                        : "border-slate-300 dark:border-slate-600"
                     }`}
                   />
                   {fieldErrors.postalCode && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.postalCode}</p>
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {fieldErrors.postalCode}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -544,29 +572,40 @@ export function CheckoutPage() {
                     value={city}
                     onChange={(e) => {
                       // Only allow letters, spaces, hyphens, and apostrophes
-                      const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
+                      const value = e.target.value.replace(
+                        /[^a-zA-Z\s'-]/g,
+                        ""
+                      );
                       setCity(value);
                       if (fieldErrors.city) {
-                        setFieldErrors(prev => ({ ...prev, city: undefined }));
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          city: undefined,
+                        }));
                       }
                     }}
                     onBlur={() => {
                       if (city.trim().length < 2) {
-                        setFieldErrors(prev => ({ ...prev, city: "City must be at least 2 characters" }));
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          city: "City must be at least 2 characters",
+                        }));
                       }
                     }}
                     required
                     disabled={isProcessing}
                     className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isProcessing 
-                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60" 
-                        : fieldErrors.city 
-                          ? "border-red-300 dark:border-red-600" 
-                          : "border-slate-300 dark:border-slate-600"
+                      isProcessing
+                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
+                        : fieldErrors.city
+                        ? "border-red-300 dark:border-red-600"
+                        : "border-slate-300 dark:border-slate-600"
                     }`}
                   />
                   {fieldErrors.city && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.city}</p>
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {fieldErrors.city}
+                    </p>
                   )}
                 </div>
               </div>
@@ -581,7 +620,10 @@ export function CheckoutPage() {
               className="mt-1 mr-2"
               disabled={isProcessing}
             />
-            <label htmlFor="saveInfo" className="text-xs text-slate-600 dark:text-slate-400">
+            <label
+              htmlFor="saveInfo"
+              className="text-xs text-slate-600 dark:text-slate-400"
+            >
               Save my information for faster checkout
             </label>
           </div>
