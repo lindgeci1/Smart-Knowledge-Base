@@ -20,9 +20,12 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Payment> _paymentCollection;
         private readonly IMongoCollection<Package> _packageCollection;
         private readonly SummarizationService _summarizationService;
+        private readonly EmailService _emailService;
 
-        public UserController(IConfiguration configuration)
+        public UserController(IConfiguration configuration, EmailService emailService)
         {
+            _emailService = emailService;
+
             var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? configuration["MongoDbSettings:ConnectionString"];
             var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? configuration["MongoDbSettings:DatabaseName"];
             var client = new MongoClient(connectionString);
@@ -276,6 +279,20 @@ namespace SmartKB.Controllers
 
             await _userCollection.UpdateOneAsync(u => u.UserId == id, update);
 
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendAccountDeactivatedEmailAsync(
+                        user.Email,
+                        user.Username ?? user.Email);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Deactivate User] [Background] Account deactivation email failed: {ex.Message}");
+                }
+            });
+
             return Ok(new { message = "User deactivated successfully" });
         }
 
@@ -293,6 +310,8 @@ namespace SmartKB.Controllers
                 .Set(u => u.UpdatedAt, DateTime.UtcNow);
 
             await _userCollection.UpdateOneAsync(u => u.UserId == id, update);
+
+            // Note: No email sent here - reactivation emails are sent via activation request approval process
 
             return Ok(new { message = "User reactivated successfully" });
         }

@@ -18,6 +18,7 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { UserDashboard } from "./pages/UserDashboard";
 import { PackagesPage } from "./pages/PackagesPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
+import { RequestActivationPage } from "./pages/RequestActivationPage";
 
 // Initialize Stripe
 const stripePublishableKey = (import.meta as any).env
@@ -87,6 +88,7 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/request-activation" element={<RequestActivationPage />} />
 
             {/* Protected Routes */}
             {/* User Dashboard - users only */}
@@ -178,6 +180,14 @@ function App() {
             />
             <Route
               path="/admin/folders"
+              element={
+                <RoleRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/admin/activations"
               element={
                 <RoleRoute allowedRoles={["admin"]}>
                   <AdminDashboard />
