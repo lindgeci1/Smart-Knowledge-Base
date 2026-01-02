@@ -411,19 +411,18 @@ namespace SmartKB.Controllers
                     {
                         payment.UpdatedAt = DateTime.UtcNow;
                         await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
-                        return BadRequest(new { error = $"Payment not completed. Status: {simplifiedStatus}", declineReason = payment.DeclineReason });
                     }
                 }
                 
                 payment.UpdatedAt = DateTime.UtcNow;
                 await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
 
-                // Get package to update usage
+                // Get package for usage updates and email notifications
                 var package = await _packageCollection
                     .Find(p => p.Id == dto.PackageId)
                     .FirstOrDefaultAsync();
 
-                if (package != null && package.SummaryLimit.HasValue)
+                if (payment.Status == "succeeded" && package != null && package.SummaryLimit.HasValue)
                 {
                     // Update or create usage record
                     var usage = await _usageCollection
@@ -451,7 +450,7 @@ namespace SmartKB.Controllers
                     }
                 }
 
-                // Send payment confirmation email
+                // Send payment status emails
                 if (!string.IsNullOrEmpty(payment.BillingEmail) && package != null)
                 {
                     try
@@ -459,16 +458,54 @@ namespace SmartKB.Controllers
                         var customerName = !string.IsNullOrEmpty(payment.BillingName) 
                             ? payment.BillingName 
                             : "Customer";
-                        
-                        await _emailService.SendPaymentConfirmationEmailAsync(
-                            toEmail: payment.BillingEmail,
-                            customerName: customerName,
-                            packageName: package.Name,
-                            amount: payment.Amount,
-                            currency: payment.Currency,
-                            paymentId: payment.Id ?? "",
-                            paidAt: payment.PaidAt ?? DateTime.UtcNow
-                        );
+
+                        if (payment.Status == "succeeded")
+                        {
+                            await _emailService.SendPaymentConfirmationEmailAsync(
+                                toEmail: payment.BillingEmail,
+                                customerName: customerName,
+                                packageName: package.Name,
+                                amount: payment.Amount,
+                                currency: payment.Currency,
+                                paymentId: payment.Id ?? "",
+                                paidAt: payment.PaidAt ?? DateTime.UtcNow
+                            );
+                        }
+                        else if (payment.Status == "failed")
+                        {
+                            await _emailService.SendPaymentFailedEmailAsync(
+                                toEmail: payment.BillingEmail,
+                                customerName: customerName,
+                                packageName: package.Name,
+                                amount: payment.Amount,
+                                currency: payment.Currency,
+                                paymentId: payment.Id ?? "",
+                                declineReason: payment.DeclineReason
+                            );
+                        }
+                        else if (payment.Status == "incomplete")
+                        {
+                            await _emailService.SendPaymentIncompleteEmailAsync(
+                                toEmail: payment.BillingEmail,
+                                customerName: customerName,
+                                packageName: package.Name,
+                                amount: payment.Amount,
+                                currency: payment.Currency,
+                                paymentId: payment.Id ?? ""
+                            );
+                        }
+                        else if (payment.Status == "refunded" && payment.RefundedAt.HasValue)
+                        {
+                            await _emailService.SendPaymentRefundedEmailAsync(
+                                toEmail: payment.BillingEmail,
+                                customerName: customerName,
+                                packageName: package.Name,
+                                amount: payment.Amount,
+                                currency: payment.Currency,
+                                paymentId: payment.Id ?? "",
+                                refundedAt: payment.RefundedAt.Value
+                            );
+                        }
                     }
                     catch (Exception emailEx)
                     {
@@ -476,6 +513,11 @@ namespace SmartKB.Controllers
                         // Payment is already successful, email is just a notification
                         Console.WriteLine($"Failed to send payment confirmation email: {emailEx.Message}");
                     }
+                }
+
+                if (payment.Status != "succeeded" && payment.Status != "refunded")
+                {
+                    return BadRequest(new { error = $"Payment not completed. Status: {payment.Status}", declineReason = payment.DeclineReason });
                 }
 
                 return Ok(new

@@ -546,6 +546,8 @@ export function SummarizeSection() {
               newlyMovedToFolderIds={newlyMovedToFolderIds}
               expandFolderId={expandFolderId}
               variant="admin"
+              //enableDragDrop
+              enableSelectMove
             />
           </div>
         </div>

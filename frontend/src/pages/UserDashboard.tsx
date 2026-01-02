@@ -803,6 +803,7 @@ export function UserDashboard() {
               }}
               newlyMovedToFolderIds={newlyMovedToFolderIds}
               expandFolderId={expandFolderId}
+              enableSelectMove
             />
           </div>
 

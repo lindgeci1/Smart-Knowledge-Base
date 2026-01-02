@@ -47,6 +47,16 @@ const colorMap: Record<string, string> = {
   "Enterprise Scale": "indigo",
 };
 
+const countryOptions = [
+  { code: "US", label: "United States" },
+  { code: "CA", label: "Canada" },
+  { code: "GB", label: "United Kingdom" },
+  { code: "AU", label: "Australia" },
+  { code: "DE", label: "Germany" },
+  { code: "FR", label: "France" },
+  { code: "OTHER", label: "Other" },
+];
+
 export function CheckoutPage() {
   const { packageId } = useParams<{ packageId: string }>();
   const [searchParams] = useSearchParams();
@@ -66,6 +76,8 @@ export function CheckoutPage() {
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
     cardholderName?: string;
+    country?: string;
+    state?: string;
     addressLine1?: string;
     postalCode?: string;
     city?: string;
@@ -77,7 +89,9 @@ export function CheckoutPage() {
       setEmail(user.email);
     }
   }, [user]);
-  const [country, setCountry] = useState("United States");
+  const [country, setCountry] = useState("US");
+  const [otherCountry, setOtherCountry] = useState("");
+  const [state, setState] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [postalCode, setPostalCode] = useState("");
@@ -139,10 +153,19 @@ export function CheckoutPage() {
   };
 
   // Check if all required fields are filled and valid
+  const normalizedOtherCountry = otherCountry.trim().toUpperCase();
+  const selectedCountry =
+    country === "OTHER" ? normalizedOtherCountry : country;
+  const isCountryValid =
+    (country !== "OTHER" && country.trim().length === 2) ||
+    (country === "OTHER" && /^[A-Z]{2}$/.test(normalizedOtherCountry));
+
   const isFormValid =
     email.trim() !== "" &&
     isValidEmail(email) &&
     cardholderName.trim().length >= 2 &&
+    isCountryValid &&
+    state.trim().length >= 2 &&
     addressLine1.trim().length >= 5 &&
     postalCode.trim().length >= 4 &&
     city.trim().length >= 2 &&
@@ -174,8 +197,9 @@ export function CheckoutPage() {
           line1: addressLine1,
           line2: addressLine2 || undefined,
           city: city,
+          state: state,
           postalCode: postalCode,
-          country: country,
+          country: selectedCountry,
         },
       });
 
@@ -198,14 +222,21 @@ export function CheckoutPage() {
                 line1: addressLine1,
                 line2: addressLine2 || undefined,
                 city: city,
+                state: state,
                 postal_code: postalCode,
-                country: country === "United States" ? "US" : country,
+                country: selectedCountry,
               },
             },
           },
         });
 
       if (stripeError) {
+        apiClient
+          .post("/Payment/confirm", {
+            paymentIntentId: paymentIntentId,
+            packageId: checkoutPackage.id,
+          })
+          .catch((err) => console.error("Backend confirmation error:", err));
         setError(stripeError.message || "Payment failed");
         setIsProcessing(false);
         return;
@@ -237,6 +268,12 @@ export function CheckoutPage() {
         setIsProcessing(false);
         navigate("/dashboard", { replace: true });
       } else {
+        apiClient
+          .post("/Payment/confirm", {
+            paymentIntentId: paymentIntentId,
+            packageId: checkoutPackage.id,
+          })
+          .catch((err) => console.error("Backend confirmation error:", err));
         setError("Payment was not completed. Please try again.");
         setIsProcessing(false);
       }
@@ -458,7 +495,15 @@ export function CheckoutPage() {
               <div>
                 <select
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    if (fieldErrors.country) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        country: undefined,
+                      }));
+                    }
+                  }}
                   disabled={isProcessing}
                   className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     isProcessing
@@ -466,15 +511,54 @@ export function CheckoutPage() {
                       : "border-slate-300 dark:border-slate-600"
                   }`}
                 >
-                  <option value="United States">United States</option>
-                  <option value="Canada">Canada</option>
-                  <option value="United Kingdom">United Kingdom</option>
-                  <option value="Australia">Australia</option>
-                  <option value="Germany">Germany</option>
-                  <option value="France">France</option>
-                  <option value="Other">Other</option>
+                  {countryOptions.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
+              {country === "OTHER" && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Country code (2 letters)"
+                    value={otherCountry}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^a-zA-Z]/g, "");
+                      setOtherCountry(value);
+                      if (fieldErrors.country) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          country: undefined,
+                        }));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!/^[A-Z]{2}$/.test(normalizedOtherCountry)) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          country: "Use a 2-letter country code",
+                        }));
+                      }
+                    }}
+                    required
+                    disabled={isProcessing}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      isProcessing
+                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
+                        : fieldErrors.country
+                        ? "border-red-300 dark:border-red-600"
+                        : "border-slate-300 dark:border-slate-600"
+                    }`}
+                  />
+                  {fieldErrors.country && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {fieldErrors.country}
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <input
                   type="text"
@@ -526,6 +610,45 @@ export function CheckoutPage() {
                       : "border-slate-300 dark:border-slate-600"
                   }`}
                 />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  placeholder="State / Province"
+                  value={state}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
+                    setState(value);
+                    if (fieldErrors.state) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        state: undefined,
+                      }));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (state.trim().length < 2) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        state: "State or province must be at least 2 characters",
+                      }));
+                    }
+                  }}
+                  required
+                  disabled={isProcessing}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    isProcessing
+                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
+                      : fieldErrors.state
+                      ? "border-red-300 dark:border-red-600"
+                      : "border-slate-300 dark:border-slate-600"
+                  }`}
+                />
+                {fieldErrors.state && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    {fieldErrors.state}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
