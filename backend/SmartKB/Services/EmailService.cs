@@ -1,59 +1,49 @@
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
+using SendGrid;
+using SendGrid.Helpers.Mail;
 
 namespace SmartKB.Services
 {
     public class EmailService
     {
-        private readonly string _smtpServer;
-        private readonly int _smtpPort;
-        private readonly string _smtpUsername;
-        private readonly string _smtpPassword;
+        private readonly SendGridClient _sendGridClient;
         private readonly string _fromEmail;
         private readonly string _fromName;
 
         public EmailService(IConfiguration config)
         {
-            _smtpServer = Environment.GetEnvironmentVariable("SMTP_SERVER")
-                ?? config["SmtpSettings:Server"]
-                ?? "smtp.gmail.com";
-            
-            var portStr = Environment.GetEnvironmentVariable("SMTP_PORT")
-                ?? config["SmtpSettings:Port"]
-                ?? "587";
-            _smtpPort = int.Parse(portStr);
-            
-            _smtpUsername = Environment.GetEnvironmentVariable("SMTP_USERNAME")
-                ?? config["SmtpSettings:Username"]
-                ?? throw new Exception("SMTP_USERNAME not configured");
-            
-            _smtpPassword = Environment.GetEnvironmentVariable("SMTP_PASSWORD")
-                ?? config["SmtpSettings:Password"]
-                ?? throw new Exception("SMTP_PASSWORD not configured");
-            
+            var apiKey = Environment.GetEnvironmentVariable("SENDGRID_API_KEY")
+                ?? config["SendGrid:ApiKey"]
+                ?? throw new Exception("SENDGRID_API_KEY not configured");
+
+            _sendGridClient = new SendGridClient(apiKey);
+
             _fromEmail = Environment.GetEnvironmentVariable("SMTP_FROM_EMAIL")
-                ?? config["SmtpSettings:FromEmail"]
-                ?? _smtpUsername;
-            
+                ?? config["SendGrid:FromEmail"]
+                ?? throw new Exception("SMTP_FROM_EMAIL not configured");
+
             _fromName = Environment.GetEnvironmentVariable("SMTP_FROM_NAME")
-                ?? config["SmtpSettings:FromName"]
+                ?? config["SendGrid:FromName"]
                 ?? "Smart Knowledge Base";
+        }
+
+        private async Task SendEmailAsync(string toEmail, string subject, string textBody, string htmlBody)
+        {
+            var from = new EmailAddress(_fromEmail, _fromName);
+            var to = new EmailAddress(toEmail);
+            var message = MailHelper.CreateSingleEmail(from, to, subject, textBody, htmlBody);
+
+            var response = await _sendGridClient.SendEmailAsync(message);
+            if ((int)response.StatusCode >= 400)
+            {
+                var errorBody = await response.Body.ReadAsStringAsync();
+                throw new Exception($"SendGrid send failed: {response.StatusCode} {errorBody}");
+            }
         }
 
         public async Task SendPasswordResetEmailAsync(string toEmail, string resetCode)
         {
-            Console.WriteLine($"[INFO] Starting password reset email send. ToEmail={toEmail}");
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress(string.Empty, toEmail));
-                message.Subject = "Reset Your Password";
-                Console.WriteLine($"[DEBUG] Email message created. From={_fromEmail}, To={toEmail}");
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var subject = "Reset Your Password";
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Reset Your Password</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi,</p>
@@ -61,46 +51,20 @@ namespace SmartKB.Services
                             <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 32px 0 0 0;'>Your reset code is: <strong style='color: #1f2937; font-size: 18px; letter-spacing: 2px;'>{resetCode}</strong></p>
                             <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;'>This code will expire in 5 minutes.</p>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Reset Your Password\n\nHi,\n\nYou requested to reset your password for your Smart Knowledge Base account. If you didn't request a new password, you can safely delete this email.\n\nYour reset code is: {resetCode}\nThis code will expire in 5 minutes.\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Reset Your Password\n\nHi,\n\nYou requested to reset your password for your Smart Knowledge Base account. If you didn't request a new password, you can safely delete this email.\n\nYour reset code is: {resetCode}\nThis code will expire in 5 minutes.\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                Console.WriteLine($"[INFO] Connecting to SMTP server {_smtpServer}:{_smtpPort}");
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
-                Console.WriteLine("[INFO] Authenticating SMTP user");
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                Console.WriteLine($"[INFO] Sending email to {toEmail}");
-                await client.SendAsync(message);
-                Console.WriteLine($"[SUCCESS] Password reset email sent to {toEmail}");
-                await client.DisconnectAsync(true);
-                Console.WriteLine("[DEBUG] SMTP connection closed");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("[ERROR] Failed to send password reset email");
-                Console.WriteLine(ex.ToString());
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
         public async Task SendWelcomeEmailAsync(string toEmail, string username)
         {
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Welcome to Smart Knowledge Base";
+            var subject = "Welcome to Smart Knowledge Base";
+            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
+            var loginLink = $"{frontendUrl}/login";
 
-                var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
-                var loginLink = $"{frontendUrl}/login";
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Welcome to Smart Knowledge Base</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {username},</p>
@@ -111,74 +75,36 @@ namespace SmartKB.Services
                             <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;'>If that doesn't work, copy and paste the following link in your browser:</p>
                             <p style='color: #2563eb; font-size: 14px; line-height: 1.6; margin: 8px 0 32px 0; word-break: break-all;'><a href='{loginLink}' style='color: #2563eb; text-decoration: underline;'>{loginLink}</a></p>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Welcome to Smart Knowledge Base\n\nHi {username},\n\nThank you for joining Smart Knowledge Base! Your account has been successfully created. You can now start using our AI-powered summarization features.\n\nGet Started: {loginLink}\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Welcome to Smart Knowledge Base\n\nHi {username},\n\nThank you for joining Smart Knowledge Base! Your account has been successfully created. You can now start using our AI-powered summarization features.\n\nGet Started: {loginLink}\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
         public async Task SendPasswordChangedEmailAsync(string toEmail, string username)
         {
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Password Changed Successfully";
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var subject = "Password Changed Successfully";
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Password Changed Successfully</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {username},</p>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;'>This email confirms that your password has been successfully changed for your Smart Knowledge Base account. If you did not make this change, please contact our support team immediately to secure your account.</p>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Password Changed Successfully\n\nHi {username},\n\nThis email confirms that your password has been successfully changed for your Smart Knowledge Base account. If you did not make this change, please contact our support team immediately to secure your account.\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Password Changed Successfully\n\nHi {username},\n\nThis email confirms that your password has been successfully changed for your Smart Knowledge Base account. If you did not make this change, please contact our support team immediately to secure your account.\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
         public async Task SendPaymentConfirmationEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId, DateTime paidAt)
         {
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Payment Confirmation";
+            var subject = "Payment Confirmation";
+            var formattedAmount = amount.ToString("F2");
+            var formattedDate = paidAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
 
-                var formattedAmount = amount.ToString("F2");
-                var formattedDate = paidAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Confirmation</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
@@ -204,41 +130,22 @@ namespace SmartKB.Services
                                 </table>
                             </div>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Payment Confirmation\n\nHi {customerName},\n\nThank you for your purchase! Your payment has been successfully processed. Your package has been activated and is ready to use.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment Date: {formattedDate}\nPayment ID: {paymentId}\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Payment Confirmation\n\nHi {customerName},\n\nThank you for your purchase! Your payment has been successfully processed. Your package has been activated and is ready to use.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment Date: {formattedDate}\nPayment ID: {paymentId}\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
         public async Task SendPaymentFailedEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId, string? declineReason)
         {
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Payment Failed";
+            var subject = "Payment Failed";
+            var formattedAmount = amount.ToString("F2");
+            var reasonLine = string.IsNullOrWhiteSpace(declineReason)
+                ? "No specific decline reason was provided."
+                : declineReason;
 
-                var formattedAmount = amount.ToString("F2");
-                var reasonLine = string.IsNullOrWhiteSpace(declineReason)
-                    ? "No specific decline reason was provided."
-                    : declineReason;
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Failed</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
@@ -264,38 +171,19 @@ namespace SmartKB.Services
                                 </table>
                             </div>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Payment Failed\n\nHi {customerName},\n\nWe couldn't process your payment. Please try again or use a different card.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment ID: {paymentId}\nDecline Reason: {reasonLine}\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Payment Failed\n\nHi {customerName},\n\nWe couldn't process your payment. Please try again or use a different card.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment ID: {paymentId}\nDecline Reason: {reasonLine}\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
         public async Task SendPaymentIncompleteEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId)
         {
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Payment Not Completed";
+            var subject = "Payment Not Completed";
+            var formattedAmount = amount.ToString("F2");
 
-                var formattedAmount = amount.ToString("F2");
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Not Completed</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
@@ -317,39 +205,20 @@ namespace SmartKB.Services
                                 </table>
                             </div>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Payment Not Completed\n\nHi {customerName},\n\nYour payment was not completed. Please try again to finish your purchase.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment ID: {paymentId}\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Payment Not Completed\n\nHi {customerName},\n\nYour payment was not completed. Please try again to finish your purchase.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment ID: {paymentId}\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
         public async Task SendPaymentRefundedEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId, DateTime refundedAt)
         {
-            try
-            {
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
-                message.Subject = "Payment Refunded";
+            var subject = "Payment Refunded";
+            var formattedAmount = amount.ToString("F2");
+            var formattedDate = refundedAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
 
-                var formattedAmount = amount.ToString("F2");
-                var formattedDate = refundedAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+            var htmlBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
                             <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Refunded</h1>
                             <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
@@ -375,24 +244,11 @@ namespace SmartKB.Services
                                 </table>
                             </div>
                             <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
-                        </div>",
-                    TextBody = $"Payment Refunded\n\nHi {customerName},\n\nYour payment has been refunded.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nRefund Date: {formattedDate}\nPayment ID: {paymentId}\n\nThe {_fromName} Team."
-                };
+                        </div>";
+            var textBody =
+                $"Payment Refunded\n\nHi {customerName},\n\nYour payment has been refunded.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nRefund Date: {formattedDate}\nPayment ID: {paymentId}\n\nThe {_fromName} Team.";
 
-                message.Body = bodyBuilder.ToMessageBody();
-
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to send email. Please try again later.");
-            }
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
     }
 }
-
-
