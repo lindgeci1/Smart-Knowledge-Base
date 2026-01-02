@@ -11,6 +11,7 @@ import { SummarizeSection } from "../components/admin/SummarizeSection";
 import { PackagesSection } from "../components/admin/PackagesSection";
 import { PaymentsSection } from "../components/admin/PaymentsSection";
 import { FoldersSection } from "../components/admin/FoldersSection";
+import { ActivationRequestsSection } from "../components/admin/ActivationRequestsSection";
 import { apiClient } from "../lib/authClient";
 // Types
 interface Summary {
@@ -83,7 +84,8 @@ export function AdminDashboard() {
     | "summarize"
     | "packages"
     | "payments"
-    | "folders" => {
+    | "folders"
+    | "activations" => {
     const path = location.pathname;
     if (path === "/admin") return "dashboard";
     if (path === "/admin/users") return "users";
@@ -93,6 +95,7 @@ export function AdminDashboard() {
     if (path === "/admin/packages") return "packages";
     if (path === "/admin/payments") return "payments";
     if (path === "/admin/folders") return "folders";
+    if (path === "/admin/activations") return "activations";
     return "dashboard";
   };
 
@@ -103,6 +106,7 @@ export function AdminDashboard() {
   const [packages, setPackages] = useState<PackageData[]>([]);
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
+  const [activationRequests, setActivationRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
   const [fileCount, setFileCount] = useState(0);
@@ -130,6 +134,7 @@ export function AdminDashboard() {
     packages: { loading: boolean; hasData: boolean };
     payments: { loading: boolean; hasData: boolean };
     folders: { loading: boolean; hasData: boolean };
+    activations: { loading: boolean; hasData: boolean };
   }>({
     users: { loading: false, hasData: false },
     files: { loading: false, hasData: false },
@@ -137,6 +142,7 @@ export function AdminDashboard() {
     packages: { loading: false, hasData: false },
     payments: { loading: false, hasData: false },
     folders: { loading: false, hasData: false },
+    activations: { loading: false, hasData: false },
   });
 
   // Fetch users usage from backend
@@ -299,6 +305,15 @@ export function AdminDashboard() {
         ...prev,
         folders: { loading: true, hasData: false },
       }));
+    } else if (
+      activeView === "activations" &&
+      !loadingStates.activations.hasData &&
+      !loadingStates.activations.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        activations: { loading: true, hasData: false },
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
@@ -314,6 +329,7 @@ export function AdminDashboard() {
       | "packages"
       | "payments"
       | "folders"
+      | "activations"
     ) => {
     // Navigate to the appropriate route
     if (view === "dashboard") {
@@ -376,6 +392,15 @@ export function AdminDashboard() {
       setLoadingStates((prev) => ({
         ...prev,
         folders: { loading: true, hasData: false },
+      }));
+    } else if (
+      view === "activations" &&
+      !loadingStates.activations.hasData &&
+      !loadingStates.activations.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        activations: { loading: true, hasData: false },
       }));
     }
   };
@@ -603,6 +628,22 @@ export function AdminDashboard() {
               }}
               onFoldersFetched={(fetchedFolders) => {
                 setFolders(fetchedFolders);
+              }}
+            />
+          )}
+
+          {activeView === "activations" && (
+            <ActivationRequestsSection
+              requests={activationRequests}
+              loading={loadingStates.activations.loading}
+              onDataLoaded={(hasData) => {
+                setLoadingStates((prev) => ({
+                  ...prev,
+                  activations: { loading: false, hasData },
+                }));
+              }}
+              onRequestsFetched={(fetchedRequests) => {
+                setActivationRequests(fetchedRequests);
               }}
             />
           )}

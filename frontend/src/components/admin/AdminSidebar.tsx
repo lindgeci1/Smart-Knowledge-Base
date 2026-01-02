@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -11,8 +11,10 @@ import {
   CreditCard,
   X,
   Folder,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { apiClient } from "../../lib/authClient";
 interface AdminSidebarProps {
   activeView:
     | "dashboard"
@@ -22,7 +24,8 @@ interface AdminSidebarProps {
     | "summarize"
     | "packages"
     | "payments"
-    | "folders";
+    | "folders"
+    | "activations";
   setActiveView: (
     view:
       | "dashboard"
@@ -33,6 +36,7 @@ interface AdminSidebarProps {
       | "packages"
       | "payments"
       | "folders"
+      | "activations"
   ) => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -46,6 +50,29 @@ export function AdminSidebar({
   onLogout,
 }: AdminSidebarProps) {
   const { logout, user } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const response = await apiClient.get("/Activation/admin/pending");
+        const pending = response.data.filter(
+          (req: { status: string }) => req.status === "pending"
+        ).length;
+        setPendingCount(pending);
+      } catch (error) {
+        console.error("Error fetching pending activation requests", error);
+      }
+    };
+
+    if (user) {
+      fetchPendingCount();
+      // Refresh every 30 seconds
+      const interval = setInterval(fetchPendingCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const navItems = [
     {
       id: "dashboard",
@@ -86,6 +113,11 @@ export function AdminSidebar({
       id: "folders",
       label: "Folders",
       icon: Folder,
+    },
+    {
+      id: "activations",
+      label: "Activation Requests",
+      icon: UserCheck,
     },
   ] as const;
   return (
@@ -137,14 +169,21 @@ export function AdminSidebar({
                 setActiveView(item.id);
                 if (onClose) onClose();
               }}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+              className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeView === item.id
                   ? "bg-indigo-600 text-white"
                   : "text-slate-400 hover:bg-slate-800 hover:text-white"
               }`}
             >
-              <item.icon className="mr-3 h-5 w-5" />
-              {item.label}
+              <div className="flex items-center">
+                <item.icon className="mr-3 h-5 w-5" />
+                {item.label}
+              </div>
+              {item.id === "activations" && pendingCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {pendingCount > 9 ? "9+" : pendingCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -192,14 +231,21 @@ export function AdminSidebar({
             <button
               key={item.id}
               onClick={() => setActiveView(item.id)}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+              className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeView === item.id
                   ? "bg-indigo-600 text-white"
                   : "text-slate-400 hover:bg-slate-800 hover:text-white"
               }`}
             >
-              <item.icon className="mr-3 h-5 w-5" />
-              {item.label}
+              <div className="flex items-center">
+                <item.icon className="mr-3 h-5 w-5" />
+                {item.label}
+              </div>
+              {item.id === "activations" && pendingCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {pendingCount > 9 ? "9+" : pendingCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
