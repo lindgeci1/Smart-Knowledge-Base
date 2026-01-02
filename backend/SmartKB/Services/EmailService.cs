@@ -47,7 +47,7 @@ namespace SmartKB.Services
             {
                 var message = new MimeMessage();
                 message.From.Add(new MailboxAddress(_fromName, _fromEmail));
-                message.To.Add(new MailboxAddress("", toEmail));
+                message.To.Add(new MailboxAddress(string.Empty, toEmail));
                 message.Subject = "Reset Your Password";
 
                 var bodyBuilder = new BodyBuilder
@@ -67,7 +67,7 @@ namespace SmartKB.Services
                 message.Body = bodyBuilder.ToMessageBody();
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
                 await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
@@ -110,7 +110,7 @@ namespace SmartKB.Services
                 message.Body = bodyBuilder.ToMessageBody();
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
                 await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
@@ -145,7 +145,7 @@ namespace SmartKB.Services
                 message.Body = bodyBuilder.ToMessageBody();
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
                 await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
@@ -203,7 +203,7 @@ namespace SmartKB.Services
                 message.Body = bodyBuilder.ToMessageBody();
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
                 await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
@@ -263,7 +263,7 @@ namespace SmartKB.Services
                 message.Body = bodyBuilder.ToMessageBody();
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
                 await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
