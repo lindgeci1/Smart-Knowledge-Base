@@ -43,13 +43,14 @@ namespace SmartKB.Services
 
         public async Task SendPasswordResetEmailAsync(string toEmail, string resetCode)
         {
+            Console.WriteLine($"[INFO] Starting password reset email send. ToEmail={toEmail}");
             try
             {
                 var message = new MimeMessage();
                 message.From.Add(new MailboxAddress(_fromName, _fromEmail));
                 message.To.Add(new MailboxAddress(string.Empty, toEmail));
                 message.Subject = "Reset Your Password";
-
+                Console.WriteLine($"[DEBUG] Email message created. From={_fromEmail}, To={toEmail}");
                 var bodyBuilder = new BodyBuilder
                 {
                     HtmlBody = $@"
@@ -67,13 +68,20 @@ namespace SmartKB.Services
                 message.Body = bodyBuilder.ToMessageBody();
 
                 using var client = new SmtpClient();
+                Console.WriteLine($"[INFO] Connecting to SMTP server {_smtpServer}:{_smtpPort}");
                 await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.SslOnConnect);
+                Console.WriteLine("[INFO] Authenticating SMTP user");
                 await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
+                Console.WriteLine($"[INFO] Sending email to {toEmail}");
                 await client.SendAsync(message);
+                Console.WriteLine($"[SUCCESS] Password reset email sent to {toEmail}");
                 await client.DisconnectAsync(true);
+                Console.WriteLine("[DEBUG] SMTP connection closed");
             }
             catch (Exception ex)
             {
+                Console.WriteLine("[ERROR] Failed to send password reset email");
+                Console.WriteLine(ex.ToString());
                 throw new Exception("Failed to send email. Please try again later.");
             }
         }
