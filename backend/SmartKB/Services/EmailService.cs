@@ -213,6 +213,177 @@ namespace SmartKB.Services
                 throw new Exception("Failed to send email. Please try again later.");
             }
         }
+
+        public async Task SendPaymentFailedEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId, string? declineReason)
+        {
+            try
+            {
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
+                message.To.Add(new MailboxAddress("", toEmail));
+                message.Subject = "Payment Failed";
+
+                var formattedAmount = amount.ToString("F2");
+                var reasonLine = string.IsNullOrWhiteSpace(declineReason)
+                    ? "No specific decline reason was provided."
+                    : declineReason;
+
+                var bodyBuilder = new BodyBuilder
+                {
+                    HtmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Failed</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>We couldn't process your payment. Please try again or use a different card.</p>
+                            <div style='background-color: #f9fafb; padding: 20px; margin: 24px 0; border-radius: 6px; border: 1px solid #e5e7eb;'>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Package:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{packageName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Amount:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{currency} {formattedAmount}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Payment ID:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 12px; text-align: right; font-family: monospace;'>{paymentId}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Decline Reason:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; text-align: right;'>{reasonLine}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
+                        </div>",
+                    TextBody = $"Payment Failed\n\nHi {customerName},\n\nWe couldn't process your payment. Please try again or use a different card.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment ID: {paymentId}\nDecline Reason: {reasonLine}\n\nThe {_fromName} Team."
+                };
+
+                message.Body = bodyBuilder.ToMessageBody();
+
+                using var client = new SmtpClient();
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to send email. Please try again later.");
+            }
+        }
+
+        public async Task SendPaymentIncompleteEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId)
+        {
+            try
+            {
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
+                message.To.Add(new MailboxAddress("", toEmail));
+                message.Subject = "Payment Not Completed";
+
+                var formattedAmount = amount.ToString("F2");
+
+                var bodyBuilder = new BodyBuilder
+                {
+                    HtmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Not Completed</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Your payment was not completed. Please try again to finish your purchase.</p>
+                            <div style='background-color: #f9fafb; padding: 20px; margin: 24px 0; border-radius: 6px; border: 1px solid #e5e7eb;'>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Package:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{packageName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Amount:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{currency} {formattedAmount}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Payment ID:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 12px; text-align: right; font-family: monospace;'>{paymentId}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
+                        </div>",
+                    TextBody = $"Payment Not Completed\n\nHi {customerName},\n\nYour payment was not completed. Please try again to finish your purchase.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nPayment ID: {paymentId}\n\nThe {_fromName} Team."
+                };
+
+                message.Body = bodyBuilder.ToMessageBody();
+
+                using var client = new SmtpClient();
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to send email. Please try again later.");
+            }
+        }
+
+        public async Task SendPaymentRefundedEmailAsync(string toEmail, string customerName, string packageName, decimal amount, string currency, string paymentId, DateTime refundedAt)
+        {
+            try
+            {
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
+                message.To.Add(new MailboxAddress("", toEmail));
+                message.Subject = "Payment Refunded";
+
+                var formattedAmount = amount.ToString("F2");
+                var formattedDate = refundedAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
+
+                var bodyBuilder = new BodyBuilder
+                {
+                    HtmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Payment Refunded</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {customerName},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Your payment has been refunded.</p>
+                            <div style='background-color: #f9fafb; padding: 20px; margin: 24px 0; border-radius: 6px; border: 1px solid #e5e7eb;'>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Package:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{packageName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Amount:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{currency} {formattedAmount}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Refund Date:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 14px; text-align: right;'>{formattedDate}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 6px 0; color: #6b7280; font-size: 14px;'>Payment ID:</td>
+                                        <td style='padding: 6px 0; color: #1f2937; font-size: 12px; text-align: right; font-family: monospace;'>{paymentId}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
+                        </div>",
+                    TextBody = $"Payment Refunded\n\nHi {customerName},\n\nYour payment has been refunded.\n\nPayment Details:\nPackage: {packageName}\nAmount: {currency} {formattedAmount}\nRefund Date: {formattedDate}\nPayment ID: {paymentId}\n\nThe {_fromName} Team."
+                };
+
+                message.Body = bodyBuilder.ToMessageBody();
+
+                using var client = new SmtpClient();
+                await client.ConnectAsync(_smtpServer, _smtpPort, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync(_smtpUsername, _smtpPassword);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to send email. Please try again later.");
+            }
+        }
     }
 }
 
