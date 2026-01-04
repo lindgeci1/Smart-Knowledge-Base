@@ -3,27 +3,26 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace SmartKB.Models
 {
-    public class PasswordResetToken
+    public class RefreshTokenSession
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
-        [BsonElement("password_reset_token_id")]
-        public string? PasswordResetTokenId { get; set; }
+        [BsonElement("refresh_token_id")]
+        public string? Id { get; set; }
 
         [BsonElement("userId")]
         public string UserId { get; set; }
 
-        [BsonElement("token")]
+        [BsonElement("refreshToken")]
         public string Token { get; set; }
 
         [BsonElement("expiresAt")]
         public DateTime ExpiresAt { get; set; }
 
-        [BsonElement("isUsed")]
-        public bool IsUsed { get; set; } = false;
-
         [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [BsonElement("updatedAt")]
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 }
-

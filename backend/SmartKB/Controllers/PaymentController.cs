@@ -230,7 +230,7 @@ namespace SmartKB.Controllers
 
                 // Get package
                 var package = await _packageCollection
-                    .Find(p => p.Id == dto.PackageId && p.IsActive)
+                    .Find(p => p.PackageId == dto.PackageId && p.IsActive)
                     .FirstOrDefaultAsync();
 
                 if (package == null)
@@ -271,8 +271,8 @@ namespace SmartKB.Controllers
                     PaymentMethodTypes = new List<string> { "card" },
                     Metadata = new Dictionary<string, string>
                     {
-                        { "paymentId", payment.Id! },
-                        { "packageId", package.Id! },
+                        { "paymentId", payment.PaymentId! },
+                        { "packageId", package.PackageId! },
                         { "userId", userId },
                         { "packageName", package.Name }
                     }
@@ -300,7 +300,7 @@ namespace SmartKB.Controllers
                 payment.Status = MapStripeStatusToSimplifiedStatus(paymentIntent.Status, declineReason, refundedAt);
                 payment.DeclineReason = declineReason;
                 await _paymentCollection.ReplaceOneAsync(
-                    p => p.Id == payment.Id,
+                    p => p.PaymentId == payment.PaymentId,
                     payment
                 );
 
@@ -410,16 +410,16 @@ namespace SmartKB.Controllers
                     if (simplifiedStatus != "succeeded" && simplifiedStatus != "refunded")
                     {
                         payment.UpdatedAt = DateTime.UtcNow;
-                        await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                        await _paymentCollection.ReplaceOneAsync(p => p.PaymentId == payment.PaymentId, payment);
                     }
                 }
                 
                 payment.UpdatedAt = DateTime.UtcNow;
-                await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                await _paymentCollection.ReplaceOneAsync(p => p.PaymentId == payment.PaymentId, payment);
 
                 // Get package for usage updates and email notifications
                 var package = await _packageCollection
-                    .Find(p => p.Id == dto.PackageId)
+                    .Find(p => p.PackageId == dto.PackageId)
                     .FirstOrDefaultAsync();
 
                 if (payment.Status == "succeeded" && package != null && package.SummaryLimit.HasValue)
@@ -446,7 +446,7 @@ namespace SmartKB.Controllers
                         // Add package limit to existing total limit
                         usage.TotalLimit += package.SummaryLimit.Value;
                         usage.UpdatedAt = DateTime.UtcNow;
-                        await _usageCollection.ReplaceOneAsync(u => u.Id == usage.Id, usage);
+                        await _usageCollection.ReplaceOneAsync(u => u.UsageId == usage.UsageId, usage);
                     }
                 }
 
@@ -467,7 +467,7 @@ namespace SmartKB.Controllers
                                 packageName: package.Name,
                                 amount: payment.Amount,
                                 currency: payment.Currency,
-                                paymentId: payment.Id ?? "",
+                                paymentId: payment.PaymentId ?? "",
                                 paidAt: payment.PaidAt ?? DateTime.UtcNow
                             );
                         }
@@ -479,7 +479,7 @@ namespace SmartKB.Controllers
                                 packageName: package.Name,
                                 amount: payment.Amount,
                                 currency: payment.Currency,
-                                paymentId: payment.Id ?? "",
+                                paymentId: payment.PaymentId ?? "",
                                 declineReason: payment.DeclineReason
                             );
                         }
@@ -491,7 +491,7 @@ namespace SmartKB.Controllers
                                 packageName: package.Name,
                                 amount: payment.Amount,
                                 currency: payment.Currency,
-                                paymentId: payment.Id ?? ""
+                                paymentId: payment.PaymentId ?? ""
                             );
                         }
                         else if (payment.Status == "refunded" && payment.RefundedAt.HasValue)
@@ -502,7 +502,7 @@ namespace SmartKB.Controllers
                                 packageName: package.Name,
                                 amount: payment.Amount,
                                 currency: payment.Currency,
-                                paymentId: payment.Id ?? "",
+                                paymentId: payment.PaymentId ?? "",
                                 refundedAt: payment.RefundedAt.Value
                             );
                         }
@@ -523,7 +523,7 @@ namespace SmartKB.Controllers
                 return Ok(new
                 {
                     message = "Payment confirmed successfully",
-                    paymentId = payment.Id,
+                    paymentId = payment.PaymentId,
                     packageId = dto.PackageId
                 });
             }
@@ -591,7 +591,7 @@ namespace SmartKB.Controllers
                             }
 
                             payment.UpdatedAt = DateTime.UtcNow;
-                            await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                            await _paymentCollection.ReplaceOneAsync(p => p.PaymentId == payment.PaymentId, payment);
                         }
                         catch { }
                     }
@@ -662,7 +662,7 @@ namespace SmartKB.Controllers
                             }
 
                             payment.UpdatedAt = DateTime.UtcNow;
-                            await _paymentCollection.ReplaceOneAsync(p => p.Id == payment.Id, payment);
+                            await _paymentCollection.ReplaceOneAsync(p => p.PaymentId == payment.PaymentId, payment);
                         }
                         catch { }
                     }
@@ -679,7 +679,7 @@ namespace SmartKB.Controllers
                 foreach (var payment in payments)
                 {
                     var package = await _packageCollection
-                        .Find(p => p.Id == payment.PackageId)
+                        .Find(p => p.PackageId == payment.PackageId)
                         .FirstOrDefaultAsync();
 
                     result.Add(new

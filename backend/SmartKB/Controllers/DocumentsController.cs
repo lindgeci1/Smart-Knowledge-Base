@@ -43,7 +43,7 @@ namespace SmartKB.Controllers
         [HttpGet("{id}")]
         public IActionResult GetDocumentById(string id)
         {
-            var document = _documentCollection.Find(d => d.Id == id).FirstOrDefault();
+            var document = _documentCollection.Find(d => d.DocumentId == id).FirstOrDefault();
             if (document == null)
                 return NotFound("Document not found");
 
@@ -145,18 +145,18 @@ namespace SmartKB.Controllers
                     .Set(d => d.DocumentName, documentName)
                     .Set(d => d.Status, "Completed");
 
-                _documentCollection.UpdateOne(d => d.Id == document.Id, update);
+                _documentCollection.UpdateOne(d => d.DocumentId == document.DocumentId, update);
 
                 // Increment usage for regular users (role 2), not admins (role 1)
                 await _summarizationService.IncrementUsageIfUser(userId);
 
                 // Fetch the updated document to get the documentName
-                var updatedDocument = await _documentCollection.Find(d => d.Id == document.Id).FirstOrDefaultAsync();
+                var updatedDocument = await _documentCollection.Find(d => d.DocumentId == document.DocumentId).FirstOrDefaultAsync();
 
                 return Ok(new
                 {
                     message = "Document uploaded and summarized",
-                    documentId = document.Id,
+                    documentId = document.DocumentId,
                     summary,
                     documentName = updatedDocument?.DocumentName
                 });
@@ -167,7 +167,7 @@ namespace SmartKB.Controllers
                 var update = Builders<Document>.Update
                     .Set(d => d.Status, "Error");
 
-                _documentCollection.UpdateOne(d => d.Id == document.Id, update);
+                _documentCollection.UpdateOne(d => d.DocumentId == document.DocumentId, update);
 
                 return StatusCode(500, "Summarization failed");
             }
@@ -186,12 +186,12 @@ namespace SmartKB.Controllers
             // Get all file summaries for this user, ordered by ID (newest first, since MongoDB ObjectId includes timestamp)
             var summaries = _documentCollection
                 .Find(d => d.UserId == userId && d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary))
-                .SortByDescending(d => d.Id)
+                .SortByDescending(d => d.DocumentId)
                 .ToList();
 
             var result = summaries.Select(d => new
             {
-                id = d.Id,
+                id = d.DocumentId,
                 fileName = d.FileName,
                 fileType = d.FileType,
                 summary = d.Summary,
@@ -215,7 +215,7 @@ namespace SmartKB.Controllers
             var userId = userIdClaim.Value;
 
             // Verify document belongs to user
-            var document = await _documentCollection.Find(d => d.Id == id && d.UserId == userId).FirstOrDefaultAsync();
+            var document = await _documentCollection.Find(d => d.DocumentId == id && d.UserId == userId).FirstOrDefaultAsync();
             if (document == null)
                 return NotFound("Document not found");
 
@@ -260,7 +260,7 @@ namespace SmartKB.Controllers
             if (updates.Count > 0)
             {
                 var combined = updateDef.Combine(updates);
-                await _documentCollection.UpdateOneAsync(d => d.Id == id, combined);
+                await _documentCollection.UpdateOneAsync(d => d.DocumentId == id, combined);
             }
 
             return Ok(new { message = "Document updated successfully" });
@@ -280,7 +280,7 @@ namespace SmartKB.Controllers
         {
             var documents = await _documentCollection
                 .Find(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary))
-                .SortByDescending(d => d.Id)
+                .SortByDescending(d => d.DocumentId)
                 .ToListAsync();
 
             var result = new List<object>();
@@ -289,14 +289,14 @@ namespace SmartKB.Controllers
                 var user = await _userCollection.Find(u => u.UserId == doc.UserId).FirstOrDefaultAsync();
                 result.Add(new
                 {
-                    id = doc.Id,
+                    id = doc.DocumentId,
                     fileName = doc.FileName,
                     fileType = doc.FileType,
                     summary = doc.Summary,
                     documentName = doc.DocumentName,
                     userId = doc.UserId,
                     userEmail = user?.Email ?? "Unknown",
-                    createdAt = doc.Id != null ? MongoDB.Bson.ObjectId.Parse(doc.Id).CreationTime.ToString("yyyy-MM-ddTHH:mm:ssZ") : DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+                    createdAt = doc.DocumentId != null ? MongoDB.Bson.ObjectId.Parse(doc.DocumentId).CreationTime.ToString("yyyy-MM-ddTHH:mm:ssZ") : DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
                 });
             }
 
@@ -307,11 +307,11 @@ namespace SmartKB.Controllers
         [HttpDelete("admin/{id}")]
         public async Task<IActionResult> DeleteDocument(string id)
         {
-            var document = await _documentCollection.Find(d => d.Id == id).FirstOrDefaultAsync();
+            var document = await _documentCollection.Find(d => d.DocumentId == id).FirstOrDefaultAsync();
             if (document == null)
                 return NotFound("Document not found");
 
-            await _documentCollection.DeleteOneAsync(d => d.Id == id);
+            await _documentCollection.DeleteOneAsync(d => d.DocumentId == id);
             return Ok(new { message = "Document deleted successfully" });
         }
 
@@ -332,12 +332,12 @@ namespace SmartKB.Controllers
             var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
             if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
             {
-                var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.Id) && d.UserId == userId);
+                var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.DocumentId) && d.UserId == userId);
                 return Ok(new { message = "Documents deleted successfully", deletedCount = result.DeletedCount });
             }
             else // Admin can delete any
             {
-                var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.Id));
+                var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.DocumentId));
                 return Ok(new { message = "Documents deleted successfully", deletedCount = result.DeletedCount });
             }
         }

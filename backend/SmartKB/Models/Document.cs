@@ -8,7 +8,8 @@ namespace SmartKB.Models
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
-        public string? Id { get; set; }
+        [BsonElement("document_id")]
+        public string? DocumentId { get; set; }
 
         [BsonElement("fileName")]
         public string FileName { get; set; }

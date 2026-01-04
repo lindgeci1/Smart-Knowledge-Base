@@ -22,6 +22,7 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<UserRole> _userRoles;
         private readonly IMongoCollection<PasswordResetToken> _passwordResetTokens;
         private readonly IMongoCollection<Usage> _usage;
+        private readonly IMongoCollection<RefreshTokenSession> _refreshTokens;
         private readonly IConfiguration _config;
         private readonly EmailService _emailService;
 
@@ -40,6 +41,7 @@ namespace SmartKB.Controllers
             _userRoles = db.GetCollection<UserRole>("userRoles");
             _passwordResetTokens = db.GetCollection<PasswordResetToken>("passwordResetTokens");
             _usage = db.GetCollection<Usage>("usage");
+            _refreshTokens = db.GetCollection<RefreshTokenSession>("refreshTokens");
         }
 
 
@@ -81,8 +83,6 @@ namespace SmartKB.Controllers
                 PasswordHash = hash,
                 PasswordSalt = salt,
                 IsActive = true,
-                RefreshToken = null,
-                RefreshTokenExpiresAt = null,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -224,13 +224,17 @@ namespace SmartKB.Controllers
             string refreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
             DateTime refreshExpires = DateTime.UtcNow.AddDays(1);
 
-            var update = Builders<User>.Update
-                .Set(u => u.RefreshToken, refreshToken)
-                .Set(u => u.RefreshTokenExpiresAt, refreshExpires)
-                .Set(u => u.UpdatedAt, DateTime.UtcNow);
+            var refreshTokenRecord = new RefreshTokenSession
+            {
+                UserId = user.UserId ?? throw new InvalidOperationException("UserId is missing"),
+                Token = refreshToken,
+                ExpiresAt = refreshExpires,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-            // Console.WriteLine($"[Login] Updating user with refresh token...");
-            await _users.UpdateOneAsync(u => u.UserId == user.UserId, update);
+            // Console.WriteLine($"[Login] Saving refresh token session...");
+            await _refreshTokens.InsertOneAsync(refreshTokenRecord);
 
             // Use SameSite.Lax now that Vercel proxy makes this same-site request
             Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
@@ -259,16 +263,7 @@ namespace SmartKB.Controllers
 
             if (!string.IsNullOrEmpty(refreshToken))
             {
-                // 2. Revoke ONLY that session (if it exists)
-                var update = Builders<User>.Update
-                    .Set(u => u.RefreshToken, null)
-                    .Set(u => u.RefreshTokenExpiresAt, null)
-                    .Set(u => u.UpdatedAt, DateTime.UtcNow);
-
-                await _users.UpdateOneAsync(
-                    u => u.RefreshToken == refreshToken,
-                    update
-                );
+                await _refreshTokens.DeleteOneAsync(rt => rt.Token == refreshToken);
             }
 
             // 3. Always clear cookies (even if token was missing/expired)
@@ -293,16 +288,25 @@ namespace SmartKB.Controllers
             if (string.IsNullOrEmpty(refreshToken))
                 return Unauthorized("Missing refresh token cookie");
 
-            var user = await _users.Find(u => u.RefreshToken == refreshToken).FirstOrDefaultAsync();
+            var refreshSession = await _refreshTokens.Find(rt => rt.Token == refreshToken).FirstOrDefaultAsync();
+            if (refreshSession == null)
+                return Unauthorized("Invalid refresh token");
+
+            if (refreshSession.ExpiresAt < DateTime.UtcNow)
+                return Unauthorized("Refresh token expired");
+
+            var user = await _users.Find(u => u.UserId == refreshSession.UserId).FirstOrDefaultAsync();
             if (user == null)
                 return Unauthorized("Invalid refresh token");
+
+            var updateSession = Builders<RefreshTokenSession>.Update
+                .Set(rt => rt.UpdatedAt, DateTime.UtcNow);
+
+            await _refreshTokens.UpdateOneAsync(rt => rt.Token == refreshToken, updateSession);
 
             // Check if user is active
             if (!user.IsActive)
                 return Unauthorized("Your account has been deactivated. Please contact an administrator.");
-
-            if (user.RefreshTokenExpiresAt == null || user.RefreshTokenExpiresAt < DateTime.UtcNow)
-                return Unauthorized("Refresh token expired");
 
             var userRole = await _userRoles.Find(ur => ur.UserId == user.UserId).FirstOrDefaultAsync();
             if (userRole == null)
@@ -542,7 +546,7 @@ namespace SmartKB.Controllers
             // Mark token as used
             var updateToken = Builders<PasswordResetToken>.Update
                 .Set(t => t.IsUsed, true);
-            await _passwordResetTokens.UpdateOneAsync(t => t.Id == token.Id, updateToken);
+            await _passwordResetTokens.UpdateOneAsync(t => t.PasswordResetTokenId == token.PasswordResetTokenId, updateToken);
 
             // Send password changed email asynchronously (fire-and-forget) to avoid blocking the response
             Console.WriteLine($"[Reset Password] Queuing password changed email to send asynchronously...");
