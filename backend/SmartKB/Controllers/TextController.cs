@@ -98,18 +98,18 @@ namespace SmartKB.Controllers
                     .Set(t => t.TextName, textName)
                     .Set(t => t.Status, "Completed");
 
-                _textCollection.UpdateOne(t => t.Id == text.Id, update);
+                _textCollection.UpdateOne(t => t.TextId == text.TextId, update);
 
                 // Increment usage for regular users (role 2), not admins (role 1)
                 await _summarizationService.IncrementUsageIfUser(userId);
 
                 // Fetch the updated text to get the textName
-                var updatedText = await _textCollection.Find(t => t.Id == text.Id).FirstOrDefaultAsync();
+                var updatedText = await _textCollection.Find(t => t.TextId == text.TextId).FirstOrDefaultAsync();
 
                 return Ok(new
                 {
                     message = "Text added and summarized",
-                    documentId = text.Id,
+                    documentId = text.TextId,
                     summary,
                     textName = updatedText?.TextName
                 });
@@ -119,7 +119,7 @@ namespace SmartKB.Controllers
                 var update = Builders<Text>.Update
                     .Set(t => t.Status, "Error");
 
-                _textCollection.UpdateOne(t => t.Id == text.Id, update);
+                _textCollection.UpdateOne(t => t.TextId == text.TextId, update);
 
                 return StatusCode(500, "Summarization failed");
             }
@@ -144,7 +144,7 @@ namespace SmartKB.Controllers
 
             var result = summaries.Select(t => new
             {
-                id = t.Id,
+                id = t.TextId,
                 text = t.TextContent,
                 textName = t.TextName,
                 summary = t.Summary,
@@ -168,7 +168,7 @@ namespace SmartKB.Controllers
             var userId = userIdClaim.Value;
 
             // Verify text belongs to user
-            var text = await _textCollection.Find(t => t.Id == id && t.UserId == userId).FirstOrDefaultAsync();
+            var text = await _textCollection.Find(t => t.TextId == id && t.UserId == userId).FirstOrDefaultAsync();
             if (text == null)
                 return NotFound("Text not found");
 
@@ -213,7 +213,7 @@ namespace SmartKB.Controllers
             if (updates.Count > 0)
             {
                 var combined = updateDef.Combine(updates);
-                await _textCollection.UpdateOneAsync(t => t.Id == id, combined);
+                await _textCollection.UpdateOneAsync(t => t.TextId == id, combined);
             }
 
             return Ok(new { message = "Text updated successfully" });
@@ -242,7 +242,7 @@ namespace SmartKB.Controllers
                 var user = await _userCollection.Find(u => u.UserId == text.UserId).FirstOrDefaultAsync();
                 result.Add(new
                 {
-                    id = text.Id,
+                    id = text.TextId,
                     text = text.TextContent,
                     textName = text.TextName,
                     summary = text.Summary,
@@ -259,11 +259,11 @@ namespace SmartKB.Controllers
         [HttpDelete("admin/{id}")]
         public async Task<IActionResult> DeleteTextSummary(string id)
         {
-            var text = await _textCollection.Find(t => t.Id == id).FirstOrDefaultAsync();
+            var text = await _textCollection.Find(t => t.TextId == id).FirstOrDefaultAsync();
             if (text == null)
                 return NotFound("Text summary not found");
 
-            await _textCollection.DeleteOneAsync(t => t.Id == id);
+            await _textCollection.DeleteOneAsync(t => t.TextId == id);
             return Ok(new { message = "Text summary deleted successfully" });
         }
 
@@ -284,12 +284,12 @@ namespace SmartKB.Controllers
             var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
             if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
             {
-                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.Id) && t.UserId == userId);
+                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.TextId) && t.UserId == userId);
                 return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
             }
             else // Admin can delete any
             {
-                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.Id));
+                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.TextId));
                 return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
             }
         }

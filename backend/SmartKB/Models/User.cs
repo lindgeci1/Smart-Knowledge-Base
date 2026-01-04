@@ -25,12 +25,6 @@ namespace SmartKB.Models
         [BsonElement("isActive")]
         public bool IsActive { get; set; } = true;
 
-        [BsonElement("refreshToken")]
-        public string? RefreshToken { get; set; }
-
-        [BsonElement("refreshTokenExpiresAt")]
-        public DateTime? RefreshTokenExpiresAt { get; set; }
-
         [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -7,7 +7,8 @@ namespace SmartKB.Models
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
-        public string? Id { get; set; }
+        [BsonElement("payment_id")]
+        public string? PaymentId { get; set; }
 
         [BsonElement("userId")]
         public string UserId { get; set; } // Reference to User

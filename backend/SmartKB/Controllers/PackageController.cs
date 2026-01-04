@@ -41,7 +41,7 @@ namespace SmartKB.Controllers
         public async Task<IActionResult> GetPackageById(string id)
         {
             var package = await _packageCollection
-                .Find(p => p.Id == id && p.IsActive)
+                .Find(p => p.PackageId == id && p.IsActive)
                 .FirstOrDefaultAsync();
 
             if (package == null)
@@ -151,7 +151,7 @@ namespace SmartKB.Controllers
         public async Task<IActionResult> DeletePackage(string id)
         {
             var package = await _packageCollection
-                .Find(p => p.Id == id)
+                .Find(p => p.PackageId == id)
                 .FirstOrDefaultAsync();
 
             if (package == null)
@@ -162,7 +162,7 @@ namespace SmartKB.Controllers
                 .Set(p => p.IsActive, false)
                 .Set(p => p.UpdatedAt, DateTime.UtcNow);
 
-            await _packageCollection.UpdateOneAsync(p => p.Id == id, update);
+            await _packageCollection.UpdateOneAsync(p => p.PackageId == id, update);
             return Ok(new { message = "Package deactivated successfully" });
         }
 
@@ -171,7 +171,7 @@ namespace SmartKB.Controllers
         public async Task<IActionResult> ReactivatePackage(string id)
         {
             var package = await _packageCollection
-                .Find(p => p.Id == id)
+                .Find(p => p.PackageId == id)
                 .FirstOrDefaultAsync();
 
             if (package == null)
@@ -182,7 +182,7 @@ namespace SmartKB.Controllers
                 .Set(p => p.IsActive, true)
                 .Set(p => p.UpdatedAt, DateTime.UtcNow);
 
-            await _packageCollection.UpdateOneAsync(p => p.Id == id, update);
+            await _packageCollection.UpdateOneAsync(p => p.PackageId == id, update);
             return Ok(new { message = "Package reactivated successfully" });
         }
     }

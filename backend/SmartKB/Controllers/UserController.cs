@@ -19,6 +19,7 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Usage> _usageCollection;
         private readonly IMongoCollection<Payment> _paymentCollection;
         private readonly IMongoCollection<Package> _packageCollection;
+        private readonly IMongoCollection<RefreshTokenSession> _refreshTokens;
         private readonly SummarizationService _summarizationService;
         private readonly EmailService _emailService;
 
@@ -37,6 +38,7 @@ namespace SmartKB.Controllers
             _usageCollection = database.GetCollection<Usage>("usage");
             _paymentCollection = database.GetCollection<Payment>("payments");
             _packageCollection = database.GetCollection<Package>("packages");
+            _refreshTokens = database.GetCollection<RefreshTokenSession>("refreshTokens");
             
             _summarizationService = new SummarizationService(_userRoleCollection, _usageCollection);
         }
@@ -212,8 +214,6 @@ namespace SmartKB.Controllers
                 PasswordHash = hash,
                 PasswordSalt = salt,
                 IsActive = true,
-                RefreshToken = null,
-                RefreshTokenExpiresAt = null,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -273,11 +273,10 @@ namespace SmartKB.Controllers
             // Set user as inactive instead of deleting
             var update = Builders<User>.Update
                 .Set(u => u.IsActive, false)
-                .Set(u => u.UpdatedAt, DateTime.UtcNow)
-                .Set(u => u.RefreshToken, null)
-                .Set(u => u.RefreshTokenExpiresAt, null);
+                .Set(u => u.UpdatedAt, DateTime.UtcNow);
 
             await _userCollection.UpdateOneAsync(u => u.UserId == id, update);
+            await _refreshTokens.DeleteManyAsync(rt => rt.UserId == id);
 
             _ = Task.Run(async () =>
             {
@@ -443,7 +442,7 @@ namespace SmartKB.Controllers
 
             // Get the package details
             var package = await _packageCollection
-                .Find(p => p.Id == payment.PackageId)
+                .Find(p => p.PackageId == payment.PackageId)
                 .FirstOrDefaultAsync();
 
             if (package == null)
@@ -458,7 +457,7 @@ namespace SmartKB.Controllers
             return Ok(new
             {
                 planName = $"{package.Name} Plan",
-                packageId = package.Id,
+                packageId = package.PackageId,
                 packageName = package.Name
             });
         }

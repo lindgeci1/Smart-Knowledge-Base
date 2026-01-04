@@ -7,7 +7,8 @@ namespace SmartKB.Models
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
-        public string? Id { get; set; }
+        [BsonElement("text_id")]
+        public string? TextId { get; set; }
 
         [BsonElement("textContent")]
         public string TextContent { get; set; }
