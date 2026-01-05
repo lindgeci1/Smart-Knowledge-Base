@@ -1,0 +1,13 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Enable file polling for Docker on Windows
+ENV CHOKIDAR_USEPOLLING=true
+
+# Install dependencies (will be cached)
+COPY package*.json ./
+RUN rm -f package-lock.json && npm install
+
+# Source code will be mounted, node_modules is separate volume
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

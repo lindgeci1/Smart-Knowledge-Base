@@ -18,7 +18,7 @@ import { StripeCardElement } from "../components/StripeCardElement";
 import toast from "react-hot-toast";
 
 interface Package {
-  id?: string;
+  packageId?: string;
   name: string;
   summaryLimit: number | null;
   price: number;
@@ -190,7 +190,7 @@ export function CheckoutPage() {
         clientSecret: string;
         paymentIntentId: string;
       }>("/Payment/create-payment-intent", {
-        packageId: checkoutPackage.id,
+        packageId: checkoutPackage.packageId,
         email: email,
         billingName: cardholderName,
         billingAddress: {
@@ -234,7 +234,7 @@ export function CheckoutPage() {
         apiClient
           .post("/Payment/confirm", {
             paymentIntentId: paymentIntentId,
-            packageId: checkoutPackage.id,
+            packageId: checkoutPackage.packageId,
           })
           .catch((err) => console.error("Backend confirmation error:", err));
         setError(stripeError.message || "Payment failed");
@@ -247,7 +247,7 @@ export function CheckoutPage() {
         apiClient
           .post("/Payment/confirm", {
             paymentIntentId: paymentIntentId,
-            packageId: checkoutPackage.id,
+            packageId: checkoutPackage.packageId,
           })
           .catch((err) => console.error("Backend confirmation error:", err));
 
@@ -271,7 +271,7 @@ export function CheckoutPage() {
         apiClient
           .post("/Payment/confirm", {
             paymentIntentId: paymentIntentId,
-            packageId: checkoutPackage.id,
+            packageId: checkoutPackage.packageId,
           })
           .catch((err) => console.error("Backend confirmation error:", err));
         setError("Payment was not completed. Please try again.");
@@ -630,7 +630,8 @@ export function CheckoutPage() {
                     if (state.trim().length < 2) {
                       setFieldErrors((prev) => ({
                         ...prev,
-                        state: "State or province must be at least 2 characters",
+                        state:
+                          "State or province must be at least 2 characters",
                       }));
                     }
                   }}

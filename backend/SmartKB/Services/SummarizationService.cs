@@ -29,7 +29,7 @@ namespace SmartKB.Services
             var json = System.Text.Json.JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://localhost:11434";
+            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://ollama:11434";
             var ollamaApiUrl = $"{ollamaUrl}/api/generate";
             var response = await client.PostAsync(ollamaApiUrl, content);
             response.EnsureSuccessStatusCode();
@@ -60,7 +60,7 @@ namespace SmartKB.Services
             var startTime = DateTime.UtcNow;
             Console.WriteLine($"Summarization with keyword extraction started - {type}");
 
-            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://localhost:11434";
+            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://ollama:11434";
             var ollamaApiUrl = $"{ollamaUrl}/api/generate";
 
             using var client = new HttpClient();

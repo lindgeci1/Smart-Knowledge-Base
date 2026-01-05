@@ -13,7 +13,7 @@ import {
 import { apiClient } from "../lib/authClient";
 
 interface Package {
-  id?: string;
+  packageId?: string;
   name: string;
   summaryLimit: number | null;
   price: number;
@@ -112,7 +112,7 @@ export function PackagesPage() {
 
             return (
               <div
-                key={pkg.id}
+                key={pkg.packageId}
                 className={`relative bg-white rounded-2xl shadow-lg border ${
                   isPopular
                     ? "border-blue-500 ring-2 ring-blue-500 ring-opacity-50"
@@ -171,7 +171,7 @@ export function PackagesPage() {
                 </ul>
 
                 <Button
-                  onClick={() => handlePurchase(pkg.id!)}
+                  onClick={() => handlePurchase(pkg.packageId!)}
                   className={`mt-8 w-full py-6 text-lg ${
                     isPopular ? "bg-blue-600 hover:bg-blue-700" : ""
                   }`}
