@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using SmartKB.Models;
+using System.Net.Http;
 
 namespace SmartKB.Services
 {
@@ -14,110 +15,266 @@ namespace SmartKB.Services
             _usageCollection = usageCollection;
         }
 
-        public async Task<string> SummarizeWithOllama(string text, string type = "text")
+        // Uses Docker if OLLAMA_URL is set, otherwise uses Cloud
+        public async Task<string> SummarizeWithDockerOrCloud(string text, string type = "text")
         {
             var startTime = DateTime.UtcNow;
-            Console.WriteLine($"Summarization with Ollama (Docker) started - {type}");
+            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL");
+            var useDocker = !string.IsNullOrEmpty(ollamaUrl);
+            
+            Console.WriteLine($"Summarization {(useDocker ? "with Docker (local)" : "with Cloud")} started - {type}");
 
             using var client = new HttpClient();
-            var request = new
+            client.Timeout = TimeSpan.FromMinutes(5);
+
+            if (useDocker)
             {
-                model = "llama3.2",
-                prompt = $"Summarize this:\n{text}"
-            };
+                // Docker/Local mode - use /api/generate
+                var request = new
+                {
+                    model = "llama3.2",
+                    prompt = $"Summarize this:\n{text}"
+                };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(request);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://ollama:11434";
-            var ollamaApiUrl = $"{ollamaUrl}/api/generate";
-            var response = await client.PostAsync(ollamaApiUrl, content);
-            response.EnsureSuccessStatusCode();
+                var ollamaApiUrl = $"{ollamaUrl}/api/generate";
+                var response = await client.PostAsync(ollamaApiUrl, content);
+                response.EnsureSuccessStatusCode();
 
-            var stream = await response.Content.ReadAsStreamAsync();
-            using var reader = new StreamReader(stream);
+                var stream = await response.Content.ReadAsStreamAsync();
+                using var reader = new StreamReader(stream);
 
-            string finalOutput = "";
-            while (!reader.EndOfStream)
-            {
-                var line = await reader.ReadLineAsync();
-                if (string.IsNullOrWhiteSpace(line)) continue;
+                string finalOutput = "";
+                while (!reader.EndOfStream)
+                {
+                    var line = await reader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var doc = System.Text.Json.JsonDocument.Parse(line);
-                if (doc.RootElement.TryGetProperty("response", out var resp))
-                    finalOutput += resp.GetString();
+                    var doc = System.Text.Json.JsonDocument.Parse(line);
+                    if (doc.RootElement.TryGetProperty("response", out var resp))
+                        finalOutput += resp.GetString();
+                }
+
+                var endTime = DateTime.UtcNow;
+                var responseTime = (endTime - startTime).TotalMilliseconds;
+                Console.WriteLine($"Summarization with Docker (local) finished - Response time: {responseTime:F2} ms");
+
+                return finalOutput.Trim();
             }
+            else
+            {
+                // Cloud mode - use /api/chat
+                var apiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY");
+                var model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:120b-cloud";
+                
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    throw new Exception("OLLAMA_API_KEY environment variable is not set.");
+                }
 
-            var endTime = DateTime.UtcNow;
-            var responseTime = (endTime - startTime).TotalMilliseconds;
-            Console.WriteLine($"Summarization with Ollama (Docker) finished - Response time: {responseTime:F2} ms");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+                
+                var ollamaApiUrl = "https://ollama.com/api/chat";
+                
+                var request = new
+                {
+                    model = model,
+                    messages = new[]
+                    {
+                        new { role = "user", content = $"Summarize this:\n{text}" }
+                    },
+                    stream = false
+                };
 
-            return finalOutput.Trim();
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync(ollamaApiUrl, content);
+                response.EnsureSuccessStatusCode();
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(responseJson);
+                var summary = doc.RootElement.GetProperty("message").GetProperty("content").GetString() ?? "";
+
+                var endTime = DateTime.UtcNow;
+                var responseTime = (endTime - startTime).TotalMilliseconds;
+                Console.WriteLine($"Summarization with Cloud finished - Response time: {responseTime:F2} ms");
+
+                return summary.Trim();
+            }
         }
 
-        public async Task<(string summary, string keyword)> SummarizeWithKeyword(string text, string type = "text")
+        // Uses Docker if OLLAMA_URL is set, otherwise uses Cloud
+        public async Task<(string summary, string keyword)> SummarizeWithKeywordDockerOrCloud(string text, string type = "text")
         {
             var startTime = DateTime.UtcNow;
-            Console.WriteLine($"Summarization with keyword extraction started - {type}");
-
-            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://ollama:11434";
-            var ollamaApiUrl = $"{ollamaUrl}/api/generate";
+            var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL");
+            var useDocker = !string.IsNullOrEmpty(ollamaUrl);
+            
+            Console.WriteLine($"Summarization with keyword extraction {(useDocker ? "with Docker (local)" : "with Cloud")} started - {type}");
 
             using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromMinutes(5);
+
+            if (useDocker)
+            {
+                // Docker/Local mode - use /api/generate
+                var model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "llama3.2";
+                
+                // First, get the summary
+                var summaryRequest = new
+                {
+                    model = model,
+                    prompt = $"Summarize this:\n{text}"
+                };
+
+                var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);
+                var summaryContent = new StringContent(summaryJson, System.Text.Encoding.UTF8, "application/json");
+
+                var ollamaApiUrl = $"{ollamaUrl}/api/generate";
+                var summaryResponse = await client.PostAsync(ollamaApiUrl, summaryContent);
+                summaryResponse.EnsureSuccessStatusCode();
+
+                var summaryStream = await summaryResponse.Content.ReadAsStreamAsync();
+                using var summaryReader = new StreamReader(summaryStream);
+
+                string summary = "";
+                while (!summaryReader.EndOfStream)
+                {
+                    var line = await summaryReader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    var doc = System.Text.Json.JsonDocument.Parse(line);
+                    if (doc.RootElement.TryGetProperty("response", out var resp))
+                        summary += resp.GetString();
+                }
+
+                // Then, extract the main keyword/topic
+                var keywordRequest = new
+                {
+                    model = model,
+                    prompt = $"Based on this text, identify the single most important keyword or topic (one word or short phrase, 1-3 words max) that best represents the main subject:\n{text}\n\nRespond with only the keyword/topic, nothing else."
+                };
+
+                var keywordJson = System.Text.Json.JsonSerializer.Serialize(keywordRequest);
+                var keywordContent = new StringContent(keywordJson, System.Text.Encoding.UTF8, "application/json");
+
+                var keywordResponse = await client.PostAsync(ollamaApiUrl, keywordContent);
+                keywordResponse.EnsureSuccessStatusCode();
+
+                var keywordStream = await keywordResponse.Content.ReadAsStreamAsync();
+                using var keywordReader = new StreamReader(keywordStream);
+
+                string keyword = "";
+                while (!keywordReader.EndOfStream)
+                {
+                    var line = await keywordReader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    var doc = System.Text.Json.JsonDocument.Parse(line);
+                    if (doc.RootElement.TryGetProperty("response", out var resp))
+                        keyword += resp.GetString();
+                }
+
+                // Clean up the keyword
+                keyword = keyword.Trim().Trim('"', '\'', '.', ',', '!', '?');
+                if (keyword.Length > 30)
+                {
+                    keyword = keyword.Substring(0, 30).Trim();
+                }
+                if (string.IsNullOrWhiteSpace(keyword))
+                {
+                    keyword = "Content";
+                }
+
+                var endTime = DateTime.UtcNow;
+                var responseTime = (endTime - startTime).TotalMilliseconds;
+                Console.WriteLine($"Summarization with keyword extraction (Docker) finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
+
+                return (summary.Trim(), keyword.Trim());
+            }
+            else
+            {
+                // Cloud mode - use /api/chat
+                var apiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY");
+                var model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:120b-cloud";
+                
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    throw new Exception("OLLAMA_API_KEY environment variable is not set.");
+                }
+
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+                
+                var ollamaApiUrl = "https://ollama.com/api/chat";
             
             // First, get the summary
             var summaryRequest = new
             {
-                model = "llama3.2",
-                prompt = $"Summarize this:\n{text}"
+                model = model,
+                messages = new[]
+                {
+                    new { role = "user", content = $"Summarize this:\n{text}" }
+                },
+                stream = false
             };
 
             var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);
             var summaryContent = new StringContent(summaryJson, System.Text.Encoding.UTF8, "application/json");
 
-            var summaryResponse = await client.PostAsync(ollamaApiUrl, summaryContent);
-            summaryResponse.EnsureSuccessStatusCode();
-
-            var summaryStream = await summaryResponse.Content.ReadAsStreamAsync();
-            using var summaryReader = new StreamReader(summaryStream);
-
-            string summary = "";
-            while (!summaryReader.EndOfStream)
+            HttpResponseMessage summaryResponse;
+            try
             {
-                var line = await summaryReader.ReadLineAsync();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                var doc = System.Text.Json.JsonDocument.Parse(line);
-                if (doc.RootElement.TryGetProperty("response", out var resp))
-                    summary += resp.GetString();
+                summaryResponse = await client.PostAsync(ollamaApiUrl, summaryContent);
+                summaryResponse.EnsureSuccessStatusCode();
             }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Failed to connect to Ollama service: {ex.Message}", ex);
+            }
+            catch (TaskCanceledException ex)
+            {
+                throw new Exception($"Request timed out: {ex.Message}", ex);
+            }
+
+            var summaryResponseJson = await summaryResponse.Content.ReadAsStringAsync();
+            var summaryDoc = System.Text.Json.JsonDocument.Parse(summaryResponseJson);
+            var summary = summaryDoc.RootElement.GetProperty("message").GetProperty("content").GetString() ?? "";
 
             // Then, extract the main keyword/topic
             var keywordRequest = new
             {
-                model = "llama3.2",
-                prompt = $"Based on this text, identify the single most important keyword or topic (one word or short phrase, 1-3 words max) that best represents the main subject:\n{text}\n\nRespond with only the keyword/topic, nothing else."
+                model = model,
+                messages = new[]
+                {
+                    new { role = "user", content = $"Based on this text, identify the single most important keyword or topic (one word or short phrase, 1-3 words max) that best represents the main subject:\n{text}\n\nRespond with only the keyword/topic, nothing else." }
+                },
+                stream = false
             };
 
             var keywordJson = System.Text.Json.JsonSerializer.Serialize(keywordRequest);
             var keywordContent = new StringContent(keywordJson, System.Text.Encoding.UTF8, "application/json");
 
-            var keywordResponse = await client.PostAsync(ollamaApiUrl, keywordContent);
-            keywordResponse.EnsureSuccessStatusCode();
-
-            var keywordStream = await keywordResponse.Content.ReadAsStreamAsync();
-            using var keywordReader = new StreamReader(keywordStream);
-
-            string keyword = "";
-            while (!keywordReader.EndOfStream)
+            HttpResponseMessage keywordResponse;
+            try
             {
-                var line = await keywordReader.ReadLineAsync();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                var doc = System.Text.Json.JsonDocument.Parse(line);
-                if (doc.RootElement.TryGetProperty("response", out var resp))
-                    keyword += resp.GetString();
+                keywordResponse = await client.PostAsync(ollamaApiUrl, keywordContent);
+                keywordResponse.EnsureSuccessStatusCode();
             }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Failed to connect to Ollama service for keyword extraction: {ex.Message}", ex);
+            }
+            catch (TaskCanceledException ex)
+            {
+                throw new Exception($"Request timed out: {ex.Message}", ex);
+            }
+
+            var keywordResponseJson = await keywordResponse.Content.ReadAsStringAsync();
+            var keywordDoc = System.Text.Json.JsonDocument.Parse(keywordResponseJson);
+            var keyword = keywordDoc.RootElement.GetProperty("message").GetProperty("content").GetString() ?? "";
 
             // Clean up the keyword - remove quotes, extra whitespace, and limit length
             keyword = keyword.Trim().Trim('"', '\'', '.', ',', '!', '?');
@@ -130,11 +287,12 @@ namespace SmartKB.Services
                 keyword = "Content";
             }
 
-            var endTime = DateTime.UtcNow;
-            var responseTime = (endTime - startTime).TotalMilliseconds;
-            Console.WriteLine($"Summarization with keyword extraction finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
+                var endTime = DateTime.UtcNow;
+                var responseTime = (endTime - startTime).TotalMilliseconds;
+                Console.WriteLine($"Summarization with keyword extraction (Cloud) finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
 
-            return (summary.Trim(), keyword.Trim());
+                return (summary.Trim(), keyword.Trim());
+            }
         }
 
         public async Task IncrementUsageIfUser(string userId)

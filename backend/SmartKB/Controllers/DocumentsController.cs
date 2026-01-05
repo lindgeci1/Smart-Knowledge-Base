@@ -137,7 +137,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                var (summary, keyword) = await _summarizationService.SummarizeWithKeyword(extractedText, "file");
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(extractedText, "file");
                 var documentName = $"File Summary of {keyword}";
 
                 var update = Builders<Document>.Update

@@ -90,7 +90,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                var (summary, keyword) = await _summarizationService.SummarizeWithKeyword(dto.Text, "text");
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(dto.Text, "text");
                 var textName = $"Text Summary of {keyword}";
 
                 var update = Builders<Text>.Update
@@ -114,7 +114,7 @@ namespace SmartKB.Controllers
                     textName = updatedText?.TextName
                 });
             }
-            catch
+            catch (Exception ex)
             {
                 var update = Builders<Text>.Update
                     .Set(t => t.Status, "Error");
