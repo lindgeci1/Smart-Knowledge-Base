@@ -70,7 +70,7 @@ namespace SmartKB.Controllers
             if (string.IsNullOrWhiteSpace(dto.Email))
                 return BadRequest("Email is required");
 
-            var existingEmail = await _userCollection.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var existingEmail = await _userCollection.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             
             return Ok(new { exists = existingEmail != null });
         }
@@ -192,7 +192,7 @@ namespace SmartKB.Controllers
             if (string.IsNullOrWhiteSpace(dto.Password))
                 return BadRequest("Password is required");
 
-            var existing = await _userCollection.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var existing = await _userCollection.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             if (existing != null)
                 return BadRequest("Email already exists");
 
@@ -366,9 +366,9 @@ namespace SmartKB.Controllers
             }
 
             // Check if new email already exists (if provided and different from current)
-            if (!string.IsNullOrWhiteSpace(dto.Email) && dto.Email != user.Email)
+            if (!string.IsNullOrWhiteSpace(dto.Email) && dto.Email.ToLower() != user.Email.ToLower())
             {
-                var existingEmail = await _userCollection.Find(u => u.Email == dto.Email && u.UserId != userId).FirstOrDefaultAsync();
+                var existingEmail = await _userCollection.Find(u => u.Email.ToLower() == dto.Email.ToLower() && u.UserId != userId).FirstOrDefaultAsync();
                 if (existingEmail != null)
                     return BadRequest("Email already exists");
             }

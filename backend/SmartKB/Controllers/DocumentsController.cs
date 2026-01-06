@@ -122,11 +122,14 @@ namespace SmartKB.Controllers
                 return BadRequest(ex.Message);
             }
 
+            // Clean excessive spaces and normalize formatting
+            var cleanedText = CleanExcessiveSpaces(extractedText);
+
             var document = new Document
             {
                 FileName = fileName,
                 FileType = fileType,
-                FileData = extractedText,
+                FileData = cleanedText,
                 Summary = null,
                 Status = "Pending",
                 UserId = userId,
@@ -137,7 +140,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(extractedText, "file");
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(cleanedText, "file");
                 var documentName = $"File Summary of {keyword}";
 
                 var update = Builders<Document>.Update
@@ -340,6 +343,21 @@ namespace SmartKB.Controllers
                 var result = await _documentCollection.DeleteManyAsync(d => ids.Contains(d.DocumentId));
                 return Ok(new { message = "Documents deleted successfully", deletedCount = result.DeletedCount });
             }
+        }
+
+        private string CleanExcessiveSpaces(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            // Normalize line endings and whitespace variants
+            text = text.Replace('\u00A0', ' '); // non-breaking spaces
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            // Collapse all whitespace (spaces, tabs, newlines) to a single space to form one paragraph
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+
+            return text.Trim();
         }
     }
 }

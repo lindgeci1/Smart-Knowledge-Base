@@ -57,6 +57,7 @@ export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // Important: sends cookies (including refresh token)
 });
+let isHandlingDeactivation = false;
 
 // Request interceptor: Attach JWT from cookie to each request
 apiClient.interceptors.request.use(
@@ -77,6 +78,67 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
+
+    // Handle 403 - Account deactivated
+    if (error.response?.status === 403 && !isHandlingDeactivation) {
+      isHandlingDeactivation = true;
+      
+      // Get the message from the response
+      const responseData = error.response.data as { message?: string };
+      const message = responseData?.message || "Your account has been deactivated. Please contact an administrator.";
+      
+      // Show first toast notification
+      import("react-hot-toast").then(({ default: toast }) => {
+        toast.error(message, { duration: 2000 });
+        
+        // Show second toast after 1.5 seconds
+        setTimeout(() => {
+          toast.loading("Logging out...", { duration: 1500 });
+        }, 1500);
+      });
+
+      // Wait for both toasts to show, then logout
+      setTimeout(async () => {
+        try {
+          // Call logout API to clean up refresh token (HttpOnly cookie)
+          const currentJwt = getJwtFromCookie();
+          
+          if (currentJwt) {
+            await axios.post(
+              `${API_BASE_URL}/auth/logout`,
+              {},
+              {
+                withCredentials: true,
+                headers: {
+                  Authorization: `Bearer ${currentJwt}`,
+                },
+              }
+            );
+          } else {
+            await axios.post(
+              `${API_BASE_URL}/auth/logout`,
+              {},
+              { withCredentials: true }
+            );
+          }
+          
+          // Wait a moment for browser to process cookie deletion from server
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (logoutError) {
+          // Ignore logout errors but still wait
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Clear JWT cookie and local storage
+        clearJwtCookie();
+        localStorage.removeItem("user_email");
+        
+        // Redirect to login
+        window.location.href = "/login";
+      }, 3000);
+
+      return Promise.reject(error);
+    }
 
     // Don't retry auth endpoints
     const isAuthEndpoint =
@@ -138,6 +200,7 @@ apiClient.interceptors.response.use(
         } catch (logoutError) {
           // Ignore logout errors
         }
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Clear JWT cookie and redirect to login
         clearJwtCookie();

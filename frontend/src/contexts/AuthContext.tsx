@@ -193,8 +193,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Call logout API to clean up refresh token
       await apiClient.post("/auth/logout");
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       // Ignore logout errors - cleanup anyway
+      await new Promise(resolve => setTimeout(resolve, 100));
     } finally {
       // Clear local state
       clearJwtCookie();

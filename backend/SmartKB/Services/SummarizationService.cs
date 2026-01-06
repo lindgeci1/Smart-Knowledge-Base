@@ -33,7 +33,7 @@ namespace SmartKB.Services
                 var request = new
                 {
                     model = "llama3.2",
-                    prompt = $"Summarize this:\n{text}"
+                    prompt = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}"
                 };
 
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
@@ -61,7 +61,7 @@ namespace SmartKB.Services
                 var responseTime = (endTime - startTime).TotalMilliseconds;
                 Console.WriteLine($"Summarization with Docker (local) finished - Response time: {responseTime:F2} ms");
 
-                return finalOutput.Trim();
+                return RemoveMarkdown(finalOutput.Trim());
             }
             else
             {
@@ -83,7 +83,7 @@ namespace SmartKB.Services
                     model = model,
                     messages = new[]
                     {
-                        new { role = "user", content = $"Summarize this:\n{text}" }
+                        new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}" }
                     },
                     stream = false
                 };
@@ -102,7 +102,7 @@ namespace SmartKB.Services
                 var responseTime = (endTime - startTime).TotalMilliseconds;
                 Console.WriteLine($"Summarization with Cloud finished - Response time: {responseTime:F2} ms");
 
-                return summary.Trim();
+                return RemoveMarkdown(summary.Trim());
             }
         }
 
@@ -127,7 +127,7 @@ namespace SmartKB.Services
                 var summaryRequest = new
                 {
                     model = model,
-                    prompt = $"Summarize this:\n{text}"
+                    prompt = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}"
                 };
 
                 var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);
@@ -193,7 +193,7 @@ namespace SmartKB.Services
                 var responseTime = (endTime - startTime).TotalMilliseconds;
                 Console.WriteLine($"Summarization with keyword extraction (Docker) finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
 
-                return (summary.Trim(), keyword.Trim());
+                return (RemoveMarkdown(summary.Trim()), keyword.Trim());
             }
             else
             {
@@ -216,7 +216,7 @@ namespace SmartKB.Services
                 model = model,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Summarize this:\n{text}" }
+                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}" }
                 },
                 stream = false
             };
@@ -291,7 +291,7 @@ namespace SmartKB.Services
                 var responseTime = (endTime - startTime).TotalMilliseconds;
                 Console.WriteLine($"Summarization with keyword extraction (Cloud) finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
 
-                return (summary.Trim(), keyword.Trim());
+                return (RemoveMarkdown(summary.Trim()), keyword.Trim());
             }
         }
 
@@ -317,15 +317,50 @@ namespace SmartKB.Services
                     UpdatedAt = DateTime.UtcNow
                 };
                 await _usageCollection.InsertOneAsync(usage);
-            }
-            else
+        }}
+
+        // Remove markdown formatting from text
+        private string RemoveMarkdown(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            // Remove bold (**text** or __text__)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*(.*?)\*\*", "$1");
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"__(.*?)__", "$1");
+
+            // Remove italic (*text* or _text_)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\*(.*?)\*", "$1");
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"_(.*?)_", "$1");
+
+            // Remove code blocks (```code``` or `code`)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"```(.*?)```", "$1", System.Text.RegularExpressions.RegexOptions.Singleline);
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"`(.*?)`", "$1");
+
+            // Remove headers (# Header)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"^#+\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            // Remove markdown table formatting (pipes and dashes)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\|.*?\|", m => 
             {
-                // Increment usage by 10
-                var update = Builders<Usage>.Update
-                    .Inc(u => u.OverallUsage, 10)
-                    .Set(u => u.UpdatedAt, DateTime.UtcNow);
-                await _usageCollection.UpdateOneAsync(u => u.UserId == userId, update);
-            }
+                // Remove pipes and extra spaces, keep the content
+                return m.Value.Replace("|", "").Replace("---", "").Trim();
+            });
+
+            // Remove markdown links [text](url)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^\)]+\)", "$1");
+
+            // Remove horizontal rules (--- or ***)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"^(\-{3,}|\*{3,})$", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            // Remove list markers (-, *, +)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*[\-\*\+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            // Clean up excessive whitespace
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\n\s*\n", "\n");
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"  +", " ");
+
+            return text.Trim();
         }
     }
 }

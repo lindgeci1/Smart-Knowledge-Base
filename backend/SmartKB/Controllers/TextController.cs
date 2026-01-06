@@ -75,11 +75,14 @@ namespace SmartKB.Controllers
                 }
             }
 
+            // Clean excessive spaces and format text
+            var cleanedText = CleanExcessiveSpaces(dto.Text);
+
             var text = new Text
             {
-                TextContent = dto.Text,
+                TextContent = cleanedText,
                 TextName = null,
-                Summary = null,
+                Summary = string.Empty,
                 Status = "Pending",
                 UserId = userId,
                 FolderId = string.IsNullOrWhiteSpace(folderId) ? null : folderId,
@@ -90,7 +93,7 @@ namespace SmartKB.Controllers
 
             try
             {
-                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(dto.Text, "text");
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(cleanedText, "text");
                 var textName = $"Text Summary of {keyword}";
 
                 var update = Builders<Text>.Update
@@ -114,7 +117,7 @@ namespace SmartKB.Controllers
                     textName = updatedText?.TextName
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 var update = Builders<Text>.Update
                     .Set(t => t.Status, "Error");
@@ -284,14 +287,29 @@ namespace SmartKB.Controllers
             var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
             if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
             {
-                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.TextId) && t.UserId == userId);
+                var result = await _textCollection.DeleteManyAsync(t => ids!.Contains(t.TextId!) && t.UserId == userId);
                 return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
             }
             else // Admin can delete any
             {
-                var result = await _textCollection.DeleteManyAsync(t => ids.Contains(t.TextId));
+                var result = await _textCollection.DeleteManyAsync(t => ids!.Contains(t.TextId!));
                 return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
             }
+        }
+
+        private string CleanExcessiveSpaces(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            // Normalize line endings and whitespace variants
+            text = text.Replace('\u00A0', ' '); // non-breaking spaces
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            // Collapse all whitespace (spaces, tabs, newlines) to a single space to form one paragraph
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+
+            return text.Trim();
         }
     }
 }
