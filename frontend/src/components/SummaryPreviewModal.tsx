@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Download, Calendar, X } from "lucide-react";
+import { FileText, MessageSquare, Download, Calendar, Loader2 } from "lucide-react";
 import { Button } from "./ui/Button";
 
 interface SummaryPreviewModalProps {
@@ -15,6 +15,7 @@ interface SummaryPreviewModalProps {
     content?: string;
   } | null;
   onDownload?: () => void;
+  isDownloading?: boolean;
 }
 
 export function SummaryPreviewModal({
@@ -22,6 +23,7 @@ export function SummaryPreviewModal({
   onClose,
   summary,
   onDownload,
+  isDownloading = false,
 }: SummaryPreviewModalProps) {
   if (!isOpen || !summary) return null;
 
@@ -74,11 +76,16 @@ export function SummaryPreviewModal({
             {onDownload && (
               <button
                 onClick={onDownload}
-                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                disabled={isDownloading}
+                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Download"
                 aria-label="Download"
               >
-                <Download className="h-5 w-5" />
+                {isDownloading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
               </button>
             )}
           </div>
@@ -94,7 +101,7 @@ export function SummaryPreviewModal({
                   Original Content{summary.type === "file" ? " (file)" : ""}
                 </h3>
                 <div
-                  className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words border border-slate-300 dark:border-slate-600"
+                  className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words border border-slate-300 dark:border-slate-600 max-h-[40vh] overflow-y-auto"
                   style={{
                     wordBreak: "break-word",
                     overflowWrap: "break-word",

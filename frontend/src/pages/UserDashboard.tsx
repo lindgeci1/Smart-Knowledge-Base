@@ -86,6 +86,7 @@ export function UserDashboard() {
   >(new Set());
   const [expandFolderId, setExpandFolderId] = useState<string | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string>("Free Plan");
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Function to fetch usage from backend
   const fetchUsage = useCallback(async () => {
@@ -423,34 +424,117 @@ export function UserDashboard() {
       setIsProcessing(false);
     }
   };
-  const handleDownloadSummary = (summary: Summary) => {
-    // Use summary content in the downloaded file for both text and file types
-    const fileContent = summary.summary || "";
-    const blob = new Blob([fileContent], {
-      type: "text/plain",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+  const handleDownloadSummary = async (summary: Summary) => {
+    // Prevent multiple simultaneous downloads
+    if (isDownloading) return;
+    
+    setIsDownloading(true);
+    toast.loading('Generating PDF...', { id: 'pdf-download' });
+    
+    // Create HTML content from PDF template
+    // Build title and filename based on type
+    let title = "";
+    let filename = "";
+    let documentSource = "";
+    
     if (summary.type === "file") {
-      a.download =
-        summary.filename?.replace(/\.[^/.]+$/, "-summary.txt") ||
-        "file-summary.txt";
+      // For files: use the stored documentName (e.g., "File Summary of Software Engineer")
+      title = summary.documentName || "File Summary";
+      documentSource = summary.filename || "N/A";
+      filename = summary.documentName?.replace(/\s+/g, "-").toLowerCase() || "document";
     } else {
-      // Use TextName as filename, sanitize it for file system
-      let filename = summary.textName || "Untitled Summary";
-      // Remove invalid characters for filenames
-      filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
-      // Limit length and add .txt extension
-      if (filename.length > 100) {
-        filename = filename.substring(0, 100);
-      }
-      a.download = `${filename}.txt`;
+      // For text: use textName directly (already contains "Text Summary of...")
+      title = summary.textName || "Text Summary";
+      documentSource = summary.textName || "N/A";
+      filename = summary.textName?.replace(/\s+/g, "-").toLowerCase() || "content";
     }
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    
+    filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
+    if (filename.length > 100) {
+      filename = filename.substring(0, 100);
+    }
+
+    try {
+      const res = await fetch("/pdf-template.html");
+      const templateHtml = await res.text();
+
+      // Pre-format summary content: bold all-caps section headers
+      const raw = summary.summary || "";
+      const lines = raw.split('\n');
+      const summaryHtml = lines
+        .map((line, idx) => {
+          const t = line.trim();
+          const isHeader = t.length > 0 && t === t.toUpperCase() && /^[A-Z\s]+$/.test(t);
+          if (isHeader) {
+            const mt = idx > 0 ? '20px' : '0';
+            return `<strong style="font-weight:700;font-size:14px;color:#2c3e50;display:block;margin-top:${mt};margin-bottom:5px;">${line}</strong>`;
+          }
+          return line;
+        })
+        .join('\n');
+
+      // Replace placeholders (all occurrences)
+      const filledHtml = templateHtml
+        .replace(/\[DOCUMENT TITLE\]/g, title)
+        .replace(/\[DATE\]/g, new Date().toLocaleDateString())
+        .replace(/\[SOURCE DOCUMENT NAME\]/g, documentSource)
+        .replace(/\[AUTHOR NAME\]/g, user?.email || "Unknown")
+        .replace(/\[TAG 1\]/g, summary.type === "file" ? "File" : "Text")
+        .replace(/\[TAG 2\]/g, new Date(summary.createdAt).toLocaleDateString())
+        .replace(/\[TAG 3\]/g, "Summary")
+        .replace("[SUMMARY_CONTENT]", summaryHtml);
+
+      // Parse the filled HTML to extract styles and content properly
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(filledHtml, 'text/html');
+      
+      const styleEl = doc.querySelector('style');
+      const pdfContainer = doc.querySelector('.pdf-container');
+      if (!pdfContainer) throw new Error('PDF template root not found');
+
+      // Create hidden host in main document to ensure styles get applied
+      const host = document.createElement('div');
+      host.style.position = 'fixed';
+      host.style.left = '-10000px';
+      host.style.top = '0';
+      host.style.width = '210mm';
+      host.style.background = '#fff';
+
+      // Clone the style element
+      if (styleEl) {
+        const clonedStyle = document.createElement('style');
+        clonedStyle.type = 'text/css';
+        clonedStyle.textContent = styleEl.textContent || '';
+        host.appendChild(clonedStyle);
+      }
+
+      // Clone the entire pdf-container with all nested content
+      const pdfRoot = pdfContainer.cloneNode(true) as HTMLElement;
+      host.appendChild(pdfRoot);
+      document.body.appendChild(host);
+
+      // Lazy-load html2pdf and normalize default export
+      const html2pdfMod: any = await import('html2pdf.js');
+      const html2pdf = html2pdfMod.default || html2pdfMod;
+
+      const opt: any = {
+        margin: [0, 0, 0, 0],
+        filename: `${filename}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] },
+      };
+
+      await (html2pdf() as any).set(opt).from(pdfRoot).save();
+      document.body.removeChild(host);
+      toast.success('Summary downloaded as PDF', { id: 'pdf-download' });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF", { id: 'pdf-download' });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handlePreviewSummary = (summary: Summary) => {
@@ -1202,10 +1286,15 @@ export function UserDashboard() {
                               e.stopPropagation();
                               handleDownloadSummary(item);
                             }}
-                            className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 p-1"
+                            disabled={isDownloading}
+                            className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Download summary"
                           >
-                            <Download className="h-4 w-4" />
+                            {isDownloading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1267,10 +1356,15 @@ export function UserDashboard() {
                                   e.stopPropagation();
                                   handleDownloadSummary(item);
                                 }}
-                                className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 flex-shrink-0"
+                                disabled={isDownloading}
+                                className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Download summary"
                               >
-                                <Download className="h-4 w-4" />
+                                {isDownloading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
                               </button>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mb-2">
@@ -1466,6 +1560,7 @@ export function UserDashboard() {
             handleDownloadSummary(previewSummary);
           }
         }}
+        isDownloading={isDownloading}
       />
 
       {/* Logout Confirmation Modal */}

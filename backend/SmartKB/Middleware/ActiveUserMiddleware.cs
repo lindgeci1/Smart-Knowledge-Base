@@ -17,6 +17,11 @@ namespace SmartKB.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
+            if (context.Request.Path.StartsWithSegments("/api/auth/logout", StringComparison.OrdinalIgnoreCase))
+            {
+                await _next(context);
+                return;
+            }
             // Only check for authenticated requests
             if (context.User?.Identity?.IsAuthenticated == true)
             {

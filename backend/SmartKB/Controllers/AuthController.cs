@@ -57,7 +57,7 @@ namespace SmartKB.Controllers
             }
 
             // Console.WriteLine($"[Register] Checking if email already exists...");
-            var existing = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var existing = await _users.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             if (existing != null)
             {
                 // Console.WriteLine($"[Register] Registration failed - Email already exists: {dto.Email}");
@@ -155,7 +155,7 @@ namespace SmartKB.Controllers
             // Console.WriteLine($"[Login] Login attempt for email: {dto.Email}");
 
             // Console.WriteLine($"[Login] Looking up user by email...");
-            var user = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var user = await _users.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             if (user == null)
             {
                 // Console.WriteLine($"[Login] Login failed - User not found for email: {dto.Email}");
@@ -352,7 +352,7 @@ namespace SmartKB.Controllers
 
             // Check if user exists (but don't reveal if they don't for security)
             // Console.WriteLine($"[Forgot Password] Looking up user by email...");
-            var user = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var user = await _users.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             
             if (user == null)
             {
@@ -456,7 +456,7 @@ namespace SmartKB.Controllers
             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Code))
                 return BadRequest("Email and code are required");
 
-            var user = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var user = await _users.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             if (user == null)
                 return BadRequest("Invalid email or code");
 
@@ -497,7 +497,7 @@ namespace SmartKB.Controllers
                 return BadRequest("Password must be at least 6 characters long");
             }
 
-            var user = await _users.Find(u => u.Email == dto.Email).FirstOrDefaultAsync();
+            var user = await _users.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
             if (user == null)
             {
                 return BadRequest("Invalid email or code");

@@ -77,7 +77,7 @@ export function PackagesSection({
     try {
       const response = await apiClient.get("/Package/admin");
       const packagesData = response.data.map((pkg: any) => ({
-        id: pkg.id,
+        id: pkg.packageId || pkg.id,
         name: pkg.name,
         description: pkg.description,
         price: pkg.price,
