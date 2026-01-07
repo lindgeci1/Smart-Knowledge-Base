@@ -25,6 +25,8 @@ import { apiClient } from "../lib/authClient";
 import { FolderSidebar } from "../components/FolderSidebar";
 import { SaveLocationModal } from "../components/SaveLocationModal";
 import { SummaryPreviewModal } from "../components/SummaryPreviewModal";
+import { generateSummaryPDF } from "../utils/pdfGenerator";
+
 // Types
 interface Summary {
   id: string;
@@ -285,9 +287,8 @@ export function UserDashboard() {
 
       setCurrentResult(newSummary);
       // Show helper message with summary name
-      const summaryName = textName || `text-summary-${
-        new Date().toISOString().split("T")[0]
-      }`;
+      const summaryName = textName || `text-summary-${new Date().toISOString().split("T")[0]
+        }`;
       setHelperMessage(summaryName);
       // no folder banner UI
       setShowSaveModal(true);
@@ -300,8 +301,8 @@ export function UserDashboard() {
       console.error("Summarization failed:", error);
       setError(
         error.response?.data ||
-          error.message ||
-          "Failed to summarize text. Please try again."
+        error.message ||
+        "Failed to summarize text. Please try again."
       );
     } finally {
       setIsProcessing(false);
@@ -427,111 +428,61 @@ export function UserDashboard() {
   const handleDownloadSummary = async (summary: Summary) => {
     // Prevent multiple simultaneous downloads
     if (isDownloading) return;
-    
+
     setIsDownloading(true);
-    toast.loading('Generating PDF...', { id: 'pdf-download' });
-    
-    // Create HTML content from PDF template
+
     // Build title and filename based on type
     let title = "";
     let filename = "";
     let documentSource = "";
-    
+
     if (summary.type === "file") {
-      // For files: use the stored documentName (e.g., "File Summary of Software Engineer")
       title = summary.documentName || "File Summary";
       documentSource = summary.filename || "N/A";
       filename = summary.documentName?.replace(/\s+/g, "-").toLowerCase() || "document";
     } else {
-      // For text: use textName directly (already contains "Text Summary of...")
       title = summary.textName || "Text Summary";
       documentSource = summary.textName || "N/A";
       filename = summary.textName?.replace(/\s+/g, "-").toLowerCase() || "content";
     }
-    
+
     filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
     if (filename.length > 100) {
       filename = filename.substring(0, 100);
     }
 
     try {
-      const res = await fetch("/pdf-template.html");
-      const templateHtml = await res.text();
+      // Generate PDF using the template
+      const pdf = generateSummaryPDF({
+        summary,
+        title,
+        documentSource,
+        authorEmail: user?.email || "Unknown"
+      });
 
-      // Pre-format summary content: bold all-caps section headers
-      const raw = summary.summary || "";
-      const lines = raw.split('\n');
-      const summaryHtml = lines
-        .map((line, idx) => {
-          const t = line.trim();
-          const isHeader = t.length > 0 && t === t.toUpperCase() && /^[A-Z\s]+$/.test(t);
-          if (isHeader) {
-            const mt = idx > 0 ? '20px' : '0';
-            return `<strong style="font-weight:700;font-size:14px;color:#2c3e50;display:block;margin-top:${mt};margin-bottom:5px;">${line}</strong>`;
-          }
-          return line;
-        })
-        .join('\n');
-
-      // Replace placeholders (all occurrences)
-      const filledHtml = templateHtml
-        .replace(/\[DOCUMENT TITLE\]/g, title)
-        .replace(/\[DATE\]/g, new Date().toLocaleDateString())
-        .replace(/\[SOURCE DOCUMENT NAME\]/g, documentSource)
-        .replace(/\[AUTHOR NAME\]/g, user?.email || "Unknown")
-        .replace(/\[TAG 1\]/g, summary.type === "file" ? "File" : "Text")
-        .replace(/\[TAG 2\]/g, new Date(summary.createdAt).toLocaleDateString())
-        .replace(/\[TAG 3\]/g, "Summary")
-        .replace("[SUMMARY_CONTENT]", summaryHtml);
-
-      // Parse the filled HTML to extract styles and content properly
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(filledHtml, 'text/html');
+      // Create blob and download URL for better mobile compatibility
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const downloadFilename = `${filename}-${new Date().toISOString().split("T")[0]}.pdf`;
       
-      const styleEl = doc.querySelector('style');
-      const pdfContainer = doc.querySelector('.pdf-container');
-      if (!pdfContainer) throw new Error('PDF template root not found');
-
-      // Create hidden host in main document to ensure styles get applied
-      const host = document.createElement('div');
-      host.style.position = 'fixed';
-      host.style.left = '-10000px';
-      host.style.top = '0';
-      host.style.width = '210mm';
-      host.style.background = '#fff';
-
-      // Clone the style element
-      if (styleEl) {
-        const clonedStyle = document.createElement('style');
-        clonedStyle.type = 'text/css';
-        clonedStyle.textContent = styleEl.textContent || '';
-        host.appendChild(clonedStyle);
-      }
-
-      // Clone the entire pdf-container with all nested content
-      const pdfRoot = pdfContainer.cloneNode(true) as HTMLElement;
-      host.appendChild(pdfRoot);
-      document.body.appendChild(host);
-
-      // Lazy-load html2pdf and normalize default export
-      const html2pdfMod: any = await import('html2pdf.js');
-      const html2pdf = html2pdfMod.default || html2pdfMod;
-
-      const opt: any = {
-        margin: [0, 0, 0, 0],
-        filename: `${filename}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] },
-      };
-
-      await (html2pdf() as any).set(opt).from(pdfRoot).save();
-      document.body.removeChild(host);
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = downloadFilename;
+      link.setAttribute('download', downloadFilename); // Force download attribute
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
+      
       toast.success('Summary downloaded as PDF', { id: 'pdf-download' });
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error("Failed to generate PDF", { id: 'pdf-download' });
+      console.error("Error downloading PDF:", error);
+      toast.error("Failed to download summary", { id: 'pdf-download' });
     } finally {
       setIsDownloading(false);
     }
@@ -838,11 +789,10 @@ export function UserDashboard() {
                 style={{
                   width: `${usagePercentage}%`,
                 }}
-                className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${
-                  usagePercentage > 90
-                    ? "bg-red-500 dark:bg-red-400"
-                    : "bg-blue-500 dark:bg-blue-400"
-                }`}
+                className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${usagePercentage > 90
+                  ? "bg-red-500 dark:bg-red-400"
+                  : "bg-blue-500 dark:bg-blue-400"
+                  }`}
               ></div>
             </div>
           </div>
@@ -899,15 +849,13 @@ export function UserDashboard() {
                   <button
                     onClick={() => setActiveTab("text")}
                     disabled={isProcessing}
-                    className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${
-                      activeTab === "text"
-                        ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                    } ${
-                      isProcessing
+                    className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${activeTab === "text"
+                      ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      } ${isProcessing
                         ? "opacity-50 cursor-not-allowed pointer-events-none"
                         : "cursor-pointer"
-                    }`}
+                      }`}
                   >
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Text Summary
@@ -915,15 +863,13 @@ export function UserDashboard() {
                   <button
                     onClick={() => setActiveTab("file")}
                     disabled={isProcessing}
-                    className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${
-                      activeTab === "file"
-                        ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                    } ${
-                      isProcessing
+                    className={`flex-1 py-4 text-sm font-medium text-center transition-colors flex items-center justify-center ${activeTab === "file"
+                      ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      } ${isProcessing
                         ? "opacity-50 cursor-not-allowed pointer-events-none"
                         : "cursor-pointer"
-                    }`}
+                      }`}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     File Upload
@@ -956,10 +902,11 @@ export function UserDashboard() {
                         value={textInput}
                         onChange={(e) => setTextInput(e.target.value)}
                         disabled={isLimitReached}
+                        maxLength={1000}
                       />
                       <div className="mt-2 flex justify-between items-center text-xs text-slate-500">
                         <span>{textInput.length} characters</span>
-                        <span>Min 50 required</span>
+                        <span>Max 1000 characters</span>
                       </div>
                     </div>
                     <Button
@@ -982,11 +929,10 @@ export function UserDashboard() {
                 ) : (
                   <div className="space-y-6">
                     <div
-                      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors relative ${
-                        isLimitReached
-                          ? "border-slate-200 bg-slate-50 cursor-not-allowed"
-                          : "border-slate-300 hover:bg-slate-50"
-                      }`}
+                      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors relative ${isLimitReached
+                        ? "border-slate-200 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-300 hover:bg-slate-50"
+                        }`}
                     >
                       <input
                         type="file"
@@ -1113,30 +1059,27 @@ export function UserDashboard() {
                     title="Refresh summaries"
                   >
                     <RefreshCw
-                      className={`h-4 w-4 ${
-                        isRefreshingSummaries ? "animate-spin" : ""
-                      }`}
+                      className={`h-4 w-4 ${isRefreshingSummaries ? "animate-spin" : ""
+                        }`}
                     />
                   </button>
                   <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
                     <button
                       onClick={() => setViewMode("list")}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        viewMode === "list"
-                          ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                      }`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list"
+                        ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
                       title="List view"
                     >
                       <List className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => setViewMode("grid")}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        viewMode === "grid"
-                          ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                      }`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid"
+                        ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
                       title="Card view"
                     >
                       <Grid3x3 className="h-4 w-4" />
@@ -1148,69 +1091,67 @@ export function UserDashboard() {
               {/* Action buttons row */}
               {(isSelectMode ||
                 summaries.filter((s) => !s.folderId).length > 0) && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => {
-                      setIsSelectMode((s) => !s);
-                      setSelectedSummaryIds(new Set());
-                    }}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                      isSelectMode
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setIsSelectMode((s) => !s);
+                        setSelectedSummaryIds(new Set());
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${isSelectMode
                         ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
                         : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 border-slate-300 dark:border-slate-600"
-                    }`}
-                  >
-                    {isSelectMode ? "Cancel" : "Select"}
-                  </button>
-                  {isSelectMode && (
-                    <>
-                      <button
-                        onClick={() => {
-                          const unselectedInFolder = summaries
-                            .filter(
-                              (s) =>
-                                !s.folderId && !selectedSummaryIds.has(s.id)
-                            )
-                            .map((s) => s.id);
-                          if (unselectedInFolder.length > 0) {
-                            setSelectedSummaryIds(
-                              new Set([
-                                ...selectedSummaryIds,
-                                ...unselectedInFolder,
-                              ])
-                            );
-                          } else {
-                            setSelectedSummaryIds(new Set());
-                          }
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                      >
-                        {summaries
-                          .filter((s) => !s.folderId)
-                          .every((s) => selectedSummaryIds.has(s.id))
-                          ? "Deselect All"
-                          : "Select All"}
-                      </button>
-                      <button
-                        onClick={() => setShowMoveModal(true)}
-                        disabled={selectedSummaryIds.size === 0}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                          selectedSummaryIds.size === 0
+                        }`}
+                    >
+                      {isSelectMode ? "Cancel" : "Select"}
+                    </button>
+                    {isSelectMode && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const unselectedInFolder = summaries
+                              .filter(
+                                (s) =>
+                                  !s.folderId && !selectedSummaryIds.has(s.id)
+                              )
+                              .map((s) => s.id);
+                            if (unselectedInFolder.length > 0) {
+                              setSelectedSummaryIds(
+                                new Set([
+                                  ...selectedSummaryIds,
+                                  ...unselectedInFolder,
+                                ])
+                              );
+                            } else {
+                              setSelectedSummaryIds(new Set());
+                            }
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        >
+                          {summaries
+                            .filter((s) => !s.folderId)
+                            .every((s) => selectedSummaryIds.has(s.id))
+                            ? "Deselect All"
+                            : "Select All"}
+                        </button>
+                        <button
+                          onClick={() => setShowMoveModal(true)}
+                          disabled={selectedSummaryIds.size === 0}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${selectedSummaryIds.size === 0
                             ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
                             : "bg-blue-600 text-white hover:bg-blue-700"
-                        }`}
-                      >
-                        Move ({selectedSummaryIds.size})
-                      </button>
-                      {selectedSummaryIds.size > 0 && (
-                        <span className="text-xs text-blue-600 dark:text-blue-400 font-medium ml-1">
-                          {selectedSummaryIds.size} selected
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                            }`}
+                        >
+                          Move ({selectedSummaryIds.size})
+                        </button>
+                        {selectedSummaryIds.size > 0 && (
+                          <span className="text-xs text-blue-600 dark:text-blue-400 font-medium ml-1">
+                            {selectedSummaryIds.size} selected
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -1237,13 +1178,11 @@ export function UserDashboard() {
                           if (isSelectMode) toggleSelectSummary(item.id);
                           else handlePreviewSummary(item);
                         }}
-                        className={`group flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-                          selectedSummaryIds.has(item.id)
-                            ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm"
-                        } ${
-                          newlyAddedId === item.id ? "animate-pulse-soft" : ""
-                        }`}
+                        className={`group flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${selectedSummaryIds.has(item.id)
+                          ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm"
+                          } ${newlyAddedId === item.id ? "animate-pulse-soft" : ""
+                          }`}
                       >
                         {isSelectMode && (
                           <input
@@ -1255,11 +1194,10 @@ export function UserDashboard() {
                           />
                         )}
                         <span
-                          className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            item.type === "file"
-                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                          }`}
+                          className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "file"
+                            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                            : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                            }`}
                         >
                           {item.type === "file" ? (
                             <FileText className="h-4 w-4" />
@@ -1277,31 +1215,14 @@ export function UserDashboard() {
                             {item.summary}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {formatDate(item.createdAt)}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadSummary(item);
-                            }}
-                            disabled={isDownloading}
-                            className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Download summary"
-                          >
-                            {isDownloading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {formatDate(item.createdAt)}
+                        </span>
                       </div>
                     ))}
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {summaries
                     .filter((s) => !s.folderId)
                     .map((item) => (
@@ -1311,13 +1232,11 @@ export function UserDashboard() {
                           if (isSelectMode) toggleSelectSummary(item.id);
                           else handlePreviewSummary(item);
                         }}
-                        className={`group relative bg-white dark:bg-slate-800 border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer ${
-                          selectedSummaryIds.has(item.id)
-                            ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                        } ${
-                          newlyAddedId === item.id ? "animate-pulse-soft" : ""
-                        }`}
+                        className={`group relative bg-white dark:bg-slate-800 border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer ${selectedSummaryIds.has(item.id)
+                          ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                          } ${newlyAddedId === item.id ? "animate-pulse-soft" : ""
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           {isSelectMode && (
@@ -1332,11 +1251,10 @@ export function UserDashboard() {
                             </div>
                           )}
                           <span
-                            className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                              item.type === "file"
-                                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                            }`}
+                            className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "file"
+                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                              }`}
                           >
                             {item.type === "file" ? (
                               <FileText className="h-4 w-4" />
@@ -1351,21 +1269,6 @@ export function UserDashboard() {
                                   ? item.documentName || item.filename || "File Summary"
                                   : item.textName || "text summary"}
                               </h4>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadSummary(item);
-                                }}
-                                disabled={isDownloading}
-                                className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Download summary"
-                              >
-                                {isDownloading ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                              </button>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mb-2">
                               <Clock className="h-3 w-3 mr-1" />
@@ -1392,21 +1295,19 @@ export function UserDashboard() {
             <div className="w-full sm:w-48 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 p-4 sm:p-6 flex sm:flex-col gap-2 sm:space-y-4 overflow-x-auto sm:overflow-y-auto">
               <button
                 onClick={() => setActiveSettingTab("profile")}
-                className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeSettingTab === "profile"
-                    ? "bg-white text-indigo-600 border border-indigo-200"
-                    : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeSettingTab === "profile"
+                  ? "bg-white text-indigo-600 border border-indigo-200"
+                  : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                  }`}
               >
                 <span>Profile</span>
               </button>
               <button
                 onClick={() => setActiveSettingTab("appearance")}
-                className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeSettingTab === "appearance"
-                    ? "bg-white text-indigo-600 border border-indigo-200"
-                    : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeSettingTab === "appearance"
+                  ? "bg-white text-indigo-600 border border-indigo-200"
+                  : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                  }`}
               >
                 <span>Appearance</span>
               </button>
