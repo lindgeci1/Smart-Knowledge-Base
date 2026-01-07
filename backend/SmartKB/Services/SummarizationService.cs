@@ -33,7 +33,7 @@ namespace SmartKB.Services
                 var request = new
                 {
                     model = "llama3.2",
-                    prompt = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}"
+                    prompt = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. IMPORTANT: Add TWO blank lines after each section for proper spacing. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\n\nANOTHER SECTION\nContent for this section...\n\n\nText to summarize:\n{text}"
                 };
 
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
@@ -83,7 +83,7 @@ namespace SmartKB.Services
                     model = model,
                     messages = new[]
                     {
-                        new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}" }
+                        new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. IMPORTANT: Add TWO blank lines after each section for proper spacing. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\n\nANOTHER SECTION\nContent for this section...\n\n\nText to summarize:\n{text}" }
                     },
                     stream = false
                 };
@@ -127,7 +127,7 @@ namespace SmartKB.Services
                 var summaryRequest = new
                 {
                     model = model,
-                    prompt = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}"
+                    prompt = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}"
                 };
 
                 var summaryJson = System.Text.Json.JsonSerializer.Serialize(summaryRequest);
@@ -216,7 +216,7 @@ namespace SmartKB.Services
                 model = model,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}" }
+                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}" }
                 },
                 stream = false
             };
@@ -356,8 +356,8 @@ namespace SmartKB.Services
             // Remove list markers (-, *, +)
             text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*[\-\*\+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
 
-            // Clean up excessive whitespace
-            text = System.Text.RegularExpressions.Regex.Replace(text, @"\n\s*\n", "\n");
+            // Clean up excessive whitespace but preserve double blank lines (section spacing)
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\n\s*\n\s*\n\s*\n+", "\n\n\n");
             text = System.Text.RegularExpressions.Regex.Replace(text, @"  +", " ");
 
             return text.Trim();
