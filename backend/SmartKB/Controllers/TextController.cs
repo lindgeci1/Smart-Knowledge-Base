@@ -16,9 +16,13 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<UserRole> _userRoleCollection;
         private readonly IMongoCollection<Usage> _usageCollection;
         private readonly SummarizationService _summarizationService;
+        private readonly EmbeddingService _embeddingService;
+        private readonly IConfiguration _configuration;
 
-        public TextController(IConfiguration configuration)
+        public TextController(IConfiguration configuration, EmbeddingService embeddingService)
         {
+            _configuration = configuration;
+            _embeddingService = embeddingService;
             var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? configuration["MongoDbSettings:ConnectionString"];
             var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? configuration["MongoDbSettings:DatabaseName"];
             var client = new MongoClient(connectionString);
@@ -96,12 +100,31 @@ namespace SmartKB.Controllers
                 var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(cleanedText, "text");
                 var textName = $"Text Summary of {keyword}";
 
+                // Generate embedding for the summary (required)
+                float[]? embedding = null;
+                if (!string.IsNullOrWhiteSpace(summary) && summary.Length >= 10)
+                {
+                    embedding = await _embeddingService.GenerateEmbeddingAsync(summary);
+                }
+
                 var update = Builders<Text>.Update
                     .Set(t => t.Summary, summary)
                     .Set(t => t.TextName, textName)
                     .Set(t => t.Status, "Completed");
 
+                // Always set embedding if it was generated (required for RAG)
+                if (embedding != null)
+                {
+                    update = update.Set(t => t.Embedding, embedding);
+
+                }
+                else
+                {
+
+                }
+
                 _textCollection.UpdateOne(t => t.TextId == text.TextId, update);
+
 
                 // Increment usage for regular users (role 2), not admins (role 1)
                 await _summarizationService.IncrementUsageIfUser(userId);

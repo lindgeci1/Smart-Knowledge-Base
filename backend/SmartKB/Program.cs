@@ -13,8 +13,9 @@ Env.Load();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Register Email Service
+// Register Services
 builder.Services.AddSingleton<EmailService>();
+builder.Services.AddSingleton<EmbeddingService>();
 
 // Add CORS
 builder.Services.AddCors(options =>

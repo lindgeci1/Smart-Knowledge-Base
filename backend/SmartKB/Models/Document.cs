@@ -37,5 +37,8 @@ namespace SmartKB.Models
 
         [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [BsonElement("embedding")]
+        public float[]? Embedding { get; set; } // Vector embedding for semantic search (typically 768 dimensions)
     }
 }

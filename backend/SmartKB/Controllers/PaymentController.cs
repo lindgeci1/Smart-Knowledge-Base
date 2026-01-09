@@ -117,7 +117,7 @@ namespace SmartKB.Controllers
             catch (Exception ex)
             {
                 // Log error but continue
-                Console.WriteLine($"Error retrieving refund date: {ex.Message}");
+
                 return null;
             }
         }
@@ -212,7 +212,7 @@ namespace SmartKB.Controllers
                 catch (Exception ex)
                 {
                     // Log error but continue
-                    Console.WriteLine($"Error retrieving decline reason: {ex.Message}");
+
                 }
             }
 
@@ -511,7 +511,7 @@ namespace SmartKB.Controllers
                     {
                         // Log email error but don't fail the payment confirmation
                         // Payment is already successful, email is just a notification
-                        Console.WriteLine($"Failed to send payment confirmation email: {emailEx.Message}");
+
                     }
                 }
 

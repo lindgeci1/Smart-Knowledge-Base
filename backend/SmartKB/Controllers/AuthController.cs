@@ -346,7 +346,6 @@ namespace SmartKB.Controllers
 
             if (string.IsNullOrWhiteSpace(dto.Email))
             {
-                Console.WriteLine($"[Forgot Password] Request failed - Email is required");
                 return BadRequest("Email is required");
             }
 
@@ -356,7 +355,7 @@ namespace SmartKB.Controllers
             
             if (user == null)
             {
-                Console.WriteLine($"[Forgot Password] User not found for email: {dto.Email} (returning success for security)");
+
                 // Return success even if user doesn't exist to prevent email enumeration
                 return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
             }
@@ -366,14 +365,14 @@ namespace SmartKB.Controllers
             // Check if user is active
             if (!user.IsActive)
             {
-                Console.WriteLine($"[Forgot Password] User is inactive: {user.UserId} (returning success for security)");
+
                 return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
             }
 
             // Check if UserId is set (it should be populated from MongoDB _id)
             if (string.IsNullOrEmpty(user.UserId))
             {
-                Console.WriteLine($"[Forgot Password] UserId is null for user: {dto.Email} (returning success for security)");
+
                 return Ok(new { message = "If an account exists with that email, a reset code has been sent." });
             }
 

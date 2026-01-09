@@ -51,7 +51,7 @@ namespace SmartKB.Services
 
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             
-            Console.WriteLine($"[AiService] Sending request to {requestUrl}...");
+
             var response = await client.PostAsync(requestUrl, content);
             response.EnsureSuccessStatusCode();
             

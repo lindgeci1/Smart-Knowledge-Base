@@ -1,10 +1,9 @@
-import React from 'react';
-import { MessageSquare, Bot } from 'lucide-react';
-import { useChatState } from '../hooks/useChatState';
-import { ChatSidebar } from './ChatSidebar';
-import { ChatHeader } from './ChatHeader';
-import { MessagesArea } from './MessagesArea';
-import { MessageInput } from './MessageInput';
+import { MessageSquare, Bot } from "lucide-react";
+import { useChatState } from "../hooks/useChatState";
+import { ChatSidebar } from "./ChatSidebar";
+import { ChatHeader } from "./ChatHeader";
+import { MessagesArea } from "./MessagesArea";
+import { MessageInput } from "./MessageInput";
 
 export function ChatInterface() {
   const {
@@ -26,7 +25,7 @@ export function ChatInterface() {
     selectDocument,
     sendMessage,
     finishAnimation,
-    refreshConversations
+    refreshConversations,
   } = useChatState();
 
   if (!isChatOpen) {
@@ -45,7 +44,7 @@ export function ChatInterface() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/20 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/30 animate-in fade-in duration-200">
       <div className="w-full max-w-7xl h-[85vh] bg-white rounded-md shadow-xl overflow-hidden flex flex-col md:flex-row border border-slate-200">
         {/* Sidebar */}
         <ChatSidebar
@@ -73,11 +72,21 @@ export function ChatInterface() {
 
           {activeConversationId ? (
             <>
-              <MessagesArea messages={currentMessages} isLoading={isLoading} animatingMessageId={animatingMessageId} onAnimationDone={finishAnimation} />
+              <MessagesArea
+                messages={currentMessages}
+                isLoading={isLoading}
+                animatingMessageId={animatingMessageId}
+                onAnimationDone={finishAnimation}
+              />
               <MessageInput
                 onSendMessage={sendMessage}
                 isLoading={isLoading}
-                disabled={!selectedDocument}
+                disabled={false}
+                placeholder={
+                  selectedDocument
+                    ? "Type your message..."
+                    : "Ask AI anything - it will search your documents automatically..."
+                }
               />
             </>
           ) : (
@@ -89,7 +98,21 @@ export function ChatInterface() {
                 Start a New Conversation
               </h2>
               <p className="text-slate-600 max-w-md mb-6">
-                Create a new chat to start analyzing your documents with Summy AI.
+                Create a new chat to start analyzing your documents with Summy
+                AI.
+                <br />
+                <br />
+                <span className="text-sm font-medium text-slate-700">
+                  Choose how to chat:
+                </span>
+                <br />
+                <span className="text-sm text-slate-600">
+                  • Select a document to chat about it specifically
+                </span>
+                <br />
+                <span className="text-sm text-slate-600">
+                  • Or chat freely - AI will automatically search your documents
+                </span>
               </p>
               <button
                 onClick={createNewChat}
