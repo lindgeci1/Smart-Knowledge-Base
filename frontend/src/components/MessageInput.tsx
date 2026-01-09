@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
-import { SendHorizontal, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useRef, KeyboardEvent } from "react";
+import { SendHorizontal, Loader2 } from "lucide-react";
 
 interface MessageInputProps {
   onSendMessage: (content: string) => void;
@@ -12,15 +12,15 @@ export function MessageInput({
   onSendMessage,
   isLoading,
   disabled,
-  placeholder
+  placeholder,
 }: MessageInputProps) {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(
         textareaRef.current.scrollHeight,
         120
@@ -31,15 +31,15 @@ export function MessageInput({
   const handleSubmit = () => {
     if (!content.trim() || isLoading || disabled) return;
     onSendMessage(content.trim());
-    setContent('');
+    setContent("");
     // Reset height
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = "auto";
     }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
@@ -56,8 +56,8 @@ export function MessageInput({
           disabled={disabled || isLoading}
           placeholder={
             disabled
-              ? 'Select a document to start chatting...'
-              : placeholder || 'Type your message...'
+              ? "Start a chat first..."
+              : placeholder || "Type your message..."
           }
           className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-[120px] py-1.5 px-2 text-slate-900 placeholder:text-slate-400 disabled:opacity-50 text-sm"
           rows={1}

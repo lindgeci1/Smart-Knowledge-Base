@@ -288,7 +288,7 @@ namespace SmartKB.Controllers
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Deactivate User] [Background] Account deactivation email failed: {ex.Message}");
+
                 }
             });
 

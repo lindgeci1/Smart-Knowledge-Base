@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Menu, X, FileText, ChevronDown, Lock, Check } from 'lucide-react';
-import { Document } from '../types/chat';
+import React, { useEffect, useState, useRef } from "react";
+import { Menu, X, FileText, ChevronDown, Lock, Check } from "lucide-react";
+import { Document } from "../types/chat";
 
 interface ChatHeaderProps {
   onToggleSidebar: () => void;
@@ -19,19 +19,22 @@ export function ChatHeader({
   availableDocuments,
   onSelectDocument,
   isDocumentLocked,
-  isChatActive
+  isChatActive,
 }: ChatHeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsDropdownOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSelect = (doc: Document | null) => {
@@ -53,21 +56,27 @@ export function ChatHeader({
         {/* Document Selector */}
         <div className="relative flex-1 max-w-md" ref={dropdownRef}>
           <button
-            onClick={() => !isDocumentLocked && isChatActive && setIsDropdownOpen(!isDropdownOpen)}
+            onClick={() =>
+              !isDocumentLocked &&
+              isChatActive &&
+              setIsDropdownOpen(!isDropdownOpen)
+            }
             disabled={isDocumentLocked || !isChatActive}
             className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border text-left transition-all text-sm ${
               isDocumentLocked
-                ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed'
+                ? "bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed"
                 : !isChatActive
-                ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
-                : 'bg-white border-slate-300 hover:border-blue-400 text-slate-900 shadow-sm'
+                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+                : "bg-white border-slate-300 hover:border-blue-400 text-slate-900 shadow-sm"
             }`}
           >
             <div className="flex items-center gap-2 truncate">
               {selectedDocument ? (
                 <>
                   <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                  <span className="truncate font-medium">{selectedDocument.name}</span>
+                  <span className="truncate font-medium">
+                    {selectedDocument.name}
+                  </span>
                 </>
               ) : (
                 <>
@@ -75,7 +84,9 @@ export function ChatHeader({
                     <div className="w-2 h-2 rounded-full bg-slate-300" />
                   </span>
                   <span className="truncate text-slate-500">
-                    {isChatActive ? 'Select a document...' : 'Start a chat first'}
+                    {isChatActive
+                      ? "Select a document..."
+                      : "Start a chat first"}
                   </span>
                 </>
               )}
@@ -86,7 +97,7 @@ export function ChatHeader({
             ) : (
               <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform ${
-                  isDropdownOpen ? 'rotate-180' : ''
+                  isDropdownOpen ? "rotate-180" : ""
                 }`}
               />
             )}
@@ -96,16 +107,34 @@ export function ChatHeader({
           <div className="mt-1 px-0 text-xs text-slate-400">
             <span className="block text-left">
               {isDocumentLocked
-                ? 'Context locked to selected document'
+                ? "Context locked to selected document"
                 : !isChatActive
-                ? 'Create a new chat to select context'
-                : 'Select a document to give Summy context'}
+                ? "Create a new chat to select context"
+                : selectedDocument
+                ? "Chatting about this document specifically"
+                : "AI will automatically search all your documents (RAG mode)"}
             </span>
           </div>
 
           {/* Dropdown Menu */}
           {isDropdownOpen && (
             <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+              <button
+                onClick={() => handleSelect(null)}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
+              >
+                <div className="w-4 flex justify-center">
+                  {!selectedDocument && (
+                    <Check className="h-3 w-3 text-blue-500" />
+                  )}
+                </div>
+                <span className="text-blue-600 font-medium">
+                  🤖 Chat with AI (RAG Mode)
+                </span>
+              </button>
+              <div className="px-2.5 py-1 text-xs text-slate-500 border-b border-slate-100">
+                Or select a specific document:
+              </div>
               {availableDocuments.map((doc) => (
                 <button
                   key={doc.id}

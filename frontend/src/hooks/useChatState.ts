@@ -250,12 +250,26 @@ export function useChatState() {
       setIsLoading(true);
 
       try {
+        const requestBody: { message: string; documentId?: string | null } = {
+          message: content,
+        };
+        
+        // Only include documentId if a document is selected
+        if (selectedDocument?.id) {
+          requestBody.documentId = selectedDocument.id;
+        } else {
+          requestBody.documentId = null;
+        }
+
+        console.log('[useChatState] Sending message:', {
+          chatId: activeConversationId,
+          messageLength: content.length,
+          documentId: requestBody.documentId || 'null (RAG mode)',
+        });
+
         const response = await apiClient.post(
           `/Chat/CreateMessage/${activeConversationId}`,
-          {
-            message: content,
-            documentId: selectedDocument?.id || null,
-          }
+          requestBody
         );
 
         const aiMessage = response.data;

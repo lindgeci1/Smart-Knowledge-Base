@@ -22,7 +22,7 @@ namespace SmartKB.Services
             var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL");
             var useDocker = !string.IsNullOrEmpty(ollamaUrl);
             
-            Console.WriteLine($"Summarization {(useDocker ? "with Docker (local)" : "with Cloud")} started - {type}");
+
 
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromMinutes(5);
@@ -59,7 +59,7 @@ namespace SmartKB.Services
 
                 var endTime = DateTime.UtcNow;
                 var responseTime = (endTime - startTime).TotalMilliseconds;
-                Console.WriteLine($"Summarization with Docker (local) finished - Response time: {responseTime:F2} ms");
+
 
                 return RemoveMarkdown(finalOutput.Trim());
             }
@@ -100,7 +100,7 @@ namespace SmartKB.Services
 
                 var endTime = DateTime.UtcNow;
                 var responseTime = (endTime - startTime).TotalMilliseconds;
-                Console.WriteLine($"Summarization with Cloud finished - Response time: {responseTime:F2} ms");
+
 
                 return RemoveMarkdown(summary.Trim());
             }
@@ -113,7 +113,7 @@ namespace SmartKB.Services
             var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL");
             var useDocker = !string.IsNullOrEmpty(ollamaUrl);
             
-            Console.WriteLine($"Summarization with keyword extraction {(useDocker ? "with Docker (local)" : "with Cloud")} started - {type}");
+
 
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromMinutes(5);
@@ -191,7 +191,7 @@ namespace SmartKB.Services
 
                 var endTime = DateTime.UtcNow;
                 var responseTime = (endTime - startTime).TotalMilliseconds;
-                Console.WriteLine($"Summarization with keyword extraction (Docker) finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
+
 
                 return (RemoveMarkdown(summary.Trim()), keyword.Trim());
             }
@@ -289,7 +289,7 @@ namespace SmartKB.Services
 
                 var endTime = DateTime.UtcNow;
                 var responseTime = (endTime - startTime).TotalMilliseconds;
-                Console.WriteLine($"Summarization with keyword extraction (Cloud) finished - Response time: {responseTime:F2} ms - Keyword: {keyword}");
+
 
                 return (RemoveMarkdown(summary.Trim()), keyword.Trim());
             }

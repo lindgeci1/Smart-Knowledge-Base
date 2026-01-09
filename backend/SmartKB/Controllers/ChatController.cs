@@ -18,11 +18,13 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Chat> _chatCollection;
         private readonly IMongoCollection<ChatMessage> _chatMessageCollection;
         private readonly AiService _aiService;
+        private readonly EmbeddingService _embeddingService;
         private readonly IConfiguration _configuration;
 
-        public ChatController(IConfiguration configuration)
+        public ChatController(IConfiguration configuration, EmbeddingService embeddingService)
         {
             _configuration = configuration;
+            _embeddingService = embeddingService;
             
             var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? configuration["MongoDbSettings:ConnectionString"];
             var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? configuration["MongoDbSettings:DatabaseName"];
@@ -94,6 +96,17 @@ namespace SmartKB.Controllers
             if (userIdClaim == null) return Unauthorized();
             var userId = userIdClaim.Value;
 
+            // Validate request
+            if (request == null)
+            {
+                return BadRequest("Request body is required");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Message))
+            {
+                return BadRequest("Message is required");
+            }
+
             if (!MongoDB.Bson.ObjectId.TryParse(chatId, out _))
             {
                 return BadRequest("Invalid Chat ID format");
@@ -116,7 +129,7 @@ namespace SmartKB.Controllers
             };
             await _chatMessageCollection.InsertOneAsync(userMessage);
 
-            // 2. Prepare Context (if document selected)
+            // 2. Prepare Context using RAG (Retrieval Augmented Generation)
             string contextContent = "";
             
             // If request doesn't have documentId but session does, use session's (Lock behavior)
@@ -127,11 +140,10 @@ namespace SmartKB.Controllers
 
             if (!string.IsNullOrEmpty(request.DocumentId))
             {
-                // Try finding in Documents (files)
+                // Explicit document selected - use it directly
                 var document = await _documentCollection.Find(d => d.DocumentId == request.DocumentId && d.UserId == userId).FirstOrDefaultAsync();
                 if (document != null)
                 {
-                    // Use the summary as the report context
                     contextContent = document.Summary;
                 }
                 else
@@ -142,6 +154,79 @@ namespace SmartKB.Controllers
                     {
                         contextContent = textDoc.Summary;
                     }
+                }
+            }
+            else
+            {
+                // No document selected - use RAG to find most relevant documents using embeddings
+                Console.WriteLine("[ChatController] 🔍 RAG Mode - Searching all documents using embeddings...");
+                try
+                {
+                    // Generate embedding for the user's question
+                    var queryEmbedding = await _embeddingService.GenerateEmbeddingAsync(request.Message);
+                    
+                    // Find similar documents and texts using cosine similarity
+                    var allDocuments = await _documentCollection
+                        .Find(d => d.UserId == userId && d.Status == "Completed" && d.Embedding != null && !string.IsNullOrEmpty(d.Summary))
+                        .ToListAsync();
+                    
+                    var allTexts = await _textCollection
+                        .Find(t => t.UserId == userId && t.Status == "Completed" && t.Embedding != null && !string.IsNullOrEmpty(t.Summary))
+                        .ToListAsync();
+
+                    // Calculate similarity scores for documents
+                    var documentScores = allDocuments
+                        .Select(d => new
+                        {
+                            Document = d,
+                            Similarity = _embeddingService.CalculateCosineSimilarity(queryEmbedding, d.Embedding!)
+                        })
+                        .Where(x => x.Similarity > 0.3) // Only include documents with similarity > 0.3
+                        .OrderByDescending(x => x.Similarity)
+                        .Take(3) // Get top 3 most relevant
+                        .ToList();
+
+                    // Calculate similarity scores for texts
+                    var textScores = allTexts
+                        .Select(t => new
+                        {
+                            Text = t,
+                            Similarity = _embeddingService.CalculateCosineSimilarity(queryEmbedding, t.Embedding!)
+                        })
+                        .Where(x => x.Similarity > 0.3)
+                        .OrderByDescending(x => x.Similarity)
+                        .Take(3)
+                        .ToList();
+
+                    // Combine and get the most relevant context
+                    var allResults = documentScores
+                        .Select(x => new { Content = x.Document.Summary, Similarity = x.Similarity, Type = "Document", Name = x.Document.DocumentName ?? x.Document.FileName })
+                        .Concat(textScores.Select(x => new { Content = x.Text.Summary, Similarity = x.Similarity, Type = "Text", Name = x.Text.TextName ?? "Text Summary" }))
+                        .OrderByDescending(x => x.Similarity)
+                        .Take(2) // Use top 2 most relevant
+                        .ToList();
+
+                    if (allResults.Any())
+                    {
+                        // Combine the most relevant summaries as context
+                        contextContent = string.Join("\n\n---\n\n", 
+                            allResults.Select(r => $"[From {r.Type}: {r.Name}]\n{r.Content}"));
+                        
+                        Console.WriteLine($"[ChatController] ✅ RAG found {allResults.Count} relevant documents/texts:");
+                        foreach (var result in allResults)
+                        {
+                            Console.WriteLine($"[ChatController]   - {result.Type}: {result.Name} (Similarity: {result.Similarity:F3})");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("[ChatController] ⚠️ RAG found no relevant documents (similarity threshold 0.3 not met) - using general AI response");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // If RAG fails, continue without context (fallback to general AI response)
+                    Console.WriteLine($"[ChatController] ❌ RAG failed: {ex.Message}");
                 }
             }
 
@@ -217,7 +302,7 @@ namespace SmartKB.Controllers
 
     public class SendMessageRequest
     {
-        public string Message { get; set; }
-        public string DocumentId { get; set; } // Optional context
+        public string Message { get; set; } = string.Empty;
+        public string? DocumentId { get; set; } // Optional context - nullable to allow RAG mode
     }
 }
