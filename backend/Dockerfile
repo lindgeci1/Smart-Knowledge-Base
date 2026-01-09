@@ -7,10 +7,14 @@ RUN dotnet publish "SmartKB/SmartKB.csproj" -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# Install Python, pip, and bash (needed for startup script)
+# Install Python, pip, venv, and bash (needed for startup script)
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip bash && \
+    apt-get install -y python3 python3-pip python3-venv bash && \
     rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment to avoid PEP 668 "externally managed" errors
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Copy Python service files from build context
 WORKDIR /app/python
