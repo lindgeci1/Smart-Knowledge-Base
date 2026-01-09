@@ -9,6 +9,7 @@ import {
   ChevronRight,
   FileText,
   MessageSquare,
+  Search,
 } from "lucide-react";
 import {
   DndContext,
@@ -374,6 +375,7 @@ export function FolderSidebar({
   );
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [isMovingToFolder, setIsMovingToFolder] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Configure sensors for better drag experience
   const sensors = useSensors(
@@ -504,6 +506,40 @@ export function FolderSidebar({
     });
     return map;
   }, [summaries]);
+
+  // Effect to expand folders on search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setExpandedFolders(new Set());
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const newExpanded = new Set<string>();
+
+    folders.forEach((folder) => {
+      const folderSummaries = folderSummariesMap.get(folder.folderId) || [];
+      const nameMatch = folder.name.toLowerCase().includes(query);
+      const hasMatchingSummary = folderSummaries.some((s) => {
+        const name = s.type === "file" ? s.filename : s.textName;
+        return (
+          name?.toLowerCase().includes(query)
+        );
+      });
+
+      if (nameMatch || hasMatchingSummary) {
+        newExpanded.add(folder.folderId);
+      }
+    });
+
+    if (newExpanded.size > 0) {
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        newExpanded.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }, [searchQuery, folders, folderSummariesMap]);
 
   // Get summaries for a specific folder (memoized)
   const getFolderSummaries = useCallback(
@@ -682,6 +718,35 @@ export function FolderSidebar({
       ? "text-lg font-semibold text-slate-800"
       : "text-lg font-medium text-slate-900";
 
+  // Filter folders based on search
+  const filteredFolders = useMemo(() => {
+    if (!searchQuery.trim()) return folders;
+    const query = searchQuery.toLowerCase();
+    return folders.filter((folder) => {
+      const nameMatch = folder.name.toLowerCase().includes(query);
+      const summaries = folderSummariesMap.get(folder.folderId) || [];
+      const contentMatch = summaries.some((s) => {
+        const name = s.type === "file" ? s.filename : s.textName;
+        return (
+          name?.toLowerCase().includes(query)
+        );
+      });
+      return nameMatch || contentMatch;
+    });
+  }, [folders, searchQuery, folderSummariesMap]);
+
+  const getFilteredSummaries = (folderId: string) => {
+    const all = folderSummariesMap.get(folderId) || [];
+    if (!searchQuery.trim()) return all;
+    const query = searchQuery.toLowerCase();
+    return all.filter((s) => {
+      const name = s.type === "file" ? s.filename : s.textName;
+      return (
+        name?.toLowerCase().includes(query)
+      );
+    });
+  };
+
   const sidebarContent = (
     <div className={containerStyles}>
       <div className={headerStyles}>
@@ -722,6 +787,17 @@ export function FolderSidebar({
             <Plus size={20} />
           </button>
         </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search folders and summaries..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+        />
       </div>
 
       {enableSelectMove && (
@@ -800,12 +876,19 @@ export function FolderSidebar({
                   Create one to organize
                 </p>
               </div>
+            ) : filteredFolders.length === 0 && searchQuery.trim() ? (
+              <div className="px-4 py-8 text-center">
+                <div className="flex justify-center mb-2">
+                  <Search className="h-8 w-8 text-slate-300" />
+                </div>
+                <p className="text-sm text-slate-500">No summaries with this name</p>
+              </div>
             ) : (
               <div className="space-y-2">
-                {folders
+                {filteredFolders
                   .filter((folder) => folder && folder.folderId)
                   .map((folder) => {
-                    const folderSummaries = getFolderSummaries(folder.folderId);
+                    const folderSummaries = getFilteredSummaries(folder.folderId);
                     const isExpanded = expandedFolders.has(folder.folderId);
 
                     if (!enableDragDrop) {

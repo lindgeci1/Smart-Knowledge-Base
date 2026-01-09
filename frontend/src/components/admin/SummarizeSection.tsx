@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { SummaryPreviewModal } from "../SummaryPreviewModal";
 import { FolderSidebar } from "../FolderSidebar";
 import { SaveLocationModal } from "../SaveLocationModal";
+import { generateSummaryPDF } from "../../utils/pdfGenerator";
 interface Summary {
   id: string;
   userId: string;
@@ -296,33 +297,59 @@ export function SummarizeSection() {
   };
 
   const handleDownloadSummary = (summary: Summary) => {
-    // Use summary content in the downloaded file for both text and file types
-    const fileContent = summary.summary || "";
-    const blob = new Blob([fileContent], {
-      type: "text/plain",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+    // Build title and filename based on type
+    let title = "";
+    let filename = "";
+    let documentSource = "";
+
     if (summary.type === "file") {
-      a.download =
-        summary.filename?.replace(/\.[^/.]+$/, "-summary.txt") ||
-        "file-summary.txt";
+      title = summary.documentName || "File Summary";
+      documentSource = summary.filename || "N/A";
+      filename = summary.documentName?.replace(/\s+/g, "-").toLowerCase() || "document";
     } else {
-      // Use TextName as filename, sanitize it for file system
-      let filename = summary.textName || "Untitled Summary";
-      // Remove invalid characters for filenames
-      filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
-      // Limit length and add .txt extension
-      if (filename.length > 100) {
-        filename = filename.substring(0, 100);
-      }
-      a.download = `${filename}.txt`;
+      title = summary.textName || "Text Summary";
+      documentSource = summary.textName || "N/A";
+      filename = summary.textName?.replace(/\s+/g, "-").toLowerCase() || "content";
     }
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    filename = filename.replace(/[<>:"/\\|?*]/g, "").trim();
+    if (filename.length > 100) {
+      filename = filename.substring(0, 100);
+    }
+
+    try {
+      // Generate PDF using the template
+      const pdf = generateSummaryPDF({
+        summary,
+        title,
+        documentSource,
+        authorEmail: user?.email || "Unknown"
+      });
+
+      // Create blob and download URL for better mobile compatibility
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const downloadFilename = `${filename}-${new Date().toISOString().split("T")[0]}.pdf`;
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = downloadFilename;
+      link.setAttribute('download', downloadFilename); // Force download attribute
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
+      
+      toast.success('Summary downloaded as PDF', { id: 'pdf-download' });
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast.error("Failed to download summary", { id: 'pdf-download' });
+    }
   };
 
   const formatDate = (dateString: string) => {

@@ -20,6 +20,13 @@ import {
   Grid3x3,
   List,
   RefreshCw,
+  Send,
+  Bot,
+  SquarePen,
+  Trash2,
+  Lock,
+  ChevronDown,
+  Menu,
 } from "lucide-react";
 import { apiClient } from "../lib/authClient";
 import { FolderSidebar } from "../components/FolderSidebar";
@@ -41,6 +48,40 @@ interface Summary {
   documentName?: string; // For file type - "File Summary of [keyword]"
   folderId?: string; // Folder assignment
 }
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  isNew?: boolean;
+}
+
+interface ChatSession {
+  chatId: string;
+  title: string;
+  documentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const Typewriter = ({ text }: { text: string }) => {
+  const [display, setDisplay] = useState("");
+  
+  useEffect(() => {
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i < text.length) {
+        setDisplay((prev) => prev + text.charAt(i));
+        i++;
+      } else {
+        clearInterval(timer);
+      }
+    }, 15); // Speed of typing
+    return () => clearInterval(timer);
+  }, [text]);
+
+  return <>{display}</>;
+};
+
 export function UserDashboard() {
   const { user, logout, updateUsername } = useAuth();
   const navigate = useNavigate();
@@ -89,6 +130,20 @@ export function UserDashboard() {
   const [expandFolderId, setExpandFolderId] = useState<string | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string>("Free Plan");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [selectedChatDocumentId, setSelectedChatDocumentId] = useState<string>("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isRefreshingChats, setIsRefreshingChats] = useState(false);
 
   // Function to fetch usage from backend
   const fetchUsage = useCallback(async () => {
@@ -493,6 +548,118 @@ export function UserDashboard() {
     setIsPreviewOpen(true);
   };
 
+  // Chat Functions
+  const fetchChatSessions = async () => {
+    setIsRefreshingChats(true);
+    try {
+      const response = await apiClient.get('/Chat/GetAllChats');
+      setChatSessions(response.data);
+    } catch (error) {
+      console.error("Failed to fetch chat sessions", error);
+    } finally {
+      setIsRefreshingChats(false);
+    }
+  };
+
+  const createNewChat = async () => {
+    try {
+      const response = await apiClient.post('/Chat/CreateChat', { title: "New Chat" });
+      const newSession = response.data;
+      setChatSessions(prev => [newSession, ...prev]);
+      // Handle potential casing differences (chatId vs ChatId)
+      setCurrentSessionId(newSession.chatId || newSession.ChatId);
+      setChatMessages([]);
+      setSelectedChatDocumentId("");
+      setIsChatSidebarOpen(false);
+    } catch (error) {
+      toast.error("Failed to create new chat");
+    }
+  };
+
+  const loadChatSession = async (sessionId: string) => {
+    try {
+      setCurrentSessionId(sessionId);
+      const response = await apiClient.get(`/Chat/GetAllMessages/${sessionId}`);
+      setChatMessages(response.data);
+      
+      // Set document selection from session if available
+      const session = chatSessions.find(s => s.chatId === sessionId);
+      setSelectedChatDocumentId(session?.documentId || "");
+      setIsChatSidebarOpen(false);
+    } catch (error) {
+      toast.error("Failed to load chat messages");
+    }
+  };
+
+  const initiateDeleteChat = (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setChatToDelete(chatId);
+  };
+
+  const confirmDeleteChat = async () => {
+    if (!chatToDelete) return;
+    try {
+      await apiClient.delete(`/Chat/DeleteChat/${chatToDelete}`);
+      setChatSessions(prev => prev.filter(c => c.chatId !== chatToDelete));
+      if (currentSessionId === chatToDelete) {
+        setCurrentSessionId(null);
+        setChatMessages([]);
+        setSelectedChatDocumentId("");
+      }
+      toast.success("Chat deleted");
+    } catch (error) {
+      toast.error("Failed to delete chat");
+    } finally {
+      setChatToDelete(null);
+    }
+  };
+
+  useEffect(() => {
+    if (isChatOpen) {
+      fetchChatSessions();
+    }
+  }, [isChatOpen]);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !currentSessionId) return;
+    
+    const userMsg = chatInput;
+    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setChatInput("");
+    setIsChatLoading(true);
+
+    try {
+      const response = await apiClient.post(`/Chat/CreateMessage/${currentSessionId}`, {
+        message: userMsg,
+        documentId: selectedChatDocumentId || null
+      });
+      
+      setChatMessages(prev => [...prev, { ...response.data, isNew: true }]);
+      
+      // Refresh chat list to update title if it changed (e.g. from "New Chat" to question)
+      const currentSession = chatSessions.find(c => c.chatId === currentSessionId);
+      if (currentSession?.title === "New Chat" || (!currentSession?.documentId && selectedChatDocumentId)) {
+        fetchChatSessions();
+        // If we just locked a document, update the local state to reflect the lock immediately
+        if (!currentSession?.documentId && selectedChatDocumentId) {
+           setChatSessions(prev => prev.map(s => 
+             s.chatId === currentSessionId ? { ...s, documentId: selectedChatDocumentId } : s
+           ));
+        }
+      }
+    } catch (error) {
+      toast.error("Failed to get response");
+      setChatMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I encountered an error processing your request." }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleCloseChat = () => {
+    setIsChatOpen(false);
+    setChatMessages((prev) => prev.map((msg) => ({ ...msg, isNew: false })));
+  };
+
   const toggleSelectSummary = (id: string) => {
     setSelectedSummaryIds((prev) => {
       const next = new Set(prev);
@@ -721,11 +888,11 @@ export function UserDashboard() {
               <div className="bg-blue-600 p-1.5 rounded-lg mr-2">
                 <Layout className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900 tracking-tight">
+              <span className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 Summarize<span className="text-blue-600">AI</span>
               </span>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-1 sm:space-x-4">
               <div className="hidden sm:flex flex-col items-end">
                 <span className="text-sm font-medium text-slate-900">
                   {user?.name}
@@ -735,19 +902,26 @@ export function UserDashboard() {
                 </span>
               </div>
               <button
+                onClick={() => setIsChatOpen(true)}
+                className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="AI Chat"
+              >
+                <Bot className="h-5 w-5" />
+              </button>
+              <button
                 onClick={handleOpenProfileModal}
                 className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 title="Edit profile"
               >
                 <Settings className="h-5 w-5" />
               </button>
-              <Button
-                variant="ghost"
+              <button
                 onClick={() => setShowLogoutConfirm(true)}
-                className="text-slate-500 hover:text-red-600"
+                className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Logout"
               >
                 <LogOut className="h-5 w-5" />
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -838,6 +1012,8 @@ export function UserDashboard() {
               newlyMovedToFolderIds={newlyMovedToFolderIds}
               expandFolderId={expandFolderId}
               enableSelectMove
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
             />
           </div>
 
@@ -1222,7 +1398,7 @@ export function UserDashboard() {
                     ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {summaries
                     .filter((s) => !s.folderId)
                     .map((item) => (
@@ -1232,53 +1408,61 @@ export function UserDashboard() {
                           if (isSelectMode) toggleSelectSummary(item.id);
                           else handlePreviewSummary(item);
                         }}
-                        className={`group relative bg-white dark:bg-slate-800 border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer ${selectedSummaryIds.has(item.id)
+                        className={`group relative bg-white dark:bg-slate-800 border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer flex flex-col h-full ${
+                          selectedSummaryIds.has(item.id)
                           ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                           : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                          } ${newlyAddedId === item.id ? "animate-pulse-soft" : ""
-                          }`}
+                        } ${newlyAddedId === item.id ? "animate-pulse-soft" : ""}`}
                       >
-                        <div className="flex items-start gap-3">
-                          {isSelectMode && (
-                            <div className="flex items-center justify-center h-5 w-5 mt-1 flex-shrink-0">
-                              <input
-                                type="checkbox"
-                                checked={selectedSummaryIds.has(item.id)}
-                                onChange={() => toggleSelectSummary(item.id)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                              />
-                            </div>
-                          )}
+                        {isSelectMode && (
+                          <div className="absolute top-3 right-3 z-10">
+                            <input
+                              type="checkbox"
+                              checked={selectedSummaryIds.has(item.id)}
+                              onChange={() => toggleSelectSummary(item.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-5 w-5 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer bg-white dark:bg-slate-800"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-3 mb-3">
                           <span
-                            className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "file"
-                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                              }`}
+                            className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              item.type === "file"
+                                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                            }`}
                           >
                             {item.type === "file" ? (
-                              <FileText className="h-4 w-4" />
+                              <FileText className="h-5 w-5" />
                             ) : (
-                              <MessageSquare className="h-4 w-4" />
+                              <MessageSquare className="h-5 w-5" />
                             )}
                           </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words pr-2">
-                                {item.type === "file"
-                                  ? item.documentName || item.filename || "File Summary"
-                                  : item.textName || "text summary"}
-                              </h4>
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mb-2">
+                          <div className="min-w-0 flex-1 pr-6">
+                            <h4
+                              className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate"
+                              title={
+                                item.type === "file"
+                                  ? item.documentName || item.filename
+                                  : item.textName
+                              }
+                            >
+                              {item.type === "file"
+                                ? item.documentName || item.filename || "File Summary"
+                                : item.textName || "text summary"}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
                               <Clock className="h-3 w-3 mr-1" />
                               {formatDate(item.createdAt)}
                             </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                              {item.summary}
-                            </p>
                           </div>
                         </div>
+
+                        <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-4 flex-1 leading-relaxed">
+                          {item.summary}
+                        </p>
                       </div>
                     ))}
                 </div>
@@ -1463,6 +1647,279 @@ export function UserDashboard() {
         }}
         isDownloading={isDownloading}
       />
+
+      {/* Chat Modal */}
+      {isChatOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-lg shadow-xl overflow-hidden flex h-[85vh] border border-slate-200 dark:border-slate-800 relative">
+            {/* Mobile Sidebar Overlay */}
+            {isChatSidebarOpen && (
+              <div 
+                className="absolute inset-0 bg-black/20 z-20 md:hidden"
+                onClick={() => setIsChatSidebarOpen(false)}
+              />
+            )}
+
+            {/* Left Sidebar: Chat History */}
+            <div className={`absolute md:relative z-30 h-full w-[85%] sm:w-72 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-900 transition-transform duration-300 ease-in-out ${isChatSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}`}>
+              <div className="pl-5 pr-3 py-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50 gap-3">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-base">Conversations</h3>
+                <div className="flex items-center gap-0.5">
+                  <button 
+                    onClick={createNewChat} 
+                    className="p-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95" 
+                    title="New Chat"
+                  >
+                    <SquarePen size={16} />
+                  </button>
+                  <button
+                    onClick={fetchChatSessions}
+                    className="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                    title="Refresh conversations"
+                  >
+                    <RefreshCw size={16} className={isRefreshingChats ? "animate-spin" : ""} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {chatSessions.map(session => (
+                  <button
+                    key={session.chatId}
+                    onClick={() => loadChatSession(session.chatId || "")}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-all flex justify-between items-center group border ${
+                      currentSessionId === session.chatId 
+                        ? "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium" 
+                        : "bg-transparent border-transparent text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-200 dark:hover:border-slate-700"
+                    }`}
+                  >
+                    <span className="truncate flex-1 pr-2">{session.title}</span>
+                    <span 
+                      onClick={(e) => initiateDeleteChat(session.chatId || "", e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded transition-all"
+                      title="Delete chat"
+                    >
+                      <Trash2 size={13} />
+                    </span>
+                  </button>
+                ))}
+                {chatSessions.length === 0 && (
+                  <div className="text-center py-12 text-sm text-slate-400 italic">No conversations yet</div>
+                )}
+              </div>
+            </div>
+
+            {/* Main Chat Area */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Header with Document Selector */}
+              <div className="px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 z-10">
+                <div className="flex items-center gap-3 sm:gap-4 flex-1 max-w-3xl">
+                  <button
+                    onClick={() => setIsChatSidebarOpen(true)}
+                    className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-md transition-colors"
+                  >
+                    <Menu size={20} />
+                  </button>
+
+
+                  
+                  <div className="flex-1 max-w-[160px] sm:max-w-md flex flex-col min-w-0 relative">
+                    <div className="relative group">
+                      <button
+                        onClick={() => {
+                          if (!(!currentSessionId || !!chatSessions.find(s => s.chatId === currentSessionId)?.documentId)) {
+                            setIsDropdownOpen(!isDropdownOpen);
+                          }
+                        }}
+                        className={`w-full text-left pl-3 pr-8 py-1.5 text-sm border rounded-md outline-none transition-all truncate flex items-center ${
+                          !currentSessionId || !!chatSessions.find(s => s.chatId === currentSessionId)?.documentId
+                            ? "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 font-medium cursor-not-allowed"
+                            : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-500 cursor-pointer"
+                        }`}
+                      >
+                        <span className="truncate block w-full flex items-center gap-2">
+                          {selectedChatDocumentId 
+                            ? (() => {
+                                const s = summaries.find(s => s.id === selectedChatDocumentId);
+                                return s ? (
+                                  <>
+                                    {s.type === 'file' ? <FileText size={14} className="text-purple-500 flex-shrink-0" /> : <MessageSquare size={14} className="text-blue-500 flex-shrink-0" />}
+                                    <span className="truncate">{s.type === 'file' ? s.filename : (s.textName || 'Text Summary')}</span>
+                                  </>
+                                ) : "Select a document...";
+                              })()
+                            : "Select a document to start chat..."}
+                        </span>
+                      </button>
+
+                      {isDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                          <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
+                            <button
+                                onClick={() => {
+                                  setSelectedChatDocumentId("");
+                                  setIsDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b border-slate-100 dark:border-slate-700/50"
+                            >
+                              General Chat (No Document Context)
+                            </button>
+                            {summaries.map(s => (
+                              <button
+                                key={s.id}
+                                onClick={() => {
+                                  setSelectedChatDocumentId(s.id);
+                                  setIsDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2 truncate"
+                              >
+                                {s.type === 'file' ? <FileText size={14} className="text-purple-500 flex-shrink-0" /> : <MessageSquare size={14} className="text-blue-500 flex-shrink-0" />}
+                                <span className="truncate">{s.type === 'file' ? s.filename : (s.textName || 'Text Summary')}</span>
+                              </button>
+                            ))}
+                            {summaries.length === 0 && (
+                                <div className="px-3 py-2 text-sm text-slate-400 italic text-center">No documents found</div>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        {!!chatSessions.find(s => s.chatId === currentSessionId)?.documentId ? (
+                          <Lock size={12} />
+                        ) : (
+                          <ChevronDown size={14} />
+                        )}
+                      </div>
+                    </div>
+                    {currentSessionId && (
+                      <span className="text-[10px] text-slate-400 mt-1 px-1 font-medium truncate">
+                        {!!chatSessions.find(s => s.chatId === currentSessionId)?.documentId 
+                          ? "Context locked to selected document" 
+                          : "Select a document to give Summy context"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={handleCloseChat} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 dark:bg-slate-950/50 scroll-smooth">
+                {!currentSessionId ? (
+                  <div className="h-full flex flex-col items-center justify-center p-4 sm:p-8 text-center">
+                    <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-full mb-4 sm:mb-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                      <Bot className="text-blue-600 dark:text-blue-400 h-10 w-10 sm:h-16 sm:w-16" />
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 sm:mb-3">
+                      Welcome to Summy AI
+                    </h3>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mb-6 sm:mb-8 text-sm sm:text-lg leading-relaxed">
+                      I can help you analyze your documents, answer questions, or just chat. Select a conversation history or start a new one.
+                    </p>
+                    <button 
+                      onClick={createNewChat} 
+                      className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-semibold shadow-lg shadow-blue-200/50 dark:shadow-none transition-all hover:scale-105 flex items-center gap-3 text-base"
+                    >
+                      <SquarePen size={20} />
+                      Start New Conversation
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {chatMessages.length === 0 && (
+                      <div className="h-full flex flex-col items-center justify-center text-center opacity-70">
+                        <MessageSquare size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
+                        <p className="text-slate-500 dark:text-slate-400 font-medium">
+                          {selectedChatDocumentId 
+                            ? "Ask Summy anything about the selected document..." 
+                            : "Start typing to chat with Summy..."}
+                        </p>
+                      </div>
+                    )}
+                    {chatMessages.map((msg, idx) => (
+                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm ${
+                          msg.role === 'user' 
+                            ? 'bg-blue-600 text-white rounded-br-none' 
+                            : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-bl-none'
+                        }`}>
+                          {msg.role === 'assistant' && msg.isNew ? (
+                            <Typewriter text={msg.content} />
+                          ) : (
+                            msg.content
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {isChatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-bl-none px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                          <span className="text-xs text-slate-400 font-medium">Summy is thinking...</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Input */}
+              <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex gap-2 sm:gap-3 relative items-center">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder={!currentSessionId ? "Create a chat to start..." : !selectedChatDocumentId ? "Please select a document above..." : "Type your message here..."}
+                    disabled={!currentSessionId || !selectedChatDocumentId}
+                    className="flex-1 px-4 py-2 sm:px-4 sm:py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all disabled:bg-slate-100 dark:disabled:bg-slate-800/50 disabled:text-slate-400 disabled:cursor-not-allowed shadow-sm text-sm"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!chatInput.trim() || isChatLoading || !currentSessionId || !selectedChatDocumentId}
+                    className="p-2 sm:px-4 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center flex-shrink-0"
+                  >
+                    {isChatLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Chat Confirmation Modal */}
+      {chatToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Delete Chat</h3>
+              <button
+                onClick={() => setChatToDelete(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-slate-600 dark:text-slate-300 mb-6">
+              Are you sure you want to delete this chat? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setChatToDelete(null)} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600">
+                Cancel
+              </button>
+              <button onClick={confirmDeleteChat} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
