@@ -17,7 +17,6 @@ import { PaymentsSection } from "../components/admin/PaymentsSection";
 import { FoldersSection } from "../components/admin/FoldersSection";
 import { ActivationRequestsSection } from "../components/admin/ActivationRequestsSection";
 import { apiClient } from "../lib/authClient";
-import { ChatInterface } from "../components/ChatInterface";
 // Types
 interface Summary {
   id: string;
@@ -700,9 +699,6 @@ export function AdminDashboard() {
           </div>
         </div>
       )}
-
-      {/* Chat Interface */}
-      <ChatInterface />
     </div>
   );
 }

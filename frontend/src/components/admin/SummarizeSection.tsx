@@ -18,6 +18,7 @@ import { SummaryPreviewModal } from "../SummaryPreviewModal";
 import { FolderSidebar } from "../FolderSidebar";
 import { SaveLocationModal } from "../SaveLocationModal";
 import { generateSummaryPDF } from "../../utils/pdfGenerator";
+import { ChatInterface } from "../ChatInterface";
 interface Summary {
   id: string;
   userId: string;
@@ -1011,6 +1012,9 @@ export function SummarizeSection() {
           />
         )
       }
+
+      {/* Chat Interface - Only visible in Summarize section */}
+      <ChatInterface />
     </div>
   );
 }

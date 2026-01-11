@@ -4,14 +4,16 @@ using System.Text.Json;
 namespace SmartKB.Services
 {
     /// <summary>
-    /// Generates embeddings using LOCAL Python service (sentence-transformers)
-    /// NO external APIs, NO API keys needed, FREE - same as Python project
+    /// Generates embeddings using Gemini API (FREE - 1,500 requests/day)
+    /// 768 dimensions, optimized for RAG/semantic search
     /// </summary>
     public class EmbeddingService
     {
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly string _pythonServiceUrl;
+        private readonly string _geminiApiKey;
+        private readonly string _geminiEmbeddingModel;
+        private const int OUTPUT_DIMENSIONS = 768;
 
         public EmbeddingService(IConfiguration configuration)
         {
@@ -19,19 +21,21 @@ namespace SmartKB.Services
             _httpClient = new HttpClient();
             _httpClient.Timeout = TimeSpan.FromMinutes(2);
             
-            // Get Python service URL from env (default: localhost for local, http://localhost:5000 for container)
-            _pythonServiceUrl = Environment.GetEnvironmentVariable("PYTHON_SERVICE_URL") 
-                ?? "http://localhost:5000";
+            _geminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") 
+                ?? configuration["GEMINI_API_KEY"]
+                ?? throw new Exception("GEMINI_API_KEY not found in environment or configuration");
+
+            _geminiEmbeddingModel = Environment.GetEnvironmentVariable("GEMINI_EMBEDDING_MODEL")
+                ?? configuration["GEMINI_EMBEDDING_MODEL"]
+                ?? "gemini-embedding-001";
         }
 
         /// <summary>
-        /// Generates an embedding vector from text using LOCAL Python service (NO API CALLS, NO KEYS NEEDED)
-        /// Uses sentence-transformers library - same as Python project
+        /// Generates an embedding vector from text using Gemini API (FREE)
+        /// Returns 768-dimensional normalized embeddings optimized for RAG
         /// </summary>
         /// <param name="text">Text to embed (should be at least 10 characters)</param>
-        /// <returns>Array of floats representing the embedding vector</returns>
-        /// <exception cref="ArgumentException">Thrown when text is invalid</exception>
-        /// <exception cref="Exception">Thrown when Python service call fails</exception>
+        /// <returns>Array of floats representing the embedding vector (768 dimensions)</returns>
         public async Task<float[]> GenerateEmbeddingAsync(string text)
         {
             if (string.IsNullOrWhiteSpace(text) || text.Length < 10)
@@ -41,50 +45,58 @@ namespace SmartKB.Services
 
             try
             {
-                var request = new
+                var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_geminiEmbeddingModel}:embedContent?key={_geminiApiKey}";
+
+                var requestBody = new
                 {
-                    text = text
+                    content = new
+                    {
+                        parts = new[]
+                        {
+                            new { text = text }
+                        }
+                    },
+                    taskType = "RETRIEVAL_DOCUMENT",
+                    outputDimensionality = OUTPUT_DIMENSIONS
                 };
 
-                var json = JsonSerializer.Serialize(request);
+                var json = JsonSerializer.Serialize(requestBody);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-                
-                var response = await _httpClient.PostAsync($"{_pythonServiceUrl}/embed", content);
+
+                var response = await _httpClient.PostAsync(url, content);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[EmbeddingService] ❌ Python service error: {response.StatusCode} - {errorContent}");
+                    Console.WriteLine($"[EmbeddingService] ❌ Gemini API error: {response.StatusCode} - {errorContent}");
                     throw new Exception($"Failed to generate embedding: {response.StatusCode} - {errorContent}");
                 }
 
                 var responseString = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(responseString);
 
-                if (doc.RootElement.TryGetProperty("embedding", out var embeddingElement))
+                if (doc.RootElement.TryGetProperty("embedding", out var embeddingObj) &&
+                    embeddingObj.TryGetProperty("values", out var valuesElement))
                 {
-                    var embeddingArray = embeddingElement
+                    var embeddingArray = valuesElement
                         .EnumerateArray()
                         .Select(x => (float)x.GetDouble())
                         .ToArray();
 
-                    var dimensions = doc.RootElement.TryGetProperty("dimensions", out var dimElement) 
-                        ? dimElement.GetInt32() 
-                        : embeddingArray.Length;
-                    
+                    Console.WriteLine($"[EmbeddingService] ✅ Generated {embeddingArray.Length}D embedding via Gemini");
                     return embeddingArray;
                 }
 
-                throw new Exception($"Unexpected Python service response format: {doc.RootElement}");
+                throw new Exception($"Unexpected Gemini API response format: {doc.RootElement}");
             }
             catch (HttpRequestException ex)
             {
-                Console.WriteLine($"[EmbeddingService] ❌ Failed to connect to Python service at {_pythonServiceUrl}. Make sure Python service is running.");
-                throw new Exception($"Python embedding service not available at {_pythonServiceUrl}. Error: {ex.Message}", ex);
+                Console.WriteLine($"[EmbeddingService] ❌ Failed to connect to Gemini API: {ex.Message}");
+                throw new Exception($"Gemini embedding API not available. Error: {ex.Message}", ex);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EmbeddingService] ❌ Error calling Python service: {ex.Message}");
+                Console.WriteLine($"[EmbeddingService] ❌ Error calling Gemini API: {ex.Message}");
                 throw;
             }
         }

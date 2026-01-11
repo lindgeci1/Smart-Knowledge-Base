@@ -181,9 +181,7 @@ namespace SmartKB.Controllers
                             Document = d,
                             Similarity = _embeddingService.CalculateCosineSimilarity(queryEmbedding, d.Embedding!)
                         })
-                        .Where(x => x.Similarity > 0.3) // Only include documents with similarity > 0.3
                         .OrderByDescending(x => x.Similarity)
-                        .Take(3) // Get top 3 most relevant
                         .ToList();
 
                     // Calculate similarity scores for texts
@@ -193,15 +191,17 @@ namespace SmartKB.Controllers
                             Text = t,
                             Similarity = _embeddingService.CalculateCosineSimilarity(queryEmbedding, t.Embedding!)
                         })
-                        .Where(x => x.Similarity > 0.3)
                         .OrderByDescending(x => x.Similarity)
-                        .Take(3)
                         .ToList();
 
+                    // Filter by threshold (0.25 to avoid irrelevant matches)
+                    var relevantDocuments = documentScores.Where(x => x.Similarity > 0.25).Take(3).ToList();
+                    var relevantTexts = textScores.Where(x => x.Similarity > 0.25).Take(3).ToList();
+
                     // Combine and get the most relevant context
-                    var allResults = documentScores
+                    var allResults = relevantDocuments
                         .Select(x => new { Content = x.Document.Summary, Similarity = x.Similarity, Type = "Document", Name = x.Document.DocumentName ?? x.Document.FileName })
-                        .Concat(textScores.Select(x => new { Content = x.Text.Summary, Similarity = x.Similarity, Type = "Text", Name = x.Text.TextName ?? "Text Summary" }))
+                        .Concat(relevantTexts.Select(x => new { Content = x.Text.Summary, Similarity = x.Similarity, Type = "Text", Name = x.Text.TextName ?? "Text Summary" }))
                         .OrderByDescending(x => x.Similarity)
                         .Take(2) // Use top 2 most relevant
                         .ToList();
@@ -220,7 +220,7 @@ namespace SmartKB.Controllers
                     }
                     else
                     {
-                        Console.WriteLine("[ChatController] ⚠️ RAG found no relevant documents (similarity threshold 0.3 not met) - using general AI response");
+                        Console.WriteLine("[ChatController] ⚠️ RAG found no relevant documents (similarity threshold 0.25 not met) - using general AI response");
                     }
                 }
                 catch (Exception ex)
