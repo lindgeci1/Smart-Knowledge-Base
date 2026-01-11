@@ -7,10 +7,8 @@ RUN dotnet publish "SmartKB/SmartKB.csproj" -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
-# Install Python, pip, venv, and bash (needed for startup script)
-RUN apt-get update && \
-    apt-get install -y python3 python3-pip python3-venv bash && \
-    rm -rf /var/lib/apt/lists/*
+# Install lightweight Python and bash (Alpine uses apk, not apt-get)
+RUN apk add --no-cache python3 py3-pip bash
 
 # Create virtual environment to avoid PEP 668 "externally managed" errors
 RUN python3 -m venv /opt/venv
