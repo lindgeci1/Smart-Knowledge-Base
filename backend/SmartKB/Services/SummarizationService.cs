@@ -21,6 +21,7 @@ namespace SmartKB.Services
             var startTime = DateTime.UtcNow;
             var apiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY");
             var model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:120b-cloud";
+            var preparedText = PrepareTextForModel(text);
             
             if (string.IsNullOrEmpty(apiKey))
             {
@@ -30,6 +31,18 @@ namespace SmartKB.Services
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromMinutes(5);
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+
+            // Optional attribution headers recommended by OpenRouter (leaderboards/routing)
+            var referer = Environment.GetEnvironmentVariable("OPENROUTER_SITE_URL");
+            var title = Environment.GetEnvironmentVariable("OPENROUTER_SITE_NAME");
+            if (!string.IsNullOrWhiteSpace(referer))
+            {
+                client.DefaultRequestHeaders.Add("HTTP-Referer", referer);
+            }
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                client.DefaultRequestHeaders.Add("X-Title", title);
+            }
             
             var ollamaApiUrl = "https://ollama.com/api/chat";
             
@@ -38,7 +51,7 @@ namespace SmartKB.Services
                 model = model,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. IMPORTANT: Add TWO blank lines after each section for proper spacing. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\n\nANOTHER SECTION\nContent for this section...\n\n\nText to summarize:\n{text}" }
+                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. IMPORTANT: Add TWO blank lines after each section for proper spacing. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\n\nANOTHER SECTION\nContent for this section...\n\n\nText to summarize:\n{preparedText}" }
                 },
                 stream = false
             };
@@ -59,31 +72,52 @@ namespace SmartKB.Services
             return RemoveMarkdown(summary.Trim());
         }
 
-        // Summarize using Ollama Cloud with keyword extraction
+        // Summarize using OpenRouter with keyword extraction
         public async Task<(string summary, string keyword)> SummarizeWithKeywordOllama(string text, string type = "text")
         {
             var startTime = DateTime.UtcNow;
-            var apiKey = Environment.GetEnvironmentVariable("OLLAMA_API_KEY");
-            var model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:120b-cloud";
+            var apiKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+            var model = Environment.GetEnvironmentVariable("OPENROUTER_MODEL") ?? "google/gemini-2.0-flash-exp:free";
             
             if (string.IsNullOrEmpty(apiKey))
             {
-                throw new Exception("OLLAMA_API_KEY environment variable is not set.");
+                throw new Exception("OPENROUTER_API_KEY environment variable is not set.");
+            }
+            
+            if (string.IsNullOrEmpty(model))
+            {
+                throw new Exception("OPENROUTER_MODEL environment variable is not set.");
             }
 
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromMinutes(5);
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+
+            // Optional attribution headers recommended by OpenRouter (leaderboards/routing)
+            var referer = Environment.GetEnvironmentVariable("OPENROUTER_SITE_URL");
+            var title = Environment.GetEnvironmentVariable("OPENROUTER_SITE_NAME");
+            if (!string.IsNullOrWhiteSpace(referer))
+            {
+                client.DefaultRequestHeaders.Add("HTTP-Referer", referer);
+            }
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                client.DefaultRequestHeaders.Add("X-Title", title);
+            }
             
-            var ollamaApiUrl = "https://ollama.com/api/chat";
+            var openRouterApiUrl = "https://openrouter.ai/api/v1/chat/completions";
         
             // First, get the summary
+            var preparedText = PrepareTextForModel(text);
+
             var summaryRequest = new
             {
                 model = model,
+                max_tokens = 800,
+                temperature = 0.2,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{text}" }
+                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{preparedText}" }
                 },
                 stream = false
             };
@@ -94,12 +128,11 @@ namespace SmartKB.Services
             HttpResponseMessage summaryResponse;
             try
             {
-                summaryResponse = await client.PostAsync(ollamaApiUrl, summaryContent);
-                summaryResponse.EnsureSuccessStatusCode();
+                summaryResponse = await client.PostAsync(openRouterApiUrl, summaryContent);
             }
             catch (HttpRequestException ex)
             {
-                throw new Exception($"Failed to connect to Ollama service: {ex.Message}", ex);
+                throw new Exception($"Failed to connect to OpenRouter service: {ex.Message}", ex);
             }
             catch (TaskCanceledException ex)
             {
@@ -107,16 +140,27 @@ namespace SmartKB.Services
             }
 
             var summaryResponseJson = await summaryResponse.Content.ReadAsStringAsync();
+            if (!summaryResponse.IsSuccessStatusCode)
+            {
+                throw new Exception($"OpenRouter summary failed: {(int)summaryResponse.StatusCode} {summaryResponse.StatusCode} - {summaryResponseJson}");
+            }
+
             var summaryDoc = System.Text.Json.JsonDocument.Parse(summaryResponseJson);
-            var summary = summaryDoc.RootElement.GetProperty("message").GetProperty("content").GetString() ?? "";
+            var summary = summaryDoc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString() ?? "";
 
             // Then, extract the main keyword/topic
             var keywordRequest = new
             {
                 model = model,
+                max_tokens = 32,
+                temperature = 0.1,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Based on this text, identify the single most important keyword or topic (one word or short phrase, 1-3 words max) that best represents the main subject:\n{text}\n\nRespond with only the keyword/topic, nothing else." }
+                    new { role = "user", content = $"Based on this text, identify the single most important keyword or topic (one word or short phrase, 1-3 words max) that best represents the main subject:\n{preparedText}\n\nRespond with only the keyword/topic, nothing else." }
                 },
                 stream = false
             };
@@ -127,12 +171,11 @@ namespace SmartKB.Services
             HttpResponseMessage keywordResponse;
             try
             {
-                keywordResponse = await client.PostAsync(ollamaApiUrl, keywordContent);
-                keywordResponse.EnsureSuccessStatusCode();
+                keywordResponse = await client.PostAsync(openRouterApiUrl, keywordContent);
             }
             catch (HttpRequestException ex)
             {
-                throw new Exception($"Failed to connect to Ollama service for keyword extraction: {ex.Message}", ex);
+                throw new Exception($"Failed to connect to OpenRouter service for keyword extraction: {ex.Message}", ex);
             }
             catch (TaskCanceledException ex)
             {
@@ -140,8 +183,17 @@ namespace SmartKB.Services
             }
 
             var keywordResponseJson = await keywordResponse.Content.ReadAsStringAsync();
+            if (!keywordResponse.IsSuccessStatusCode)
+            {
+                throw new Exception($"OpenRouter keyword failed: {(int)keywordResponse.StatusCode} {keywordResponse.StatusCode} - {keywordResponseJson}");
+            }
+
             var keywordDoc = System.Text.Json.JsonDocument.Parse(keywordResponseJson);
-            var keyword = keywordDoc.RootElement.GetProperty("message").GetProperty("content").GetString() ?? "";
+            var keyword = keywordDoc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString() ?? "";
 
             // Clean up the keyword - remove quotes, extra whitespace, and limit length
             keyword = keyword.Trim().Trim('"', '\'', '.', ',', '!', '?');
@@ -158,6 +210,21 @@ namespace SmartKB.Services
             var responseTime = (endTime - startTime).TotalSeconds;
 
             return (RemoveMarkdown(summary.Trim()), keyword.Trim());
+        }
+
+        private string PrepareTextForModel(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            const int maxChars = 32000;
+            if (text.Length <= maxChars)
+                return text;
+
+            var half = maxChars / 2;
+            var head = text.Substring(0, half);
+            var tail = text.Substring(text.Length - half, half);
+            return $"{head}\n\n...TRUNCATED...\n\n{tail}";
         }
 
         public async Task IncrementUsageIfUser(string userId)
