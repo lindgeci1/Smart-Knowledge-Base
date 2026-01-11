@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { MessageSquare, Bot } from "lucide-react";
 import { useChatState } from "../hooks/useChatState";
 import { ChatSidebar } from "./ChatSidebar";
@@ -28,6 +29,18 @@ export function ChatInterface() {
     refreshConversations,
   } = useChatState();
 
+  useEffect(() => {
+    if (isChatOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isChatOpen]);
+
   if (!isChatOpen) {
     return (
       <button
@@ -45,7 +58,7 @@ export function ChatInterface() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/30 animate-in fade-in duration-200">
-      <div className="w-full max-w-7xl h-[85vh] bg-white rounded-md shadow-xl overflow-hidden flex flex-col md:flex-row border border-slate-200">
+      <div className="relative w-full max-w-7xl h-[85vh] bg-white rounded-md shadow-xl overflow-hidden flex flex-col md:flex-row border border-slate-200">
         {/* Sidebar */}
         <ChatSidebar
           conversations={conversations}
@@ -59,7 +72,7 @@ export function ChatInterface() {
         />
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white relative">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-white relative">
           <ChatHeader
             onToggleSidebar={toggleSidebar}
             onClose={toggleChat}
@@ -91,27 +104,26 @@ export function ChatInterface() {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-50/30">
-              <div className="w-16 h-16 bg-blue-50 rounded-md flex items-center justify-center mb-4 animate-bounce">
-                <Bot className="h-8 w-8 text-blue-600" />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 rounded-md flex items-center justify-center mb-3 sm:mb-4 animate-bounce">
+                <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">
                 Start a New Conversation
               </h2>
-              <p className="text-slate-600 max-w-md mb-6">
-                Create a new chat to start analyzing your documents with Summy
-                AI.
+              <p className="text-slate-600 max-w-md mb-6 text-sm sm:text-base">
+                Start analyzing your documents with Summy AI.
                 <br />
                 <br />
-                <span className="text-sm font-medium text-slate-700">
+                <span className="font-medium text-slate-700">
                   Choose how to chat:
                 </span>
                 <br />
-                <span className="text-sm text-slate-600">
-                  • Select a document to chat about it specifically
+                <span className="text-slate-600">
+                  • Select a document for specific context
                 </span>
                 <br />
-                <span className="text-sm text-slate-600">
-                  • Or chat freely - AI will automatically search your documents
+                <span className="text-slate-600">
+                  • Or chat freely - AI searches automatically
                 </span>
               </p>
               <button

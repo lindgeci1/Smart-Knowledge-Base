@@ -176,7 +176,10 @@ export function useChatState() {
       } else {
         // No locked document for this conversation
         setSelectedDocument(null);
-        setIsDocumentLocked(false);
+        // If the conversation has been updated (likely has messages), lock it to RAG mode
+        const hasMessages =
+          conversation && conversation.updatedAt > conversation.createdAt + 1000;
+        setIsDocumentLocked(!!hasMessages);
       }
 
       if (window.innerWidth < 768) {
@@ -224,7 +227,7 @@ export function useChatState() {
       if (!activeConversationId) return;
 
       // Lock document once conversation starts
-      if (selectedDocument && !isDocumentLocked) {
+      if (!isDocumentLocked) {
         setIsDocumentLocked(true);
       }
 
@@ -261,11 +264,11 @@ export function useChatState() {
           requestBody.documentId = null;
         }
 
-        console.log('[useChatState] Sending message:', {
-          chatId: activeConversationId,
-          messageLength: content.length,
-          documentId: requestBody.documentId || 'null (RAG mode)',
-        });
+        // console.log('[useChatState] Sending message:', {
+        //   chatId: activeConversationId,
+        //   messageLength: content.length,
+        //   documentId: requestBody.documentId || 'null (RAG mode)',
+        // });
 
         const response = await apiClient.post(
           `/Chat/CreateMessage/${activeConversationId}`,
@@ -309,30 +312,26 @@ export function useChatState() {
           );
         }
 
-        // Update conversation title if it changed
-        const currentChat = conversations.find(
-          (c) => c.id === activeConversationId
+        // Update conversation timestamp and title if needed
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id !== activeConversationId) return c;
+
+            const isNewChat =
+              c.title === "New Chat" ||
+              c.title === "New Conversation" ||
+              (typeof c.title === "string" &&
+                c.title.toLowerCase().startsWith("new"));
+
+            return {
+              ...c,
+              title: isNewChat
+                ? content.slice(0, 30) + (content.length > 30 ? "..." : "")
+                : c.title,
+              updatedAt: Date.now(),
+            };
+          })
         );
-        if (
-          currentChat &&
-          (currentChat.title === "New Chat" ||
-            currentChat.title === "New Conversation" ||
-            (typeof currentChat.title === "string" &&
-              currentChat.title.toLowerCase().startsWith("new")))
-        ) {
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === activeConversationId
-                ? {
-                    ...c,
-                    title:
-                      content.slice(0, 30) + (content.length > 30 ? "..." : ""),
-                    updatedAt: Date.now(),
-                  }
-                : c
-            )
-          );
-        }
       } catch (error) {
         console.error("Failed to send message:", error);
         // Remove the optimistic message on error

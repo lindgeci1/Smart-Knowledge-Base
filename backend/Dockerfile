@@ -1,11 +1,11 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 COPY ["SmartKB/SmartKB.csproj", "SmartKB/"]
 RUN dotnet restore "SmartKB/SmartKB.csproj"
 COPY . .
 RUN dotnet publish "SmartKB/SmartKB.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 # Install Python, pip, venv, and bash (needed for startup script)
 RUN apt-get update && \

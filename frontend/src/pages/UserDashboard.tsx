@@ -982,16 +982,16 @@ export function UserDashboard() {
                         }}
                         disabled={isLimitReached || isProcessing}
                       />
-                      <div className="flex flex-col items-center">
-                        <div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                      <div className="flex flex-col items-center px-3 sm:px-4">
+                        <div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3 flex-shrink-0">
                           <Upload className="h-6 w-6" />
                         </div>
-                        <p className="text-sm font-medium text-slate-900">
+                        <p className="text-xs sm:text-sm font-medium text-slate-900 mb-1">
                           {selectedFile
                             ? selectedFile.name
                             : "Click to upload or drag and drop"}
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-slate-500">
                           {selectedFile
                             ? `${(selectedFile.size / 1024).toFixed(1)} KB`
                             : "PDF, TXT, DOC, DOCX, XLS, XLSX up to 5MB"}
@@ -999,16 +999,16 @@ export function UserDashboard() {
                       </div>
                     </div>
                     {selectedFile && (
-                      <div className="flex items-center justify-between bg-blue-50 p-3 rounded-md border border-blue-100">
-                        <div className="flex items-center">
-                          <FileIcon className="h-4 w-4 text-blue-600 mr-2" />
-                          <span className="text-sm text-blue-900 truncate max-w-[200px]">
+                      <div className="flex items-center justify-between bg-blue-50 p-3 rounded-md border border-blue-100 gap-2">
+                        <div className="flex items-center min-w-0">
+                          <FileIcon className="h-4 w-4 text-blue-600 mr-2 flex-shrink-0" />
+                          <span className="text-xs sm:text-sm text-blue-900 break-words line-clamp-2">
                             {selectedFile.name}
                           </span>
                         </div>
                         <button
                           onClick={() => setSelectedFile(null)}
-                          className="text-blue-400 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-blue-400 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                           disabled={isProcessing}
                         >
                           <X className="h-4 w-4" />
