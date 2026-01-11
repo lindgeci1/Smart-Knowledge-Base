@@ -239,7 +239,7 @@ export function SaveLocationModal({
                                     <MessageSquare size={12} />
                                   )}
                                 </span>
-                                <span className="truncate">
+                                <span className="whitespace-normal break-words text-left leading-tight">
                                   {it.type === "file"
                                     ? it.filename || it.content || "file"
                                     : it.textName || "text summary"}

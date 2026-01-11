@@ -106,7 +106,7 @@ function SummaryItem({
       ) : (
         <MessageSquare size={14} className="text-blue-600" />
       )}
-      <span className="truncate flex-1">
+      <span className="flex-1 whitespace-normal break-words leading-tight">
         {summary.type === "file"
           ? summary.filename
           : summary.textName || "text summary"}
@@ -156,7 +156,7 @@ function DraggableSummary({
       ) : (
         <MessageSquare size={14} className="text-blue-600" />
       )}
-      <span className="truncate flex-1">
+      <span className="flex-1 whitespace-normal break-words leading-tight">
         {summary.type === "file"
           ? summary.filename
           : summary.textName || "text summary"}
@@ -965,7 +965,7 @@ export function FolderSidebar({
                 ) : (
                   <MessageSquare size={14} className="text-blue-600" />
                 )}
-                <span className="truncate flex-1">
+                <span className="flex-1 whitespace-normal break-words leading-tight">
                   {draggedSummary.type === "file"
                     ? draggedSummary.filename
                     : draggedSummary.textName || "text summary"}

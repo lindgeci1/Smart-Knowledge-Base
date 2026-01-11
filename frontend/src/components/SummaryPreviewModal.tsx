@@ -48,7 +48,7 @@ export function SummaryPreviewModal({
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <span
-              className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+              className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                 summary.type === "file"
                   ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
                   : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
@@ -60,8 +60,8 @@ export function SummaryPreviewModal({
                 <MessageSquare className="h-5 w-5" />
               )}
             </span>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 break-words leading-tight">
                 {summary.type === "file"
                   ? summary.documentName || summary.filename || "File Summary"
                   : summary.textName || "Text Summary"}

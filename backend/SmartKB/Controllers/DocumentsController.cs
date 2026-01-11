@@ -144,7 +144,15 @@ namespace SmartKB.Controllers
 
             try
             {
-                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordDockerOrCloud(cleanedText, "file");
+                Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Summarization started document");
+                var startTime = DateTime.UtcNow;
+                
+                var (summary, keyword) = await _summarizationService.SummarizeWithKeywordOllama(cleanedText, "file");
+                
+                var endTime = DateTime.UtcNow;
+                var elapsedSeconds = (endTime - startTime).TotalSeconds;
+                Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Summarization finished document - Elapsed: {elapsedSeconds:F2} seconds");
+                
                 var documentName = $"File Summary of {keyword}";
 
                 // Generate embedding for the summary (required)

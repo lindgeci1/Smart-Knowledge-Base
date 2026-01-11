@@ -57,7 +57,7 @@ export function ChatSidebar({
       {/* Mobile Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          className="fixed inset-0 bg-black/30 z-30 md:hidden"
           onClick={onCloseMobile}
         />
       )}
@@ -66,7 +66,7 @@ export function ChatSidebar({
       <div
         className={`
         absolute md:relative inset-y-0 left-0 z-40
-        w-72 bg-white border-r border-slate-200
+        w-64 bg-white border-r border-slate-200
         transform transition-transform duration-300 ease-in-out flex flex-col
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}
@@ -153,7 +153,7 @@ export function ChatSidebar({
                 <button
                   onClick={(e) => handleDeleteClick(e, conv.id)}
                   className={`
-                    p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity
+                    p-1 rounded transition-opacity
                     ${
                       activeConversationId === conv.id
                         ? 'text-slate-400 hover:text-red-600 hover:bg-red-50'

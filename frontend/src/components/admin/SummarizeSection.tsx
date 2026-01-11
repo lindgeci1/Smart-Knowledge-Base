@@ -669,7 +669,7 @@ export function SummarizeSection() {
                           File Upload
                         </label>
                         <div
-                          className={`group h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all relative ${isProcessing
+                          className={`group h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all relative overflow-hidden ${isProcessing
                             ? "border-slate-200 bg-slate-50 cursor-not-allowed"
                             : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30"
                             }`}
@@ -712,14 +712,17 @@ export function SummarizeSection() {
                             }}
                             disabled={isProcessing}
                           />
-                          <div className="flex flex-col items-center pointer-events-none">
-                            <div className="h-12 w-12 bg-white border border-slate-200 shadow-sm rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                          <div className="flex flex-col items-center pointer-events-none w-full px-3 sm:px-4">
+                            <div className="h-12 w-12 bg-white border border-slate-200 shadow-sm rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform flex-shrink-0">
                               <Upload className="h-6 w-6 text-indigo-600" />
                             </div>
-                            <p className="text-sm font-semibold text-slate-900 mb-0.5">
+                            <p className="text-xs sm:text-sm font-semibold text-slate-900 mb-1">
+                              {selectedFile ? "Selected file:" : "Drop your document here"}
+                            </p>
+                            <p className="text-xs sm:text-sm font-semibold text-slate-900 mb-1 break-words line-clamp-2 w-full">
                               {selectedFile
                                 ? selectedFile.name
-                                : "Drop your document here"}
+                                : ""}
                             </p>
                             <p className="text-xs text-slate-500">
                               {selectedFile
@@ -932,7 +935,7 @@ export function SummarizeSection() {
                           </div>
 
                           <div className="flex-1 min-w-0 pt-0.5">
-                            <h4 className="text-sm font-semibold text-slate-900 truncate">
+                            <h4 className="text-sm font-semibold text-slate-900 break-words line-clamp-2">
                               {summary.type === "file"
                                 ? summary.documentName || summary.filename || summary.content || "File Summary"
                                 : summary.textName || "Untitled Summary"}
