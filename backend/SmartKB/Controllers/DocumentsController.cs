@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
 using SmartKB.Models;
 using SmartKB.Services;
+using SmartKB.DTOs;
 
 namespace SmartKB.Controllers
 {
@@ -14,14 +15,17 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<User> _userCollection;
         private readonly IMongoCollection<UserRole> _userRoleCollection;
         private readonly IMongoCollection<Usage> _usageCollection;
+        private readonly IMongoCollection<SharedDocument> _sharedDocumentCollection;
         private readonly SummarizationService _summarizationService;
         private readonly EmbeddingService _embeddingService;
         private readonly IConfiguration _configuration;
+        private readonly EmailService _emailService;
 
-        public DocumentsController(IConfiguration configuration, EmbeddingService embeddingService)
+        public DocumentsController(IConfiguration configuration, EmbeddingService embeddingService, EmailService emailService)
         {
             _configuration = configuration;
             _embeddingService = embeddingService;
+            _emailService = emailService;
             var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? configuration["MongoDbSettings:ConnectionString"];
             var databaseName = Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") ?? configuration["MongoDbSettings:DatabaseName"];
             var client = new MongoClient(connectionString);
@@ -31,6 +35,7 @@ namespace SmartKB.Controllers
             _userCollection = database.GetCollection<User>("users");
             _userRoleCollection = database.GetCollection<UserRole>("userRoles");
             _usageCollection = database.GetCollection<Usage>("usage");
+            _sharedDocumentCollection = database.GetCollection<SharedDocument>("sharedDocuments");
             _summarizationService = new SummarizationService(_userRoleCollection, _usageCollection);
         }
 
@@ -238,6 +243,136 @@ namespace SmartKB.Controllers
         }
 
         [Authorize(Roles = "1, 2")]
+        [HttpPost("{id}/share")]
+        public async Task<IActionResult> ShareDocument(string id, [FromBody] ShareDocumentDto? dto)
+        {
+            // Get userId from JWT token
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // Verify document belongs to user
+            var document = await _documentCollection.Find(d => d.DocumentId == id && d.UserId == userId).FirstOrDefaultAsync();
+            if (document == null)
+                return NotFound("Document not found or you don't have permission");
+
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required");
+
+            // Get current user info for email notification
+            var currentUser = await _userCollection.Find(u => u.UserId == userId).FirstOrDefaultAsync();
+            if (currentUser == null)
+                return Unauthorized("User not found");
+
+            // Prevent sharing with yourself
+            if (currentUser.Email.ToLower() == dto.Email.ToLower())
+                return BadRequest("You cannot share a document with yourself");
+
+            // Check if user exists with this email
+            var sharedWithUser = await _userCollection.Find(u => u.Email.ToLower() == dto.Email.ToLower()).FirstOrDefaultAsync();
+            var sharedWithUserId = sharedWithUser?.UserId;
+
+            // Check if already shared with this user
+            var existingShare = await _sharedDocumentCollection.Find(
+                s => s.DocumentId == id && 
+                     s.SharedWithEmail.ToLower() == dto.Email.ToLower() &&
+                     s.DocumentType == "file"
+            ).FirstOrDefaultAsync();
+
+            if (existingShare != null)
+                return BadRequest("Document already shared with this user");
+
+            // Create share record
+            var sharedDocument = new SharedDocument
+            {
+                DocumentId = id,
+                DocumentType = "file",
+                SharedByUserId = userId,
+                SharedWithEmail = dto.Email.ToLower(),
+                SharedWithUserId = sharedWithUserId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _sharedDocumentCollection.InsertOneAsync(sharedDocument);
+
+            // Send email notification (don't fail if email fails)
+            try
+            {
+                var documentName = document.DocumentName ?? document.FileName ?? "Document";
+                await _emailService.SendDocumentSharedEmailAsync(
+                    toEmail: dto.Email.ToLower(),
+                    sharedByEmail: currentUser.Email,
+                    sharedByName: currentUser.Username,
+                    documentName: documentName
+                );
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail the share operation
+                Console.WriteLine($"Failed to send share notification email: {ex.Message}");
+            }
+
+            return Ok(new { message = "Document shared successfully" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpGet("shared")]
+        public async Task<IActionResult> GetSharedDocuments()
+        {
+            // Get userId from JWT token
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // Get user email
+            var user = await _userCollection.Find(u => u.UserId == userId).FirstOrDefaultAsync();
+            if (user == null)
+                return Unauthorized("User not found");
+
+            // Get all documents shared with this user (by email or userId)
+            var sharedRecords = await _sharedDocumentCollection.Find(
+                s => (s.SharedWithEmail.ToLower() == user.Email.ToLower() || s.SharedWithUserId == userId) &&
+                     s.DocumentType == "file"
+            ).ToListAsync();
+
+            var documentIds = sharedRecords.Select(s => s.DocumentId).ToList();
+            var documents = await _documentCollection.Find(
+                d => documentIds.Contains(d.DocumentId) && 
+                     d.Status == "Completed" && 
+                     !string.IsNullOrEmpty(d.Summary)
+            ).ToListAsync();
+
+            // Get shared by user info
+            var result = new List<object>();
+            foreach (var doc in documents)
+            {
+                var shareRecord = sharedRecords.FirstOrDefault(s => s.DocumentId == doc.DocumentId);
+                var sharedByUser = shareRecord != null 
+                    ? await _userCollection.Find(u => u.UserId == shareRecord.SharedByUserId).FirstOrDefaultAsync()
+                    : null;
+
+                result.Add(new
+                {
+                    id = doc.DocumentId,
+                    fileName = doc.FileName,
+                    fileType = doc.FileType,
+                    summary = doc.Summary,
+                    documentName = doc.DocumentName,
+                    status = doc.Status,
+                    folderId = doc.FolderId,
+                    sharedBy = sharedByUser?.Email ?? "Unknown",
+                    sharedAt = shareRecord?.CreatedAt
+                });
+            }
+
+            return Ok(result);
+        }
+
+        [Authorize(Roles = "1, 2")]
         [HttpPatch("{id}")]
         public async Task<IActionResult> UpdateDocument(string id, [FromBody] dynamic updateData)
         {
@@ -335,6 +470,67 @@ namespace SmartKB.Controllers
             }
 
             return Ok(result);
+        }
+
+        [Authorize(Roles = "1")]
+        [HttpGet("admin/shared")]
+        public async Task<IActionResult> GetAllSharedDocuments()
+        {
+            // Get all shared documents
+            var sharedRecords = await _sharedDocumentCollection.Find(
+                s => s.DocumentType == "file"
+            ).SortByDescending(s => s.CreatedAt).ToListAsync();
+
+            var documentIds = sharedRecords.Select(s => s.DocumentId).Distinct().ToList();
+            var documents = await _documentCollection.Find(
+                d => documentIds.Contains(d.DocumentId) && 
+                     d.Status == "Completed" && 
+                     !string.IsNullOrEmpty(d.Summary)
+            ).ToListAsync();
+
+            // Get user info for all shares
+            var result = new List<object>();
+            foreach (var shareRecord in sharedRecords)
+            {
+                var document = documents.FirstOrDefault(d => d.DocumentId == shareRecord.DocumentId);
+                if (document == null) continue;
+
+                var sharedByUser = await _userCollection.Find(u => u.UserId == shareRecord.SharedByUserId).FirstOrDefaultAsync();
+                var sharedWithUser = !string.IsNullOrWhiteSpace(shareRecord.SharedWithUserId)
+                    ? await _userCollection.Find(u => u.UserId == shareRecord.SharedWithUserId).FirstOrDefaultAsync()
+                    : null;
+
+                result.Add(new
+                {
+                    shareId = shareRecord.SharedDocumentId,
+                    documentId = shareRecord.DocumentId,
+                    documentName = document.DocumentName ?? document.FileName,
+                    fileName = document.FileName,
+                    fileType = document.FileType,
+                    summary = document.Summary,
+                    sharedByUserId = shareRecord.SharedByUserId,
+                    sharedByEmail = sharedByUser?.Email ?? "Unknown",
+                    sharedByName = sharedByUser?.Username ?? "Unknown",
+                    sharedWithEmail = shareRecord.SharedWithEmail,
+                    sharedWithUserId = shareRecord.SharedWithUserId,
+                    sharedWithName = sharedWithUser?.Username ?? "Not registered",
+                    sharedAt = shareRecord.CreatedAt
+                });
+            }
+
+            return Ok(result);
+        }
+
+        [Authorize(Roles = "1")]
+        [HttpDelete("admin/shared/{shareId}")]
+        public async Task<IActionResult> DeleteSharedDocument(string shareId)
+        {
+            var sharedDocument = await _sharedDocumentCollection.Find(s => s.SharedDocumentId == shareId).FirstOrDefaultAsync();
+            if (sharedDocument == null)
+                return NotFound("Shared document not found");
+
+            await _sharedDocumentCollection.DeleteOneAsync(s => s.SharedDocumentId == shareId);
+            return Ok(new { message = "Share removed successfully" });
         }
 
         [Authorize(Roles = "1")]

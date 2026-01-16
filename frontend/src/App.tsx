@@ -194,6 +194,14 @@ function App() {
                 </RoleRoute>
               }
             />
+            <Route
+              path="/admin/sharing"
+              element={
+                <RoleRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
+                </RoleRoute>
+              }
+            />
 
             {/* Catch all - redirect to landing instead of login for better UX */}
             <Route path="*" element={<Navigate to="/" replace />} />

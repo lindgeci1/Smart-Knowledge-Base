@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Download, Calendar, Loader2 } from "lucide-react";
+import { FileText, MessageSquare, Download, Calendar, Loader2, Share2 } from "lucide-react";
 import { Button } from "./ui/Button";
 
 interface SummaryPreviewModalProps {
@@ -16,6 +16,7 @@ interface SummaryPreviewModalProps {
   } | null;
   onDownload?: () => void;
   isDownloading?: boolean;
+  onShare?: () => void;
 }
 
 export function SummaryPreviewModal({
@@ -24,6 +25,7 @@ export function SummaryPreviewModal({
   summary,
   onDownload,
   isDownloading = false,
+  onShare,
 }: SummaryPreviewModalProps) {
   if (!isOpen || !summary) return null;
 
@@ -73,6 +75,16 @@ export function SummaryPreviewModal({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {onShare && summary.type === "file" && (
+              <button
+                onClick={onShare}
+                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                title="Share"
+                aria-label="Share"
+              >
+                <Share2 className="h-5 w-5" />
+              </button>
+            )}
             {onDownload && (
               <button
                 onClick={onDownload}

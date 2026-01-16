@@ -118,13 +118,16 @@ export function ChatInterface() {
                   Choose how to chat:
                 </span>
                 <br />
-                <span className="text-slate-600">
-                  • Select a document for specific context
-                </span>
-                <br />
-                <span className="text-slate-600">
-                  • Or chat freely - AI searches automatically
-                </span>
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-start gap-2 text-slate-600">
+                    <span className="text-blue-600 font-semibold">→</span>
+                    <span>Select a document for specific context</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-slate-600">
+                    <span className="text-blue-600 font-semibold">→</span>
+                    <span>Or chat freely - AI searches automatically</span>
+                  </div>
+                </div>
               </p>
               <button
                 onClick={createNewChat}

@@ -416,5 +416,42 @@ namespace SmartKB.Services
 
             await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
+
+        public async Task SendDocumentSharedEmailAsync(string toEmail, string sharedByEmail, string sharedByName, string documentName)
+        {
+            var subject = "Document Shared with You";
+            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
+            var dashboardLink = $"{frontendUrl}/dashboard";
+            var displayName = !string.IsNullOrWhiteSpace(sharedByName) ? sharedByName : sharedByEmail;
+
+            var htmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Document Shared with You</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi,</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;'><strong>{displayName}</strong> shared a document with you.</p>
+                            <div style='background-color: #f9fafb; padding: 20px; margin: 32px 0; border-radius: 6px; border: 1px solid #e5e7eb;'>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Document:</td>
+                                        <td style='padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-align: right;'>{documentName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Shared by:</td>
+                                        <td style='padding: 8px 0; color: #1f2937; font-size: 14px; text-align: right;'>{displayName}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div style='text-align: center; margin: 32px 0;'>
+                                <a href='{dashboardLink}' style='display: inline-block; background-color: #6A5ACD; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 16px; font-weight: 500;'>View Document</a>
+                            </div>
+                            <p style='color: #6b7280; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;'>If that doesn't work, copy and paste the following link in your browser:</p>
+                            <p style='color: #2563eb; font-size: 14px; line-height: 1.6; margin: 8px 0 32px 0; word-break: break-all;'><a href='{dashboardLink}' style='color: #2563eb; text-decoration: underline;'>{dashboardLink}</a></p>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
+                        </div>";
+            var textBody =
+                $"Document Shared with You\n\nHi,\n\n{displayName} shared a document with you.\n\nDocument: {documentName}\nShared by: {displayName}\n\nView Document: {dashboardLink}\n\nThe {_fromName} Team.";
+
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
+        }
     }
 }

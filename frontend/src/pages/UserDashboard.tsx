@@ -20,11 +20,14 @@ import {
   Grid3x3,
   List,
   RefreshCw,
+  Share2,
+  Users,
 } from "lucide-react";
 import { apiClient } from "../lib/authClient";
 import { FolderSidebar } from "../components/FolderSidebar";
 import { SaveLocationModal } from "../components/SaveLocationModal";
 import { SummaryPreviewModal } from "../components/SummaryPreviewModal";
+import { ShareModal } from "../components/ShareModal";
 import { generateSummaryPDF } from "../utils/pdfGenerator";
 import { ChatInterface } from "../components/ChatInterface";
 
@@ -41,6 +44,8 @@ interface Summary {
   textName?: string; // For text type - always "text summary"
   documentName?: string; // For file type - "File Summary of [keyword]"
   folderId?: string; // Folder assignment
+  sharedBy?: string; // Email of user who shared this document
+  isShared?: boolean; // Whether this is a shared document
 }
 
 export function UserDashboard() {
@@ -92,6 +97,13 @@ export function UserDashboard() {
   const [currentPlan, setCurrentPlan] = useState<string>("Free Plan");
   const [isDownloading, setIsDownloading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedDocumentForShare, setSelectedDocumentForShare] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [sharedDocuments, setSharedDocuments] = useState<Summary[]>([]);
+  const [activeSection, setActiveSection] = useState<"my" | "shared">("my");
 
   // Function to fetch usage from backend
   const fetchUsage = useCallback(async () => {
@@ -104,6 +116,45 @@ export function UserDashboard() {
       console.error("Failed to load usage", error);
       setBackendUsage(0);
       setBackendTotalLimit(100);
+    }
+  }, [user]);
+
+  // Function to fetch shared documents
+  const fetchSharedDocuments = useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await apiClient.get("/Documents/shared");
+      const sharedDocs = response.data || [];
+
+      const getTimestampFromObjectId = (objectId: string): Date => {
+        try {
+          const timestamp = parseInt(objectId.substring(0, 8), 16) * 1000;
+          return new Date(timestamp);
+        } catch {
+          return new Date();
+        }
+      };
+
+      const mappedSharedDocuments: Summary[] = sharedDocs.map((item: any) => ({
+        id: item.id,
+        userId: user.id,
+        userName: item.sharedBy || "Unknown",
+        type: "file" as const,
+        content: item.fileName || "",
+        filename: item.fileName ? `${item.fileName}.${item.fileType}` : "",
+        summary: item.summary || "",
+        documentName: item.documentName || null,
+        createdAt:
+          item.sharedAt || getTimestampFromObjectId(item.id).toISOString(),
+        folderId: item.folderId || undefined,
+        sharedBy: item.sharedBy,
+        isShared: true,
+      }));
+
+      setSharedDocuments(mappedSharedDocuments);
+    } catch (error) {
+      console.error("Failed to load shared documents", error);
+      setSharedDocuments([]);
     }
   }, [user]);
 
@@ -203,9 +254,10 @@ export function UserDashboard() {
   // Load summaries and usage on mount
   useEffect(() => {
     fetchSummaries();
+    fetchSharedDocuments();
     fetchUsage();
     fetchCurrentPlan();
-  }, [fetchSummaries, fetchUsage, fetchCurrentPlan]);
+  }, [fetchSummaries, fetchSharedDocuments, fetchUsage, fetchCurrentPlan]);
 
   // Refresh plan when component becomes visible or window gains focus (e.g., after payment)
   useEffect(() => {
@@ -495,6 +547,14 @@ export function UserDashboard() {
     setPreviewSummary(summary);
     setIsPreviewOpen(true);
   };
+
+  const handleShareDocument = (summary: Summary) => {
+    if (summary.type !== "file") return; // Only share file documents
+    const documentName = summary.documentName || summary.filename || "Document";
+    setSelectedDocumentForShare({ id: summary.id, name: documentName });
+    setShowShareModal(true);
+  };
+
 
   // Toggle selection for summaries
   const toggleSelectSummary = (id: string) => {
@@ -1039,77 +1099,115 @@ export function UserDashboard() {
 
           {/* Right: My Summaries */}
           <div className="md:col-span-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-8rem)]">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-              {/* Title row with view toggle */}
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
-                    My Summaries
-                  </h3>
-                  <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 py-0.5 px-2.5 rounded-full text-xs font-medium">
+            <div className="border-b border-slate-200 dark:border-slate-700">
+              {/* Tabs */}
+              <div className="flex">
+                <button
+                  onClick={() => setActiveSection("my")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-colors relative ${
+                    activeSection === "my"
+                      ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  My Summaries
+                  <span className={`text-xs font-normal ${
+                    activeSection === "my"
+                      ? "text-slate-600 dark:text-slate-400"
+                      : "text-slate-500 dark:text-slate-500"
+                  }`}>
                     {summaries.filter((s) => !s.folderId).length}
                   </span>
+                </button>
+                <button
+                  onClick={() => setActiveSection("shared")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-colors relative ${
+                    activeSection === "shared"
+                      ? "text-blue-600 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50/30 dark:bg-blue-900/30"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  Shared with Me
+                  <span className={`text-xs font-normal ${
+                    activeSection === "shared"
+                      ? "text-slate-600 dark:text-slate-400"
+                      : "text-slate-500 dark:text-slate-500"
+                  }`}>
+                    {sharedDocuments.length}
+                  </span>
+                </button>
+              </div>
+              {/* Title row with view toggle */}
+              <div className="flex justify-between items-center px-4 pb-4 pt-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    {activeSection === "my" ? "My Summaries" : "Shared with Me"}
+                  </h3>
                 </div>
                 {/* Right controls: Refresh + View Toggle */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
                   <button
                     onClick={async () => {
                       try {
                         setIsRefreshingSummaries(true);
-                        await fetchSummaries();
+                        if (activeSection === "my") {
+                          await fetchSummaries();
+                        } else {
+                          await fetchSharedDocuments();
+                        }
                       } finally {
                         setIsRefreshingSummaries(false);
                       }
                     }}
-                    className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                    title="Refresh summaries"
+                    className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-md transition-colors"
+                    title={`Refresh ${activeSection === "my" ? "summaries" : "shared documents"}`}
                   >
                     <RefreshCw
                       className={`h-4 w-4 ${isRefreshingSummaries ? "animate-spin" : ""
                         }`}
                     />
                   </button>
-                  <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
-                    <button
-                      onClick={() => setViewMode("list")}
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list"
-                        ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                        }`}
-                      title="List view"
-                    >
-                      <List className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode("grid")}
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid"
-                        ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                        }`}
-                      title="Card view"
-                    >
-                      <Grid3x3 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`p-1.5 rounded-md transition-colors ${viewMode === "list"
+                      ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      }`}
+                    title="List view"
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("grid")}
+                    className={`p-1.5 rounded-md transition-colors ${viewMode === "grid"
+                      ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      }`}
+                    title="Grid view"
+                  >
+                    <Grid3x3 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
 
-              {/* Action buttons row */}
-              {(isSelectMode ||
+              {/* Action buttons row - only show in My Summaries */}
+              {activeSection === "my" && (isSelectMode ||
                 summaries.filter((s) => !s.folderId).length > 0) && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={() => {
-                        setIsSelectMode((s) => !s);
-                        setSelectedSummaryIds(new Set());
-                      }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${isSelectMode
-                        ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                        : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 border-slate-300 dark:border-slate-600"
-                        }`}
-                    >
-                      {isSelectMode ? "Cancel" : "Select"}
-                    </button>
+                <div className="flex items-center gap-2 flex-wrap px-4 pb-4">
+                  <button
+                    onClick={() => {
+                      setIsSelectMode((s) => !s);
+                      setSelectedSummaryIds(new Set());
+                    }}
+                    className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${isSelectMode
+                      ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                      : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border-slate-300 dark:border-slate-600"
+                      }`}
+                  >
+                    {isSelectMode ? "Cancel" : "Select"}
+                  </button>
                     {isSelectMode && (
                       <>
                         <button
@@ -1161,7 +1259,82 @@ export function UserDashboard() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {summaries.filter((s) => !s.folderId).length === 0 ? (
+              {activeSection === "shared" ? (
+                // Shared documents view
+                sharedDocuments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="bg-slate-50 dark:bg-slate-700 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Users className="h-8 w-8 text-slate-300 dark:text-slate-500" />
+                    </div>
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      No shared documents yet
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      Documents shared with you will appear here.
+                    </p>
+                  </div>
+                ) : viewMode === "list" ? (
+                  <div className="space-y-2">
+                    {sharedDocuments.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handlePreviewSummary(item)}
+                        className="group flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm"
+                      >
+                        <span className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
+                          <FileText className="h-4 w-4" />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                            {item.documentName || item.filename || "File Summary"}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            Shared by: {item.sharedBy || "Unknown"}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1">
+                            {item.summary}
+                          </p>
+                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {formatDate(item.createdAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {sharedDocuments.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handlePreviewSummary(item)}
+                        className="group relative bg-white dark:bg-slate-800 border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer flex flex-col h-full border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
+                            <FileText className="h-5 w-5" />
+                          </span>
+                          <div className="min-w-0 flex-1 pr-6">
+                            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                              {item.documentName || item.filename || "File Summary"}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
+                              <Users className="h-3 w-3 mr-1" />
+                              Shared by: {item.sharedBy || "Unknown"}
+                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {formatDate(item.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-4 flex-1 leading-relaxed">
+                          {item.summary}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : summaries.filter((s) => !s.folderId).length === 0 ? (
                 <div className="text-center py-12">
                   <div className="bg-slate-50 dark:bg-slate-700 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Clock className="h-8 w-8 text-slate-300 dark:text-slate-500" />
@@ -1476,7 +1649,30 @@ export function UserDashboard() {
           }
         }}
         isDownloading={isDownloading}
+        onShare={() => {
+          if (previewSummary) {
+            // Close the preview modal first
+            setIsPreviewOpen(false);
+            setPreviewSummary(null);
+            // Then open the share modal
+            handleShareDocument(previewSummary);
+          }
+        }}
       />
+
+      {/* Share Modal */}
+      {selectedDocumentForShare && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => {
+            setShowShareModal(false);
+            setSelectedDocumentForShare(null);
+          }}
+          documentId={selectedDocumentForShare.id}
+          documentName={selectedDocumentForShare.name}
+          currentUserEmail={user?.email}
+        />
+      )}
 
       {/* New Chat Interface */}
       <ChatInterface />

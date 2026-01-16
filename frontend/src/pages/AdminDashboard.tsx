@@ -16,6 +16,7 @@ import { PackagesSection } from "../components/admin/PackagesSection";
 import { PaymentsSection } from "../components/admin/PaymentsSection";
 import { FoldersSection } from "../components/admin/FoldersSection";
 import { ActivationRequestsSection } from "../components/admin/ActivationRequestsSection";
+import { FileSharingSection } from "../components/admin/FileSharingSection";
 import { apiClient } from "../lib/authClient";
 // Types
 interface Summary {
@@ -92,7 +93,8 @@ export function AdminDashboard() {
     | "packages"
     | "payments"
     | "folders"
-    | "activations" => {
+    | "activations"
+    | "sharing" => {
     const path = location.pathname;
     if (path === "/admin") return "dashboard";
     if (path === "/admin/users") return "users";
@@ -103,6 +105,7 @@ export function AdminDashboard() {
     if (path === "/admin/payments") return "payments";
     if (path === "/admin/folders") return "folders";
     if (path === "/admin/activations") return "activations";
+    if (path === "/admin/sharing") return "sharing";
     return "dashboard";
   };
 
@@ -114,6 +117,7 @@ export function AdminDashboard() {
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [activationRequests, setActivationRequests] = useState<any[]>([]);
+  const [sharedDocuments, setSharedDocuments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
   const [fileCount, setFileCount] = useState(0);
@@ -142,6 +146,7 @@ export function AdminDashboard() {
     payments: { loading: boolean; hasData: boolean };
     folders: { loading: boolean; hasData: boolean };
     activations: { loading: boolean; hasData: boolean };
+    sharing?: { loading: boolean; hasData: boolean };
   }>({
     users: { loading: false, hasData: false },
     files: { loading: false, hasData: false },
@@ -150,6 +155,7 @@ export function AdminDashboard() {
     payments: { loading: false, hasData: false },
     folders: { loading: false, hasData: false },
     activations: { loading: false, hasData: false },
+    sharing: { loading: false, hasData: false },
   });
 
   // Fetch users usage from backend
@@ -321,6 +327,15 @@ export function AdminDashboard() {
         ...prev,
         activations: { loading: true, hasData: false },
       }));
+    } else if (
+      activeView === "sharing" &&
+      !loadingStates.sharing?.hasData &&
+      !loadingStates.sharing?.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        sharing: { loading: true, hasData: false },
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
@@ -337,6 +352,7 @@ export function AdminDashboard() {
       | "payments"
       | "folders"
       | "activations"
+      | "sharing"
     ) => {
     // Navigate to the appropriate route
     if (view === "dashboard") {
@@ -408,6 +424,15 @@ export function AdminDashboard() {
       setLoadingStates((prev) => ({
         ...prev,
         activations: { loading: true, hasData: false },
+      }));
+    } else if (
+      view === "sharing" &&
+      !loadingStates.sharing?.hasData &&
+      !loadingStates.sharing?.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        sharing: { loading: true, hasData: false },
       }));
     }
   };
@@ -655,6 +680,22 @@ export function AdminDashboard() {
               }}
               onRequestsFetched={(fetchedRequests) => {
                 setActivationRequests(fetchedRequests);
+              }}
+            />
+          )}
+
+          {activeView === "sharing" && (
+            <FileSharingSection
+              sharedDocuments={sharedDocuments}
+              loading={loadingStates.sharing?.loading || false}
+              onDataLoaded={(hasData) => {
+                setLoadingStates((prev) => ({
+                  ...prev,
+                  sharing: { loading: false, hasData },
+                }));
+              }}
+              onSharedDocumentsFetched={(fetchedDocuments) => {
+                setSharedDocuments(fetchedDocuments);
               }}
             />
           )}
