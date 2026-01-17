@@ -17,6 +17,7 @@ import { PaymentsSection } from "../components/admin/PaymentsSection";
 import { FoldersSection } from "../components/admin/FoldersSection";
 import { ActivationRequestsSection } from "../components/admin/ActivationRequestsSection";
 import { FileSharingSection } from "../components/admin/FileSharingSection";
+import { ActiveSessionsSection } from "../components/admin/ActiveSessionsSection";
 import { apiClient } from "../lib/authClient";
 // Types
 interface Summary {
@@ -94,7 +95,8 @@ export function AdminDashboard() {
     | "payments"
     | "folders"
     | "activations"
-    | "sharing" => {
+    | "sharing"
+    | "sessions" => {
     const path = location.pathname;
     if (path === "/admin") return "dashboard";
     if (path === "/admin/users") return "users";
@@ -106,6 +108,7 @@ export function AdminDashboard() {
     if (path === "/admin/folders") return "folders";
     if (path === "/admin/activations") return "activations";
     if (path === "/admin/sharing") return "sharing";
+    if (path === "/admin/sessions") return "sessions";
     return "dashboard";
   };
 
@@ -118,6 +121,7 @@ export function AdminDashboard() {
   const [folders, setFolders] = useState<any[]>([]);
   const [activationRequests, setActivationRequests] = useState<any[]>([]);
   const [sharedDocuments, setSharedDocuments] = useState<any[]>([]);
+  const [activeSessions, setActiveSessions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
   const [fileCount, setFileCount] = useState(0);
@@ -147,6 +151,7 @@ export function AdminDashboard() {
     folders: { loading: boolean; hasData: boolean };
     activations: { loading: boolean; hasData: boolean };
     sharing?: { loading: boolean; hasData: boolean };
+    sessions?: { loading: boolean; hasData: boolean };
   }>({
     users: { loading: false, hasData: false },
     files: { loading: false, hasData: false },
@@ -156,6 +161,7 @@ export function AdminDashboard() {
     folders: { loading: false, hasData: false },
     activations: { loading: false, hasData: false },
     sharing: { loading: false, hasData: false },
+    sessions: { loading: false, hasData: false },
   });
 
   // Fetch users usage from backend
@@ -336,6 +342,15 @@ export function AdminDashboard() {
         ...prev,
         sharing: { loading: true, hasData: false },
       }));
+    } else if (
+      activeView === "sessions" &&
+      !loadingStates.sessions?.hasData &&
+      !loadingStates.sessions?.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        sessions: { loading: true, hasData: false },
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
@@ -353,6 +368,7 @@ export function AdminDashboard() {
       | "folders"
       | "activations"
       | "sharing"
+      | "sessions"
     ) => {
     // Navigate to the appropriate route
     if (view === "dashboard") {
@@ -433,6 +449,15 @@ export function AdminDashboard() {
       setLoadingStates((prev) => ({
         ...prev,
         sharing: { loading: true, hasData: false },
+      }));
+    } else if (
+      view === "sessions" &&
+      !loadingStates.sessions?.hasData &&
+      !loadingStates.sessions?.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        sessions: { loading: true, hasData: false },
       }));
     }
   };
@@ -696,6 +721,22 @@ export function AdminDashboard() {
               }}
               onSharedDocumentsFetched={(fetchedDocuments) => {
                 setSharedDocuments(fetchedDocuments);
+              }}
+            />
+          )}
+
+          {activeView === "sessions" && (
+            <ActiveSessionsSection
+              sessions={activeSessions}
+              loading={loadingStates.sessions?.loading || false}
+              onDataLoaded={(hasData) => {
+                setLoadingStates((prev) => ({
+                  ...prev,
+                  sessions: { loading: false, hasData },
+                }));
+              }}
+              onSessionsFetched={(fetchedSessions) => {
+                setActiveSessions(fetchedSessions);
               }}
             />
           )}

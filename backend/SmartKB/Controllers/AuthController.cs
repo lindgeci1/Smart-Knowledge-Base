@@ -279,6 +279,40 @@ namespace SmartKB.Controllers
             return Ok(new { message = "Logged out" });
         }
 
+        [Authorize(Roles = "1")]
+        [HttpGet("admin/sessions")]
+        public async Task<IActionResult> GetAllSessions()
+        {
+            var allTokens = await _refreshTokens.Find(_ => true).ToListAsync();
+            
+            var sessionsWithUserInfo = new List<object>();
+            foreach (var token in allTokens)
+            {
+                var user = await _users.Find(u => u.UserId == token.UserId).FirstOrDefaultAsync();
+                sessionsWithUserInfo.Add(new
+                {
+                    id = token.Id,
+                    userId = token.UserId,
+                    userEmail = user?.Email ?? "Unknown",
+                    userName = user?.Username ?? "Unknown",
+                    createdAt = token.CreatedAt,
+                    updatedAt = token.UpdatedAt,
+                    expiresAt = token.ExpiresAt,
+                    isExpired = token.ExpiresAt < DateTime.UtcNow
+                });
+            }
+
+            return Ok(sessionsWithUserInfo.OrderByDescending(s => ((dynamic)s).createdAt));
+        }
+
+        [Authorize(Roles = "1")]
+        [HttpDelete("admin/sessions/expired")]
+        public async Task<IActionResult> DeleteExpiredSessions()
+        {
+            var deletedCount = await _refreshTokens.DeleteManyAsync(rt => rt.ExpiresAt < DateTime.UtcNow);
+            return Ok(new { message = $"Deleted {deletedCount.DeletedCount} expired session(s)" });
+        }
+
 
 
         [HttpPost("renew")]

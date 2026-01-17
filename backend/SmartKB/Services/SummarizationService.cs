@@ -51,7 +51,50 @@ namespace SmartKB.Services
                 model = model,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. IMPORTANT: Add TWO blank lines after each section for proper spacing. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\n\nANOTHER SECTION\nContent for this section...\n\n\nText to summarize:\n{preparedText}" }
+                    new { role = "user", content = $@"CRITICAL: The summary MUST ALWAYS be written in English, regardless of the source language. If the source text is in Albanian, Spanish, French, or any other language, you MUST translate the entire summary to English. The summary output must be 100% in English.
+
+Create a concise summary of the following text (aim for about 30-40% of the original length). 
+Divide it into major sections. 
+For each section, use a clear header in CAPITAL LETTERS followed by the content. 
+IMPORTANT: Add TWO blank lines after each section for proper spacing. 
+
+DO NOT use any markdown formatting:
+- No bold (**text** or __text__)
+- No italic (*text* or _text_)
+- No code blocks (```code``` or `code`)
+- No headers (# Header)
+- No links ([text](url))
+- No lists (-, *, +, or numbered lists)
+- No tables (| pipes)
+- No checkboxes ([ ] or [x])
+- No horizontal rules (--- or ***)
+- No strikethrough (~~text~~)
+
+DO NOT use special Unicode characters:
+- No em dashes, en dashes, or special dashes
+- No smart quotes or special quotes
+- No special punctuation marks
+- No zero-width characters or hidden formatting
+
+Use ONLY:
+- Plain regular hyphens (-)
+- Regular apostrophes (')
+- Regular quotes ("")
+- Standard ASCII characters
+- Plain text only
+
+Format like:
+
+SECTION NAME
+Content for this section...
+
+
+ANOTHER SECTION
+Content for this section...
+
+
+Text to summarize:
+{preparedText}" }
                 },
                 stream = false
             };
@@ -117,7 +160,48 @@ namespace SmartKB.Services
                 temperature = 0.2,
                 messages = new[]
                 {
-                    new { role = "user", content = $"Create a concise summary of the following text (aim for about 30-40% of the original length). Divide it into major sections. For each section, use a clear header in CAPITAL LETTERS followed by the content. Add a blank line after each section. Do NOT use any markdown formatting (no **, __, *, _, ##, etc.). Use ONLY standard ASCII characters - no special Unicode characters, em dashes, en dashes, smart quotes, or special punctuation. Use plain regular hyphens (-), regular apostrophes ('), and regular quotes (\"). Use plain text only. Format like:\n\nSECTION NAME\nContent for this section...\n\nANOTHER SECTION\nContent for this section...\n\nText to summarize:\n{preparedText}" }
+                    new { role = "user", content = $@"CRITICAL: The summary MUST ALWAYS be written in English, regardless of the source language. If the source text is in Albanian, Spanish, French, or any other language, you MUST translate the entire summary to English. The summary output must be 100% in English.
+
+Create a concise summary of the following text (aim for about 30-40% of the original length). 
+Divide it into major sections. 
+For each section, use a clear header in CAPITAL LETTERS followed by the content. 
+Add a blank line after each section. 
+
+DO NOT use any markdown formatting:
+- No bold (**text** or __text__)
+- No italic (*text* or _text_)
+- No code blocks (```code``` or `code`)
+- No headers (# Header)
+- No links ([text](url))
+- No lists (-, *, +, or numbered lists)
+- No tables (| pipes)
+- No checkboxes ([ ] or [x])
+- No horizontal rules (--- or ***)
+- No strikethrough (~~text~~)
+
+DO NOT use special Unicode characters:
+- No em dashes, en dashes, or special dashes
+- No smart quotes or special quotes
+- No special punctuation marks
+- No zero-width characters or hidden formatting
+
+Use ONLY:
+- Plain regular hyphens (-)
+- Regular apostrophes (')
+- Regular quotes ("")
+- Standard ASCII characters
+- Plain text only
+
+Format like:
+
+SECTION NAME
+Content for this section...
+
+ANOTHER SECTION
+Content for this section...
+
+Text to summarize:
+{preparedText}" }
                 },
                 stream = false
             };
