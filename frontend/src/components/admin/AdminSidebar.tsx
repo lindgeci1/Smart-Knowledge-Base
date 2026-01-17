@@ -13,6 +13,7 @@ import {
   Folder,
   UserCheck,
   Share2,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { apiClient } from "../../lib/authClient";
@@ -27,7 +28,8 @@ interface AdminSidebarProps {
     | "payments"
     | "folders"
     | "activations"
-    | "sharing";
+    | "sharing"
+    | "sessions";
   setActiveView: (
     view:
       | "dashboard"
@@ -40,6 +42,7 @@ interface AdminSidebarProps {
       | "folders"
       | "activations"
       | "sharing"
+      | "sessions"
   ) => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -126,6 +129,11 @@ export function AdminSidebar({
       id: "sharing",
       label: "File Sharing",
       icon: Share2,
+    },
+    {
+      id: "sessions",
+      label: "Active Sessions",
+      icon: Clock,
     },
   ] as const;
   return (

@@ -269,7 +269,7 @@ export function LandingPage() {
         <div className="text-center max-w-3xl mx-auto mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-sm font-medium mb-6">
             <Zap className="w-4 h-4 mr-2 fill-blue-600" />
-            <span>Now powered by Ollama (llama3.2)</span>
+            <span>Now powered by Ollama (cloud based)</span>
           </div>
           <h1 className="text-5xl sm:text-6xl font-extrabold text-slate-900 tracking-tight mb-6 leading-[1.1]">
             Transform your content into{" "}
