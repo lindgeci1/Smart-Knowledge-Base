@@ -72,10 +72,11 @@ export function ChatHeader({
             <div className="flex items-center gap-2.5 min-w-0">
               {selectedDocument ? (
                 <>
-                  <div className="p-1 bg-indigo-100 dark:bg-indigo-900/30 rounded">
+                  <div className="p-1 bg-indigo-100 dark:bg-indigo-900/30 rounded flex-shrink-0">
                     <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                   </div>
-                  <span className="font-semibold text-sm truncate">
+                  {/* FIX: Removed 'truncate', added 'break-words whitespace-normal' to allow text wrapping */}
+                  <span className="font-semibold text-sm break-words whitespace-normal">
                     {selectedDocument.name}
                   </span>
                 </>
@@ -83,21 +84,22 @@ export function ChatHeader({
                 <>
                   {isChatActive ? (
                     <>
-                      <div className={`p-1 rounded ${isDocumentLocked ? "bg-slate-100 dark:bg-slate-700" : "bg-indigo-100 dark:bg-indigo-900/30"}`}>
+                      <div className={`p-1 rounded flex-shrink-0 ${isDocumentLocked ? "bg-slate-100 dark:bg-slate-700" : "bg-indigo-100 dark:bg-indigo-900/30"}`}>
                         <Sparkles className={`h-4 w-4 ${isDocumentLocked ? "text-slate-400" : "text-indigo-600 dark:text-indigo-400"}`} />
                       </div>
+                      {/* FIX: Removed 'truncate', added 'break-words whitespace-normal' */}
                       <span
-                        className={`font-semibold text-sm truncate ${
+                        className={`font-semibold text-sm break-words whitespace-normal ${
                           isDocumentLocked ? "text-slate-500 dark:text-slate-400" : "text-indigo-600 dark:text-indigo-400"
                         }`}
                       >
-                        AI Knowledge Base (RAG)
+                        AI Knowledge Base
                       </span>
                     </>
                   ) : (
                     <>
-                       <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 ml-1 mr-1" />
-                       <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Ready to chat</span>
+                       <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 ml-1 mr-1 flex-shrink-0" />
+                       <span className="text-sm text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Ready to chat</span>
                     </>
                   )}
                 </>
@@ -108,7 +110,7 @@ export function ChatHeader({
               <Lock className="h-4 w-4 text-slate-400 flex-shrink-0" />
             ) : (
               <ChevronDown
-                className={`h-4 w-4 text-slate-400 transition-transform ${
+                className={`h-4 w-4 text-slate-400 transition-transform flex-shrink-0 ${
                   isDropdownOpen ? "rotate-180" : ""
                 }`}
               />
@@ -117,8 +119,9 @@ export function ChatHeader({
 
           {/* Helper Text */}
           <div className="mt-1.5 px-1 text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-            <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-            <span className="truncate">
+            <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600 flex-shrink-0" />
+            {/* FIX: Removed 'truncate', added 'break-words' to helper text */}
+            <span className="break-words">
               {isDocumentLocked
                 ? selectedDocument
                   ? "Locked to specific document context"
@@ -138,12 +141,12 @@ export function ChatHeader({
                 onClick={() => handleSelect(null)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b border-slate-100 dark:border-slate-700 text-left"
               >
-                <div className="w-5 flex justify-center">
+                <div className="w-5 flex justify-center flex-shrink-0">
                   {!selectedDocument && (
                     <Check className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                   )}
                 </div>
-                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex-shrink-0">
                   <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
@@ -160,15 +163,16 @@ export function ChatHeader({
                 <button
                   key={doc.id}
                   onClick={() => handleSelect(doc)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group text-left"
                 >
-                  <div className="w-5 flex justify-center">
+                  <div className="w-5 flex justify-center flex-shrink-0">
                     {selectedDocument?.id === doc.id && (
                       <Check className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
-                  <FileText className={`h-4 w-4 ${selectedDocument?.id === doc.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                  <span className="truncate font-medium">{doc.name}</span>
+                  <FileText className={`h-4 w-4 flex-shrink-0 ${selectedDocument?.id === doc.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                  {/* FIX: Removed 'truncate', added 'break-words whitespace-normal' to dropdown items */}
+                  <span className="font-medium break-words whitespace-normal">{doc.name}</span>
                 </button>
               ))}
             </div>

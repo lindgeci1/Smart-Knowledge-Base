@@ -327,13 +327,23 @@ Text to summarize:
                 usage = new Usage
                 {
                     UserId = userId,
-                    OverallUsage = 10,
+                    OverallUsage = 10, // Initial cost
                     TotalLimit = 100,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
                 await _usageCollection.InsertOneAsync(usage);
-        }}
+            }
+            else
+            {
+                // MISSING PART: Increment existing usage by 10
+                var update = Builders<Usage>.Update
+                    .Inc(u => u.OverallUsage, 10)
+                    .Set(u => u.UpdatedAt, DateTime.UtcNow);
+                    
+                await _usageCollection.UpdateOneAsync(u => u.UserId == userId, update);
+            }
+        }
 
         // Remove markdown formatting from text
         private string RemoveMarkdown(string text)

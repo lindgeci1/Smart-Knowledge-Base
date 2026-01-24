@@ -1451,7 +1451,17 @@ export function UserDashboard() {
             setShowShareModal(false);
             setSelectedDocumentForShare(null);
           }}
-          documentId={selectedDocumentForShare.id}
+          onConfirm={async (email) => {
+            // TODO: Implement actual share logic (API call)
+            try {
+              // Example: await apiClient.post(`/Documents/share`, { documentId: selectedDocumentForShare.id, email });
+              toast.success(`Document shared with ${email}`);
+              setShowShareModal(false);
+              setSelectedDocumentForShare(null);
+            } catch (err) {
+              toast.error('Failed to share document.');
+            }
+          }}
           documentName={selectedDocumentForShare.name}
           currentUserEmail={user?.email}
         />

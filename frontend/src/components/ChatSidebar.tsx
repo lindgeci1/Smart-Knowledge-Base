@@ -146,7 +146,7 @@ export function ChatSidebar({
                 </div>
                 <button
                   onClick={(e) => handleDeleteClick(e, conv.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"
                   aria-label="Delete conversation"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
