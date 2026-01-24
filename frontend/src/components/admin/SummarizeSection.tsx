@@ -12,6 +12,8 @@ import {
   Square,
   Folder,
   Search,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { SummaryPreviewModal } from "../SummaryPreviewModal";
@@ -19,6 +21,7 @@ import { FolderSidebar } from "../FolderSidebar";
 import { SaveLocationModal } from "../SaveLocationModal";
 import { generateSummaryPDF } from "../../utils/pdfGenerator";
 import { ChatInterface } from "../ChatInterface";
+
 interface Summary {
   id: string;
   userId: string;
@@ -32,6 +35,7 @@ interface Summary {
   documentName?: string;
   folderId?: string;
 }
+
 export function SummarizeSection() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"text" | "file">("text");
@@ -60,6 +64,9 @@ export function SummarizeSection() {
   const [foldersRefreshKey, setFoldersRefreshKey] = useState(0);
   const [newlyMovedToFolderIds, setNewlyMovedToFolderIds] = useState<Set<string>>(new Set());
   const [expandFolderId, setExpandFolderId] = useState<string | null>(null);
+  const [isInputCollapsed, setIsInputCollapsed] = useState(false);
+  const [isFoldersCollapsed, setIsFoldersCollapsed] = useState(false);
+
 
   const fetchSummaries = useCallback(async () => {
     if (!user) return;
@@ -74,7 +81,6 @@ export function SummarizeSection() {
       const textSummaries = textResponse.data || [];
       const fileSummaries = fileResponse.data || [];
 
-      // Helper function to extract timestamp from MongoDB ObjectId
       const getTimestampFromObjectId = (objectId: string): Date => {
         try {
           const timestamp = parseInt(objectId.substring(0, 8), 16) * 1000;
@@ -84,7 +90,6 @@ export function SummarizeSection() {
         }
       };
 
-      // Map text summaries - these are already filtered to current user by the API
       const mappedTextSummaries: Summary[] = textSummaries.map(
         (item: {
           id: string;
@@ -107,7 +112,6 @@ export function SummarizeSection() {
         })
       );
 
-      // Map file summaries - these are already filtered to current user by the API
       const mappedFileSummaries: Summary[] = fileSummaries.map(
         (item: {
           id: string;
@@ -131,7 +135,6 @@ export function SummarizeSection() {
         })
       );
 
-      // Combine and sort by creation date (newest first)
       const allSummaries = [
         ...mappedTextSummaries,
         ...mappedFileSummaries,
@@ -173,7 +176,6 @@ export function SummarizeSection() {
       setTextInput("");
       const latestSummaries = await fetchSummaries();
 
-      // Animate the new (top) item
       if (latestSummaries && latestSummaries.length > 0) {
         setNewlyAddedId(latestSummaries[0].id);
         setTimeout(() => setNewlyAddedId(null), 3000);
@@ -201,7 +203,6 @@ export function SummarizeSection() {
   const handleFileUpload = async () => {
     if (!selectedFile || !user) return;
 
-    // Validate file type
     const allowedExtensions = [
       ".pdf",
       ".txt",
@@ -220,7 +221,6 @@ export function SummarizeSection() {
       return;
     }
 
-    // Validate file size (5MB limit)
     const maxSize = 5 * 1024 * 1024;
     if (selectedFile.size > maxSize) {
       setError("File too large. Maximum file size is 5MB.");
@@ -239,7 +239,6 @@ export function SummarizeSection() {
       setSelectedFile(null);
       const latestSummaries = await fetchSummaries();
 
-      // Animate the new item
       if (latestSummaries && latestSummaries.length > 0) {
         setNewlyAddedId(latestSummaries[0].id);
         setTimeout(() => setNewlyAddedId(null), 3000);
@@ -298,7 +297,6 @@ export function SummarizeSection() {
   };
 
   const handleDownloadSummary = (summary: Summary) => {
-    // Build title and filename based on type
     let title = "";
     let filename = "";
     let documentSource = "";
@@ -319,7 +317,6 @@ export function SummarizeSection() {
     }
 
     try {
-      // Generate PDF using the template
       const pdf = generateSummaryPDF({
         summary,
         title,
@@ -327,22 +324,18 @@ export function SummarizeSection() {
         authorEmail: user?.email || "Unknown"
       });
 
-      // Create blob and download URL for better mobile compatibility
       const pdfBlob = pdf.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);
       const downloadFilename = `${filename}-${new Date().toISOString().split("T")[0]}.pdf`;
       
-      // Create a temporary link element
       const link = document.createElement('a');
       link.href = pdfUrl;
       link.download = downloadFilename;
-      link.setAttribute('download', downloadFilename); // Force download attribute
+      link.setAttribute('download', downloadFilename);
       
-      // Trigger download
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
       
@@ -363,14 +356,11 @@ export function SummarizeSection() {
     }).format(date);
   };
 
-  // Filter summaries based on filter type and search query
   const filteredSummaries = summaries.filter((summary) => {
-    if (summary.folderId) return false; // Hide items in folders
+    if (summary.folderId) return false;
     
-    // Filter by type
     if (filterType !== "all" && summary.type !== filterType) return false;
     
-    // Filter by search query
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
       const searchableText = [
@@ -387,19 +377,16 @@ export function SummarizeSection() {
     return true;
   });
 
-  // Reset selection when filter or search changes
   useEffect(() => {
     setSelectedIds(new Set());
   }, [filterType, searchQuery]);
 
-  // Reset delete mode and selection when delete mode is turned off
   useEffect(() => {
     if (!isDeleteMode) {
       setSelectedIds(new Set());
     }
   }, [isDeleteMode]);
 
-  // Handle select/deselect all
   const handleSelectAll = () => {
     if (selectedIds.size === filteredSummaries.length) {
       setSelectedIds(new Set());
@@ -408,7 +395,6 @@ export function SummarizeSection() {
     }
   };
 
-  // Handle individual selection
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -421,7 +407,6 @@ export function SummarizeSection() {
     });
   };
 
-  // Handle bulk delete
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) {
       toast.error("Please select at least one summary to delete");
@@ -444,7 +429,6 @@ export function SummarizeSection() {
       const textIds: string[] = [];
       const fileIds: string[] = [];
 
-      // Separate text and file summaries
       summaries.forEach((summary) => {
         if (ids.includes(summary.id)) {
           if (summary.type === "text") {
@@ -455,7 +439,6 @@ export function SummarizeSection() {
         }
       });
 
-      // Delete in parallel
       const promises: Promise<any>[] = [];
       if (textIds.length > 0) {
         promises.push(apiClient.delete("/Texts/bulk", { data: textIds }));
@@ -479,11 +462,9 @@ export function SummarizeSection() {
   };
 
   const handleSummaryMovedToFolder = async (summaryId: string, folderId: string) => {
-    // Refresh summaries to reflect move
     await fetchSummaries();
     setFoldersRefreshKey((k) => k + 1);
 
-    // Auto expand the folder
     if (folderId) {
       setExpandFolderId(folderId);
     }
@@ -523,15 +504,13 @@ export function SummarizeSection() {
 
       toast.success(`Moved ${selectedIds.size} summaries`);
       setShowMoveModal(false);
-      setIsDeleteMode(false); // Exit selection mode
+      setIsDeleteMode(false);
       setSelectedIds(new Set());
       await fetchSummaries();
       setFoldersRefreshKey(k => k + 1);
 
-      // Auto expand target folder
       if (folderId) {
         setExpandFolderId(folderId);
-        // Add glow effect to all moved items
         setNewlyMovedToFolderIds(new Set(Array.from(selectedIds)));
         setTimeout(() => {
           setNewlyMovedToFolderIds(new Set());
@@ -549,422 +528,248 @@ export function SummarizeSection() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Title Section */}
       <div className="flex flex-col gap-4">
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-          Summarization
+          Summarization Hub
         </h2>
       </div>
 
-      {/* Main Content: Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Panel: Folders */}
         <div className="lg:col-span-1">
-          <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col lg:h-[calc(100vh-250px)] lg:overflow-y-auto">
+          <div
+            className={
+              isFoldersCollapsed
+                ? "bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden"
+                : "bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col lg:h-[calc(100vh-250px)] lg:overflow-y-auto"
+            }
+          >
             <FolderSidebar
               selectedFolder={selectedFolder}
               onSelectFolder={setSelectedFolder}
               summaries={summaries}
               onPreviewSummary={handlePreviewSummary}
-              onRefresh={() => {
-                fetchSummaries();
-              }}
+              onRefresh={fetchSummaries}
               refreshKey={foldersRefreshKey}
               onSummaryMovedToFolder={handleSummaryMovedToFolder}
               newlyMovedToFolderIds={newlyMovedToFolderIds}
               expandFolderId={expandFolderId}
               variant="admin"
-              //enableDragDrop
               enableSelectMove
+              onCollapsedChange={setIsFoldersCollapsed}
             />
           </div>
         </div>
 
-        {/* Right Panel: Input and Activity */}
         <div className="lg:col-span-3 space-y-6">
+          <div className="bg-white shadow-sm rounded-lg border border-slate-200">
+            <button 
+              className="px-4 sm:px-6 py-3 border-b border-slate-200 w-full flex justify-between items-center"
+              onClick={() => setIsInputCollapsed(!isInputCollapsed)}
+            >
+              <h3 className="text-base font-semibold text-slate-800">
+                Create New Summary
+              </h3>
+              {isInputCollapsed ? <ChevronRight className="h-5 w-5 text-slate-500" /> : <ChevronDown className="h-5 w-5 text-slate-500" />}
+            </button>
 
-          {/* Input Section */}
-          <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-slate-200">
-              <div className="flex p-1 bg-slate-200/60 rounded-lg w-full border border-slate-200/50">
-                <button
-                  onClick={() => setActiveTab("text")}
-                  disabled={isProcessing}
-                  className={`flex-1 px-3 sm:px-4 md:px-6 py-2.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${activeTab === "text"
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-black/5"
-                    }`}
-                >
-                  <MessageSquare className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 ${activeTab === "text" ? "text-indigo-600" : "text-slate-400"}`} />
-                  <span className="truncate">Text Summary</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("file")}
-                  disabled={isProcessing}
-                  className={`flex-1 px-3 sm:px-4 md:px-6 py-2.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${activeTab === "file"
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-black/5"
-                    }`}
-                >
-                  <Upload className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 ${activeTab === "file" ? "text-indigo-600" : "text-slate-400"}`} />
-                  <span className="truncate">File Upload</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {error && (
-                <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-start shadow-sm">
-                  <AlertCircle className="h-5 w-5 mr-3 flex-shrink-0 mt-0.5" />
-                  <div>{error}</div>
+            {!isInputCollapsed && (
+              <div className="p-6">
+                <div className="flex p-1 bg-slate-200/60 rounded-lg w-full border border-slate-200/50 mb-6">
+                  <button
+                    onClick={() => setActiveTab("text")}
+                    disabled={isProcessing}
+                    className={`flex-1 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === "text"
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-black/5"
+                      }`}
+                  >
+                    <MessageSquare className={`h-4 w-4 ${activeTab === "text" ? "text-indigo-600" : "text-slate-400"}`} />
+                    Text
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("file")}
+                    disabled={isProcessing}
+                    className={`flex-1 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === "file"
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-black/5"
+                      }`}
+                  >
+                    <Upload className={`h-4 w-4 ${activeTab === "file" ? "text-indigo-600" : "text-slate-400"}`} />
+                    File
+                  </button>
                 </div>
-              )}
 
-                  {activeTab === "text" ? (
-                    <div className="space-y-4">
-                      <div>
-                        <label
-                          htmlFor="text-input"
-                          className="block text-sm font-medium text-slate-700 mb-2"
-                        >
-                          Core Content
-                        </label>
-                        <div className="relative">
-                          <textarea
-                            id="text-input"
-                            className="w-full h-40 rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-4 border resize-none transition-shadow"
-                            placeholder="Enter text to summarize (min 50 characters)..."
-                            value={textInput}
-                            onChange={(e) => setTextInput(e.target.value)}
-                            disabled={isProcessing}
-                          />
-                          <div className="absolute bottom-3 right-3 text-xs text-slate-400 bg-white/80 px-2 py-1 rounded">
-                            {textInput.length} chars
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleSummarizeText}
-                          disabled={textInput.length < 50 || isProcessing}
-                          className="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow h-10 py-2 px-6"
-                        >
-                          {isProcessing ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            "Generate Summary"
-                          )}
-                        </button>
+                {error && (
+                  <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-start shadow-sm">
+                    <AlertCircle className="h-5 w-5 mr-3 flex-shrink-0 mt-0.5" />
+                    <div>{error}</div>
+                  </div>
+                )}
+
+                {activeTab === "text" ? (
+                  <div className="space-y-4">
+                    <textarea
+                      className="w-full h-40 rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-4 border resize-y transition-shadow"
+                      placeholder="Enter text to summarize (min 50 characters)..."
+                      value={textInput}
+                      onChange={(e) => setTextInput(e.target.value)}
+                      disabled={isProcessing}
+                    />
+                    <div className="flex justify-between items-center">
+                       <p className="text-xs text-slate-400">{textInput.length} chars</p>
+                       <button
+                        onClick={handleSummarizeText}
+                        disabled={textInput.length < 50 || isProcessing}
+                        className="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow h-10 py-2 px-6"
+                      >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div
+                      className={`group h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all relative overflow-hidden ${isProcessing
+                        ? "border-slate-200 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30"
+                        }`}
+                    >
+                      <input
+                        type="file"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                        accept=".txt,.pdf,.doc,.docx,.xls,.xlsx"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                        disabled={isProcessing}
+                      />
+                      <div className="flex flex-col items-center pointer-events-none w-full px-4">
+                        <Upload className="h-8 w-8 text-slate-400 mb-2" />
+                        <p className="text-sm font-semibold text-slate-700">
+                          {selectedFile ? selectedFile.name : "Drop or click to upload"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB` : "Max 5MB. PDF, DOCX, TXT..."}
+                        </p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div>
-                        <label
-                          htmlFor="file-upload"
-                          className="block text-sm font-medium text-slate-700 mb-2"
-                        >
-                          File Upload
-                        </label>
-                        <div
-                          className={`group h-40 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all relative overflow-hidden ${isProcessing
-                            ? "border-slate-200 bg-slate-50 cursor-not-allowed"
-                            : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30"
-                            }`}
-                        >
-                          <input
-                            type="file"
-                            id="file-upload"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
-                            accept=".txt,.pdf,.doc,.docx,.xls,.xlsx"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              if (file) {
-                                const maxSize = 5 * 1024 * 1024;
-                                if (file.size > maxSize) {
-                                  setError("File too large. Maximum file size is 5MB.");
-                                  e.target.value = "";
-                                  return;
-                                }
-                                const allowedExtensions = [
-                                  ".pdf",
-                                  ".txt",
-                                  ".doc",
-                                  ".docx",
-                                  ".xls",
-                                  ".xlsx",
-                                ];
-                                const fileExtension = file.name
-                                  .toLowerCase()
-                                  .substring(file.name.lastIndexOf("."));
-                                if (!allowedExtensions.includes(fileExtension)) {
-                                  setError(
-                                    "Unsupported file type. Allowed: PDF, TXT, DOC, DOCX, XLS, XLSX."
-                                  );
-                                  e.target.value = "";
-                                  return;
-                                }
-                                setError(null);
-                              }
-                              setSelectedFile(file);
-                            }}
-                            disabled={isProcessing}
-                          />
-                          <div className="flex flex-col items-center pointer-events-none w-full px-3 sm:px-4">
-                            <div className="h-12 w-12 bg-white border border-slate-200 shadow-sm rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform flex-shrink-0">
-                              <Upload className="h-6 w-6 text-indigo-600" />
-                            </div>
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 mb-1">
-                              {selectedFile ? "Selected file:" : "Drop your document here"}
-                            </p>
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 mb-1 break-words line-clamp-2 w-full">
-                              {selectedFile
-                                ? selectedFile.name
-                                : ""}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {selectedFile
-                                ? `${(selectedFile.size / 1024).toFixed(1)} KB`
-                                : "Supports PDF, TXT, DOC..."}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleFileUpload}
-                          disabled={!selectedFile || isProcessing}
-                          className="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow h-10 py-2 px-6"
-                        >
-                          {isProcessing ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            "Upload & Summarize"
-                          )}
-                        </button>
-                      </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleFileUpload}
+                        disabled={!selectedFile || isProcessing}
+                        className="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow h-10 py-2 px-6"
+                      >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Upload"}
+                      </button>
                     </div>
-                  )}
-            </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Recent Activity Section */}
-          <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex flex-col lg:max-h-[calc(100vh-450px)]">
-            <div className="px-6 py-4 border-b border-slate-200 flex flex-col gap-4 flex-shrink-0">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Recent Activity
-                  </h3>
-                  <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setFilterType("all")}
-                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterType === "all"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                        }`}
-                    >
-                      All
-                    </button>
-                    <button
-                      onClick={() => setFilterType("text")}
-                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterType === "text"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                        }`}
-                    >
-                      Text
-                    </button>
-                    <button
-                      onClick={() => setFilterType("file")}
-                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterType === "file"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                        }`}
-                    >
-                      File
-                    </button>
-                  </div>
+          <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-900">
+                        Recent Activity
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        {isDeleteMode ? (
+                            <>
+                                <button onClick={() => setShowMoveModal(true)} disabled={selectedIds.size === 0} className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                                    Move ({selectedIds.size})
+                                </button>
+                                <button onClick={handleBulkDelete} disabled={isDeleting || selectedIds.size === 0} className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                                    Delete ({selectedIds.size})
+                                </button>
+                                <button onClick={() => setIsDeleteMode(false)} className="px-3 py-1.5 text-xs font-medium rounded-md bg-slate-200 text-slate-700 hover:bg-slate-300">
+                                    Done
+                                </button>
+                            </>
+                        ) : (
+                            <button onClick={() => setIsDeleteMode(true)} className="text-slate-500 hover:text-indigo-600 transition-colors px-2 py-1 text-xs font-medium flex items-center gap-1">
+                                <CheckSquare className="h-4 w-4" />
+                                Select
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  {isDeleteMode ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (selectedIds.size > 0) {
-                          setShowMoveModal(true);
-                        }
-                      }}
-                      disabled={selectedIds.size === 0}
-                      className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-400"
-                    >
-                      Move ({selectedIds.size})
-                    </button>
-
-                    {selectedIds.size > 0 && (
-                      <button
-                        onClick={handleBulkDelete}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50"
-                      >
-                        {isDeleting ? "..." : `Delete (${selectedIds.size})`}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setIsDeleteMode(false)}
-                      className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    >
-                      Done
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsDeleteMode(true)}
-                    className="text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1 text-xs font-medium flex items-center gap-1"
-                    title="Manage items"
-                  >
-                    <CheckSquare className="h-4 w-4" />
-                    Select
-                  </button>
-                )}
-                {isDeleteMode && (
-                  <button
-                    onClick={handleSelectAll}
-                    className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
-                  >
-                    {selectedIds.size === filteredSummaries.length && filteredSummaries.length > 0 ? (
-                      <CheckSquare className="h-4 w-4" />
-                    ) : (
-                      <Square className="h-4 w-4" />
-                    )}
-                  </button>
-                )}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="relative w-full sm:max-w-xs">
+                        <input
+                        type="text"
+                        placeholder="Search summaries..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <div className="flex items-center bg-slate-100 rounded-lg p-1">
+                        <button onClick={() => setFilterType("all")} className={`px-3 py-1 text-xs font-medium rounded-md ${filterType === "all" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"}`}>All</button>
+                        <button onClick={() => setFilterType("text")} className={`px-3 py-1 text-xs font-medium rounded-md ${filterType === "text" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"}`}>Text</button>
+                        <button onClick={() => setFilterType("file")} className={`px-3 py-1 text-xs font-medium rounded-md ${filterType === "file" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"}`}>File</button>
+                    </div>
                 </div>
-              </div>
-              {/* Search Bar */}
-              <div className="relative w-full sm:max-w-md">
-                <input
-                  type="text"
-                  placeholder="Search summaries by name, content, or user..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2" />
-              </div>
             </div>
-            <div className="py-4 px-6 lg:overflow-y-auto lg:flex-1 lg:min-h-0">
+            
+            <div className="p-6 lg:overflow-y-auto lg:max-h-[calc(100vh-550px)]">
                   {isLoading && !hasLoadedOnce ? (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                      <span className="ml-3 text-slate-500">Loading data...</span>
-                    </div>
-                  ) : summaries.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                      <div className="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                        <MessageSquare className="h-6 w-6 text-slate-400" />
-                      </div>
-                      <p className="text-slate-900 font-medium">No results found</p>
-                      <p className="text-sm text-slate-500 mt-1 max-w-xs">
-                        Start by summarizing text or uploading a file above.
-                      </p>
-                    </div>
+                    <div className="text-center py-20"><Loader2 className="h-8 w-8 mx-auto animate-spin text-indigo-600" /></div>
                   ) : filteredSummaries.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                      <div className="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                        <Folder className="h-6 w-6 text-slate-400" />
-                      </div>
-                      <p className="text-slate-900 font-medium">No matching records found</p>
-                      <p className="text-sm text-slate-500 mt-1 max-w-xs">
-                        Check your folders just in case, or try a different filter.
-                      </p>
+                    <div className="text-center py-20">
+                      <Folder className="h-12 w-12 mx-auto text-slate-300" />
+                      <p className="mt-4 font-medium text-slate-800">No summaries found</p>
+                      <p className="mt-1 text-sm text-slate-500">{searchQuery ? "Try a different search." : "Create a new summary above."}</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {filteredSummaries.slice(0, 50).map((summary) => ( // limit to 50 for performance
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {filteredSummaries.map((summary) => (
                         <div
                           key={summary.id}
-                          className={`group relative bg-white border rounded-lg px-4 py-3 hover:shadow-md transition-all cursor-pointer flex flex-col gap-1 ${isDeleteMode && selectedIds.has(summary.id)
-                            ? "border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10"
-                            : newlyAddedId === summary.id
-                              ? "animate-pulse-soft border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/20"
-                              : "border-slate-200 hover:border-indigo-300"
-                            }`}
-                          onClick={() => {
-                            if (!isDeleteMode) {
-                              handlePreviewSummary(summary);
-                            } else {
-                              handleToggleSelect(summary.id);
-                            }
-                          }}
+                          className={`group relative bg-white border rounded-lg p-4 transition-all flex flex-col ${isDeleteMode ? 'cursor-pointer' : ''} ${selectedIds.has(summary.id) ? "border-indigo-500 ring-2 ring-indigo-500/50" : "border-slate-200 hover:shadow-md hover:border-indigo-300"}`}
+                          onClick={() => isDeleteMode && handleToggleSelect(summary.id)}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              {isDeleteMode && (
-                                <button
-                                  className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(summary.id) ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white hover:border-indigo-400"
-                                    }`}
-                                >
-                                  {selectedIds.has(summary.id) && <CheckSquare className="h-3 w-3" />}
-                                </button>
-                              )}
-                              <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${summary.type === "file" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
-                                }`}>
-                                {summary.type === "file" ? <FileText className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
-                              </div>
-                            </div>
-
-                            {!isDeleteMode && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadSummary(summary);
-                                }}
-                                className="text-slate-400 hover:text-indigo-600 p-1 rounded-md hover:bg-slate-100 transition-colors opacity-0 group-hover:opacity-100"
-                                title="Download"
-                              >
-                                <Download className="h-4 w-4" />
-                              </button>
+                            {isDeleteMode && (
+                                <div className={`absolute top-3 right-3 h-5 w-5 rounded border flex items-center justify-center transition-colors ${selectedIds.has(summary.id) ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"}`}>
+                                    {selectedIds.has(summary.id) && <CheckSquare className="h-3 w-3" />}
+                                </div>
                             )}
-                          </div>
-
-                          <div className="flex-1 min-w-0 pt-0.5">
-                            <h4 className="text-sm font-semibold text-slate-900 break-words line-clamp-2">
-                              {summary.type === "file"
-                                ? summary.documentName || summary.filename || summary.content || "File Summary"
-                                : summary.textName || "Untitled Summary"}
-                            </h4>
-                            <p className="text-[10px] text-slate-400 mb-1 flex items-center gap-1.5">
-                              <span className="font-medium text-slate-500">{summary.userName}</span>
-                              <span className="text-slate-300">•</span>
-                              <span>{formatDate(summary.createdAt)}</span>
+                            <div className="flex items-start gap-3"  onClick={() => !isDeleteMode && handlePreviewSummary(summary)}>
+                                <div className={`mt-1 h-8 w-8 rounded-lg flex-shrink-0 flex items-center justify-center ${summary.type === 'file' ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                                    {summary.type === 'file' ? <FileText className="h-4 w-4 text-purple-600" /> : <MessageSquare className="h-4 w-4 text-blue-600" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-semibold text-slate-800 break-words line-clamp-2 cursor-pointer">
+                                    {summary.type === "file" ? summary.documentName || summary.filename : summary.textName || "Untitled"}
+                                    </h4>
+                                    <p className="text-xs text-slate-500">{formatDate(summary.createdAt)}</p>
+                                </div>
+                            </div>
+                            <p className="mt-3 text-sm text-slate-600 line-clamp-3 flex-1">
+                                {summary.summary}
                             </p>
-                            <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                              {summary.summary}
-                            </p>
-                          </div>
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                               <div className="flex items-center gap-2">
+                                    <p className="text-xs text-slate-500">by {summary.userName}</p>
+                               </div>
+                               <button
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadSummary(summary); }}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Download"
+                                >
+                                    <Download className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                       ))}
                     </div>
                   )}
-              {filteredSummaries.length > 50 && (
-                <div className="pt-4 text-center border-t border-slate-100">
-                  <span className="text-xs text-slate-400">Showing 50 of {filteredSummaries.length} recent items</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Move to Folder Modal */}
       <SaveLocationModal
         isOpen={showMoveModal}
         onClose={() => setShowMoveModal(false)}
@@ -973,47 +778,28 @@ export function SummarizeSection() {
         summaries={summaries}
       />
 
-      {/* Delete Confirmation Modal */}
-      {
-        showDeleteConfirm && (
-          <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 z-[60] flex items-center justify-center" style={{ margin: 0, padding: 0, width: '100vw', height: '100vh' }}>
-            {/* Simple inline modal implementation for admin */}
-            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full m-4 p-6 animate-in zoom-in-95 duration-200">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Deletion</h3>
-              <p className="text-slate-600 mb-6">Are you sure you want to delete {selectedIds.size} selected item(s)? This action cannot be undone.</p>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-in zoom-in-95">
+              <h3 className="text-lg font-bold text-slate-900">Confirm Deletion</h3>
+              <p className="text-slate-600 my-4">Delete {selectedIds.size} item(s)? This cannot be undone.</p>
               <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg shadow-sm"
-                >
-                  Delete
-                </button>
+                <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 font-medium hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button onClick={handleConfirmDelete} className="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg shadow-sm">Delete</button>
               </div>
             </div>
-          </div>
-        )
-      }
-      {/* Preview Modal */}
-      {
-        isPreviewOpen && previewSummary && (
-          <SummaryPreviewModal
+        </div>
+      )}
+
+      {isPreviewOpen && previewSummary && (
+        <SummaryPreviewModal
             isOpen={isPreviewOpen}
-            onClose={() => {
-              setIsPreviewOpen(false);
-            }}
+            onClose={() => setIsPreviewOpen(false)}
             summary={previewSummary}
             onDownload={() => handleDownloadSummary(previewSummary)}
-          />
-        )
-      }
+        />
+      )}
 
-      {/* Chat Interface - Only visible in Summarize section */}
       <ChatInterface />
     </div>
   );

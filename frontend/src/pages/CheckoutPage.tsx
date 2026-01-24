@@ -12,6 +12,8 @@ import {
   Shield,
   Star,
   AlertCircle,
+  Check,
+  Lock
 } from "lucide-react";
 import { apiClient } from "../lib/authClient";
 import { StripeCardElement } from "../components/StripeCardElement";
@@ -43,8 +45,8 @@ const iconMap: Record<string, typeof Zap> = {
 
 const colorMap: Record<string, string> = {
   "Starter Boost": "blue",
-  "Pro Power": "purple",
-  "Enterprise Scale": "indigo",
+  "Pro Power": "indigo",
+  "Enterprise Scale": "purple",
 };
 
 const countryOptions = [
@@ -83,12 +85,12 @@ export function CheckoutPage() {
     city?: string;
   }>({});
 
-  // Update email when user object is available
   useEffect(() => {
     if (user?.email) {
       setEmail(user.email);
     }
   }, [user]);
+  
   const [country, setCountry] = useState("US");
   const [otherCountry, setOtherCountry] = useState("");
   const [state, setState] = useState("");
@@ -97,14 +99,12 @@ export function CheckoutPage() {
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
 
-  // Check for payment success in URL params
   useEffect(() => {
     const paymentSuccess = searchParams.get("payment_success");
     if (paymentSuccess === "true") {
       toast.success("Payment successful! Your package has been activated.", {
         duration: 5000,
       });
-      // Clean up URL
       navigate(`/checkout/${packageId}`, { replace: true });
     }
   }, [searchParams, navigate, packageId]);
@@ -126,7 +126,6 @@ export function CheckoutPage() {
           return;
         }
 
-        // Map backend package to frontend format
         const mappedPackage: CheckoutPackage = {
           ...pkg,
           icon: iconMap[pkg.name] || Zap,
@@ -146,13 +145,11 @@ export function CheckoutPage() {
     fetchPackage();
   }, [packageId, navigate]);
 
-  // Email validation helper
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  // Check if all required fields are filled and valid
   const normalizedOtherCountry = otherCountry.trim().toUpperCase();
   const selectedCountry =
     country === "OTHER" ? normalizedOtherCountry : country;
@@ -185,7 +182,6 @@ export function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create payment intent
       const paymentIntentResponse = await apiClient.post<{
         clientSecret: string;
         paymentIntentId: string;
@@ -205,7 +201,6 @@ export function CheckoutPage() {
 
       const { clientSecret, paymentIntentId } = paymentIntentResponse.data;
 
-      // Step 2: Confirm payment with Stripe
       const cardElement = elements.getElement("cardNumber");
       if (!cardElement) {
         throw new Error("Card element not found");
@@ -243,7 +238,6 @@ export function CheckoutPage() {
       }
 
       if (paymentIntent?.status === "succeeded") {
-        // Step 3: Confirm payment in backend (fire and forget, don't wait)
         apiClient
           .post("/Payment/confirm", {
             paymentIntentId: paymentIntentId,
@@ -251,20 +245,18 @@ export function CheckoutPage() {
           })
           .catch((err) => console.error("Backend confirmation error:", err));
 
-        // Step 4: Update user limit in frontend
         if (checkoutPackage.summaryLimit) {
           updateUserLimit(checkoutPackage.summaryLimit);
         }
 
-        // Step 5: Show success and reset state
         toast.success(
-          `Payment successful! Your ${checkoutPackage.name} package has been activated.`,
+          `Success! You are now subscribed to ${checkoutPackage.name}.`,
           {
-            duration: 3000,
+            duration: 4000,
+            icon: '🎉',
           }
         );
 
-        // Step 6: Reset processing and navigate
         setIsProcessing(false);
         navigate("/dashboard", { replace: true });
       } else {
@@ -290,491 +282,249 @@ export function CheckoutPage() {
 
   if (loading || !checkoutPackage) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-white">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-slate-900">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-white dark:bg-slate-900">
-      {/* Left Side - Order Summary (Dark) */}
-      <div className="bg-slate-900 dark:bg-slate-800 text-white p-4 sm:p-6 lg:p-8 w-full lg:w-2/5 lg:fixed lg:left-0 lg:top-0 lg:h-full flex flex-col border-r border-slate-700 dark:border-slate-700">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/packages")}
-          disabled={isProcessing}
-          className="flex items-center text-slate-400 hover:text-white mb-4 sm:mb-6 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          <span className="text-sm">Back</span>
-        </button>
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white dark:bg-slate-900">
+      {/* Left Side - Order Summary (Styled Dark/Brand) */}
+      <div className="bg-slate-900 dark:bg-black text-white p-6 lg:p-12 w-full lg:w-[45%] lg:min-h-screen flex flex-col border-r border-slate-800 relative overflow-hidden">
+        {/* Decorative background element */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        
+        <div className="relative z-10">
+           <button
+             onClick={() => navigate("/packages")}
+             disabled={isProcessing}
+             className="flex items-center text-slate-400 hover:text-white mb-8 transition-colors group"
+           >
+             <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+             <span className="text-sm font-medium">Back to packages</span>
+           </button>
 
-        {/* Package Title */}
-        <div className="mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-semibold mb-2">
-            Subscribe to {checkoutPackage.name}
-          </h2>
-          <p className="text-2xl sm:text-3xl font-bold">
-            {checkoutPackage.priceFormatted}
-            <span className="text-xs sm:text-sm font-normal text-slate-400 ml-2">
-              {checkoutPackage.priceType}
-            </span>
-          </p>
-        </div>
+           <div className="mb-8">
+             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold mb-4 border border-indigo-500/30">
+                <Star className="h-3 w-3 fill-indigo-300" />
+                Selected Plan
+             </div>
+             <h2 className="text-3xl lg:text-4xl font-bold mb-2 tracking-tight">
+               {checkoutPackage.name}
+             </h2>
+             <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-bold text-white">{checkoutPackage.priceFormatted}</span>
+                <span className="text-slate-400 font-medium">/ {checkoutPackage.priceType}</span>
+             </div>
+           </div>
 
-        {/* Package Details */}
-        <div className="mb-4 sm:mb-6 flex-1">
-          <div className="flex items-start mb-4 sm:mb-6">
-            <div
-              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center mr-3 sm:mr-4 flex-shrink-0 ${
-                checkoutPackage.color === "blue"
-                  ? "bg-blue-600"
-                  : checkoutPackage.color === "purple"
-                  ? "bg-purple-600"
-                  : checkoutPackage.color === "indigo"
-                  ? "bg-indigo-600"
-                  : "bg-slate-600"
-              }`}
-            >
-              <checkoutPackage.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm sm:text-base mb-1">
-                {checkoutPackage.name}
-              </h3>
-              <p className="text-slate-400 text-xs sm:text-sm mb-1">
-                {checkoutPackage.description}
-              </p>
-              <p className="text-slate-500 text-xs">One-time payment</p>
-            </div>
-            <div className="text-right flex-shrink-0 ml-2">
-              <p className="font-semibold text-xs sm:text-sm">
-                {checkoutPackage.priceFormatted}
-              </p>
-            </div>
-          </div>
+           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 mb-8">
+             <h3 className="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">What's included</h3>
+             <ul className="space-y-3">
+               {checkoutPackage.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3 text-slate-200">
+                     <Check className="h-5 w-5 text-indigo-400 flex-shrink-0" />
+                     <span className="text-sm">{feature}</span>
+                  </li>
+               ))}
+             </ul>
+           </div>
 
-          {/* Summary */}
-          <div className="border-t border-slate-700 pt-4 sm:pt-6 space-y-2 sm:space-y-3">
-            <div className="flex justify-between text-xs sm:text-sm">
-              <span className="text-slate-400">Subtotal</span>
-              <span>{checkoutPackage.priceFormatted}</span>
-            </div>
-            <div className="flex justify-between text-xs sm:text-sm">
-              <div className="flex items-center">
-                <span className="text-slate-400">Tax</span>
-                <Info className="h-3 w-3 ml-1 text-slate-500" />
-              </div>
-              <span>$0.00</span>
-            </div>
-            <div className="flex justify-between text-sm sm:text-base font-semibold pt-2 sm:pt-3 border-t border-slate-700">
-              <span>Total due today</span>
-              <span>{checkoutPackage.priceFormatted}</span>
-            </div>
-          </div>
+           <div className="mt-auto pt-8 border-t border-slate-800">
+             <div className="flex justify-between items-center text-lg font-semibold">
+               <span>Total due today</span>
+               <span>{checkoutPackage.priceFormatted}</span>
+             </div>
+           </div>
         </div>
       </div>
 
-      {/* Right Side - Payment Form (Light) - Scrollable */}
-      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 lg:p-8 w-full lg:w-3/5 lg:ml-[40%] min-h-screen lg:h-full lg:overflow-y-auto">
-        <form
-          onSubmit={handlePayment}
-          className="max-w-2xl w-full space-y-4 sm:space-y-6"
-        >
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4 flex items-start">
-              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 dark:text-red-400 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
-              <p className="text-xs sm:text-sm text-red-800 dark:text-red-200">
-                {error}
-              </p>
-            </div>
-          )}
+      {/* Right Side - Payment Form (Modern Light/Dark) */}
+      <div className="flex-1 bg-white dark:bg-slate-900 p-6 lg:p-12 lg:overflow-y-auto">
+        <div className="max-w-xl mx-auto">
+           <div className="mb-8">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Complete your purchase</h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Fill in your details below to activate your account upgrade.</p>
+           </div>
 
-          {/* Contact Information */}
-          <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
-              Contact information
-            </h3>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              readOnly
-              required
-              disabled={isProcessing}
-              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-not-allowed"
-            />
-          </div>
+           <form onSubmit={handlePayment} className="space-y-6">
+             {error && (
+               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                 <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                 <p className="text-sm text-red-800 dark:text-red-200 font-medium">{error}</p>
+               </div>
+             )}
 
-          {/* Payment Method */}
-          <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
-              Payment method
-            </h3>
-            <div className="space-y-2">
-              <label className="flex items-center p-2 sm:p-3 border-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg cursor-pointer transition-all">
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="card"
-                  checked={true}
-                  readOnly
-                  className="mr-2"
-                  disabled={isProcessing}
-                />
-                <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-slate-600 dark:text-slate-300" />
-                <span className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100">
-                  Card
-                </span>
-              </label>
-            </div>
+             <div className="space-y-4">
+               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                 Contact & Billing
+               </h3>
+               
+               <div className="grid gap-4">
+                  <div>
+                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
+                     <input
+                       type="email"
+                       value={email}
+                       readOnly
+                       className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-sm cursor-not-allowed"
+                     />
+                  </div>
 
-            {/* Stripe Card Element */}
-            <div className="mt-4">
-              <StripeCardElement
-                onCardChange={(complete, brand) => setCardComplete(complete)}
-                disabled={isProcessing}
-              />
-            </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                     <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">First Name</label>
+                        <input
+                          type="text"
+                          placeholder="Jane"
+                          required
+                          disabled={isProcessing}
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Last Name</label>
+                        <input
+                          type="text"
+                          placeholder="Doe"
+                          required
+                          disabled={isProcessing}
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                     </div>
+                  </div>
+               </div>
+             </div>
 
-            {/* Cardholder Name */}
-            <div className="mt-3 sm:mt-4">
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Cardholder name
-              </label>
-              <input
-                type="text"
-                placeholder="Full name on card"
-                value={cardholderName}
-                onChange={(e) => {
-                  // Only allow letters, spaces, hyphens, and apostrophes
-                  const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
-                  setCardholderName(value);
-                  if (fieldErrors.cardholderName) {
-                    setFieldErrors((prev) => ({
-                      ...prev,
-                      cardholderName: undefined,
-                    }));
-                  }
-                }}
-                onBlur={() => {
-                  if (cardholderName.trim().length < 2) {
-                    setFieldErrors((prev) => ({
-                      ...prev,
-                      cardholderName:
-                        "Cardholder name must be at least 2 characters",
-                    }));
-                  }
-                }}
-                required
-                disabled={isProcessing}
-                className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  isProcessing
-                    ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                    : fieldErrors.cardholderName
-                    ? "border-red-300 dark:border-red-600"
-                    : "border-slate-300 dark:border-slate-600"
-                }`}
-              />
-              {fieldErrors.cardholderName && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                  {fieldErrors.cardholderName}
-                </p>
-              )}
-            </div>
-          </div>
+             <div className="space-y-4">
+               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider pt-2">
+                 Payment Method
+               </h3>
+               
+               <div className="border rounded-xl border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                     <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg text-indigo-600 dark:text-indigo-400">
+                        <CreditCard className="h-5 w-5" />
+                     </div>
+                     <span className="font-semibold text-slate-900 dark:text-white text-sm">Credit or Debit Card</span>
+                  </div>
+                  
+                  <div className="space-y-4">
+                     <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Card Information</label>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg p-3">
+                           <StripeCardElement
+                             onCardChange={(complete) => setCardComplete(complete)}
+                             disabled={isProcessing}
+                           />
+                        </div>
+                     </div>
+                     
+                     <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Cardholder Name</label>
+                        <input
+                          type="text"
+                          value={cardholderName}
+                          onChange={(e) => setCardholderName(e.target.value)}
+                          placeholder="Name as displayed on card"
+                          required
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                     </div>
+                  </div>
+               </div>
+             </div>
 
-          {/* Billing Address */}
-          <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
-              Billing address
-            </h3>
-            <div className="space-y-3 sm:space-y-4">
-              <div>
-                <select
-                  value={country}
-                  onChange={(e) => {
-                    setCountry(e.target.value);
-                    if (fieldErrors.country) {
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        country: undefined,
-                      }));
-                    }
-                  }}
-                  disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                      : "border-slate-300 dark:border-slate-600"
-                  }`}
-                >
-                  {countryOptions.map((option) => (
-                    <option key={option.code} value={option.code}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {country === "OTHER" && (
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Country code (2 letters)"
-                    value={otherCountry}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/[^a-zA-Z]/g, "");
-                      setOtherCountry(value);
-                      if (fieldErrors.country) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          country: undefined,
-                        }));
-                      }
-                    }}
-                    onBlur={() => {
-                      if (!/^[A-Z]{2}$/.test(normalizedOtherCountry)) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          country: "Use a 2-letter country code",
-                        }));
-                      }
-                    }}
-                    required
-                    disabled={isProcessing}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isProcessing
-                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                        : fieldErrors.country
-                        ? "border-red-300 dark:border-red-600"
-                        : "border-slate-300 dark:border-slate-600"
-                    }`}
-                  />
-                  {fieldErrors.country && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {fieldErrors.country}
-                    </p>
-                  )}
-                </div>
-              )}
-              <div>
-                <input
-                  type="text"
-                  placeholder="Address line 1"
-                  value={addressLine1}
-                  onChange={(e) => {
-                    setAddressLine1(e.target.value);
-                    if (fieldErrors.addressLine1) {
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        addressLine1: undefined,
-                      }));
-                    }
-                  }}
-                  onBlur={() => {
-                    if (addressLine1.trim().length < 5) {
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        addressLine1: "Address must be at least 5 characters",
-                      }));
-                    }
-                  }}
-                  required
-                  disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                      : fieldErrors.addressLine1
-                      ? "border-red-300 dark:border-red-600"
-                      : "border-slate-300 dark:border-slate-600"
-                  }`}
-                />
-                {fieldErrors.addressLine1 && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {fieldErrors.addressLine1}
-                  </p>
+             <div className="space-y-4">
+               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider pt-2">
+                 Billing Address
+               </h3>
+               
+               <div className="grid gap-4">
+                  <div>
+                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Country</label>
+                     <select
+                       value={country}
+                       onChange={(e) => setCountry(e.target.value)}
+                       className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                     >
+                        {countryOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                     </select>
+                  </div>
+                  
+                  <div>
+                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Address</label>
+                     <input
+                       type="text"
+                       value={addressLine1}
+                       onChange={(e) => setAddressLine1(e.target.value)}
+                       placeholder="123 Main St"
+                       required
+                       className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">City</label>
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          required
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Postal Code</label>
+                        <input
+                          type="text"
+                          value={postalCode}
+                          onChange={(e) => setPostalCode(e.target.value)}
+                          required
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                     </div>
+                  </div>
+                  
+                  <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">State / Province</label>
+                        <input
+                          type="text"
+                          value={state}
+                          onChange={(e) => setState(e.target.value)}
+                          required
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                   </div>
+               </div>
+             </div>
+
+             <Button
+                type="submit"
+                disabled={isProcessing || !isFormValid}
+                className="w-full py-4 text-base bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none mt-6 transition-all transform active:scale-[0.99]"
+             >
+                {isProcessing ? (
+                   <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Processing Secure Payment...
+                   </>
+                ) : (
+                   <div className="flex items-center justify-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      Pay {checkoutPackage.priceFormatted}
+                   </div>
                 )}
-              </div>
-              <div>
-                <input
-                  type="text"
-                  placeholder="Address line 2 (optional)"
-                  value={addressLine2}
-                  onChange={(e) => setAddressLine2(e.target.value)}
-                  disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                      : "border-slate-300 dark:border-slate-600"
-                  }`}
-                />
-              </div>
-              <div>
-                <input
-                  type="text"
-                  placeholder="State / Province"
-                  value={state}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
-                    setState(value);
-                    if (fieldErrors.state) {
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        state: undefined,
-                      }));
-                    }
-                  }}
-                  onBlur={() => {
-                    if (state.trim().length < 2) {
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        state:
-                          "State or province must be at least 2 characters",
-                      }));
-                    }
-                  }}
-                  required
-                  disabled={isProcessing}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    isProcessing
-                      ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                      : fieldErrors.state
-                      ? "border-red-300 dark:border-red-600"
-                      : "border-slate-300 dark:border-slate-600"
-                  }`}
-                />
-                {fieldErrors.state && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {fieldErrors.state}
-                  </p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Postal code"
-                    value={postalCode}
-                    onChange={(e) => {
-                      // Only allow numbers
-                      const value = e.target.value.replace(/[^0-9]/g, "");
-                      setPostalCode(value);
-                      if (fieldErrors.postalCode) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          postalCode: undefined,
-                        }));
-                      }
-                    }}
-                    onBlur={() => {
-                      if (postalCode.trim().length < 4) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          postalCode: "Postal code must be at least 4 digits",
-                        }));
-                      }
-                    }}
-                    required
-                    disabled={isProcessing}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isProcessing
-                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                        : fieldErrors.postalCode
-                        ? "border-red-300 dark:border-red-600"
-                        : "border-slate-300 dark:border-slate-600"
-                    }`}
-                  />
-                  {fieldErrors.postalCode && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {fieldErrors.postalCode}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="City"
-                    value={city}
-                    onChange={(e) => {
-                      // Only allow letters, spaces, hyphens, and apostrophes
-                      const value = e.target.value.replace(
-                        /[^a-zA-Z\s'-]/g,
-                        ""
-                      );
-                      setCity(value);
-                      if (fieldErrors.city) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          city: undefined,
-                        }));
-                      }
-                    }}
-                    onBlur={() => {
-                      if (city.trim().length < 2) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          city: "City must be at least 2 characters",
-                        }));
-                      }
-                    }}
-                    required
-                    disabled={isProcessing}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isProcessing
-                        ? "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60"
-                        : fieldErrors.city
-                        ? "border-red-300 dark:border-red-600"
-                        : "border-slate-300 dark:border-slate-600"
-                    }`}
-                  />
-                  {fieldErrors.city && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {fieldErrors.city}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Save Information */}
-          <div className="flex items-start">
-            <input
-              type="checkbox"
-              id="saveInfo"
-              className="mt-1 mr-2"
-              disabled={isProcessing}
-            />
-            <label
-              htmlFor="saveInfo"
-              className="text-xs text-slate-600 dark:text-slate-400"
-            >
-              Save my information for faster checkout
-            </label>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Pay securely at Smart Knowledge Base and everywhere Stripe is
-            accepted.
-          </p>
-
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            disabled={isProcessing || !isFormValid}
-            className="w-full py-2.5 sm:py-3 text-xs sm:text-sm bg-slate-900 hover:bg-slate-800 text-white font-semibold mt-3 sm:mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                Processing Payment...
-              </>
-            ) : (
-              `Pay ${checkoutPackage.priceFormatted}`
-            )}
-          </Button>
-        </form>
+             </Button>
+             
+             <div className="text-center text-xs text-slate-400 dark:text-slate-500 mt-4 flex items-center justify-center gap-2">
+                <Shield className="h-3 w-3" />
+                <span>Your payment information is encrypted and secure.</span>
+             </div>
+           </form>
+        </div>
       </div>
     </div>
   );
