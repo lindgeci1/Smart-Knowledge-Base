@@ -56,6 +56,7 @@ interface FolderSidebarProps {
   variant?: "default" | "admin";
   enableDragDrop?: boolean;
   enableSelectMove?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 function SummaryItem({
@@ -354,6 +355,7 @@ export function FolderSidebar({
   variant = "default",
   enableDragDrop = false,
   enableSelectMove = false,
+  onCollapsedChange,
 }: FolderSidebarProps) {
   const { folders, deleteFolder, fetchFolders } = useFolders();
 
@@ -376,6 +378,11 @@ export function FolderSidebar({
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [isMovingToFolder, setIsMovingToFolder] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    onCollapsedChange?.(isSidebarCollapsed);
+  }, [isSidebarCollapsed, onCollapsedChange]);
 
   // Configure sensors for better drag experience
   const sensors = useSensors(
@@ -705,8 +712,8 @@ export function FolderSidebar({
   // Define styles based on variant
   const containerStyles =
     variant === "admin"
-      ? "h-full bg-slate-50 p-4 sm:p-6 space-y-4 relative"
-      : "bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4 relative";
+      ? `h-full bg-slate-50 p-4 sm:p-6 relative ${isSidebarCollapsed ? "space-y-0" : "space-y-4"}`
+      : `bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative ${isSidebarCollapsed ? "space-y-0" : "space-y-4"}`;
 
   const headerStyles =
     variant === "admin"
@@ -752,56 +759,77 @@ export function FolderSidebar({
       <div className={headerStyles}>
         <h3 className={titleStyles}>Folders</h3>
         <div className="flex items-center gap-2">
+          {!isSidebarCollapsed && (
+            <>
+              <button
+                onClick={async () => {
+                  setIsRefreshing(true);
+                  try {
+                    await fetchFolders();
+                    if (onRefresh) onRefresh();
+                  } finally {
+                    setIsRefreshing(false);
+                  }
+                }}
+                className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-60"
+                disabled={isRefreshing}
+                title="Refresh folders"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                disabled={folders.length >= 7}
+                className={`p-2 rounded-xl transition ${
+                  folders.length >= 7
+                    ? "text-slate-400 cursor-not-allowed opacity-50"
+                    : "hover:bg-blue-100 text-blue-600"
+                }`}
+                title={
+                  folders.length >= 7
+                    ? "Maximum number of folders reached"
+                    : "Create new folder"
+                }
+              >
+                <Plus size={20} />
+              </button>
+            </>
+          )}
+
           <button
-            onClick={async () => {
-              setIsRefreshing(true);
-              try {
-                await fetchFolders();
-                if (onRefresh) onRefresh();
-              } finally {
-                setIsRefreshing(false);
-              }
-            }}
-            className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-60"
-            disabled={isRefreshing}
-            title="Refresh folders"
+            type="button"
+            className="p-1 rounded-md hover:bg-slate-100 text-slate-600"
+            onClick={() => setIsSidebarCollapsed((v) => !v)}
+            aria-expanded={!isSidebarCollapsed}
+            aria-label={isSidebarCollapsed ? "Expand folders" : "Collapse folders"}
+            title={isSidebarCollapsed ? "Expand" : "Collapse"}
           >
-            <RefreshCw
-              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            disabled={folders.length >= 7}
-            className={`p-2 rounded-xl transition ${
-              folders.length >= 7
-                ? "text-slate-400 cursor-not-allowed opacity-50"
-                : "hover:bg-blue-100 text-blue-600"
-            }`}
-            title={
-              folders.length >= 7
-                ? "Maximum number of folders reached"
-                : "Create new folder"
-            }
-          >
-            <Plus size={20} />
+            {isSidebarCollapsed ? (
+              <ChevronRight className="h-5 w-5 text-slate-500" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-500" />
+            )}
           </button>
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Search folders and summaries..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-        />
-      </div>
+      {!isSidebarCollapsed && (
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search folders and summaries..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            />
+          </div>
 
-      {enableSelectMove && (
-        <div className="flex items-center gap-2 flex-wrap">
+          {enableSelectMove && (
+          <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => {
               setIsSelectMode((prev) => {
@@ -846,25 +874,25 @@ export function FolderSidebar({
       )}
 
       <div className="space-y-2">
-        {/* All Items - Root */}
-        <div
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${
-            selectedFolder === null
-              ? "bg-slate-100 text-slate-900 border border-slate-300"
-              : "text-slate-900 hover:bg-slate-50 border border-transparent"
-          }`}
-          onClick={() => {
-            onSelectFolder(null);
-            setExpandedFolders(new Set());
-            setIsCollapsed((prev) => !prev);
-          }}
-        >
-          <Folder size={18} className="text-slate-700" />
-          <span className="flex-1">All Items</span>
-          <span className="text-xs text-slate-600">
-            {isCollapsed ? "Show" : "Hide"}
-          </span>
-        </div>
+            {/* All Items - Root */}
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${
+                selectedFolder === null
+                  ? "bg-slate-100 text-slate-900 border border-slate-300"
+                  : "text-slate-900 hover:bg-slate-50 border border-transparent"
+              }`}
+              onClick={() => {
+                onSelectFolder(null);
+                setExpandedFolders(new Set());
+                setIsCollapsed((prev) => !prev);
+              }}
+            >
+              <Folder size={18} className="text-slate-700" />
+              <span className="flex-1">All Items</span>
+              <span className="text-xs text-slate-600">
+                {isCollapsed ? "Show" : "Hide"}
+              </span>
+            </div>
 
         {/* Folders List */}
         {!isCollapsed && (
@@ -939,6 +967,8 @@ export function FolderSidebar({
           </>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 
