@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   CreditCard,
   Loader2,
-  Info,
   Zap,
   Shield,
   Star,
@@ -75,6 +74,8 @@ export function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState(user?.email || "");
   const [cardholderName, setCardholderName] = useState("");
+  
+  // Validation State
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
     cardholderName?: string;
@@ -83,6 +84,7 @@ export function CheckoutPage() {
     addressLine1?: string;
     postalCode?: string;
     city?: string;
+    card?: string;
   }>({});
 
   useEffect(() => {
@@ -92,7 +94,6 @@ export function CheckoutPage() {
   }, [user]);
   
   const [country, setCountry] = useState("US");
-  const [otherCountry, setOtherCountry] = useState("");
   const [state, setState] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
@@ -150,35 +151,63 @@ export function CheckoutPage() {
     return emailRegex.test(email);
   };
 
-  const normalizedOtherCountry = otherCountry.trim().toUpperCase();
-  const selectedCountry =
-    country === "OTHER" ? normalizedOtherCountry : country;
-  const isCountryValid =
-    (country !== "OTHER" && country.trim().length === 2) ||
-    (country === "OTHER" && /^[A-Z]{2}$/.test(normalizedOtherCountry));
+  const validateForm = () => {
+    const errors: typeof fieldErrors = {};
+    let isValid = true;
 
-  const isFormValid =
-    email.trim() !== "" &&
-    isValidEmail(email) &&
-    cardholderName.trim().length >= 2 &&
-    isCountryValid &&
-    state.trim().length >= 2 &&
-    addressLine1.trim().length >= 5 &&
-    postalCode.trim().length >= 4 &&
-    city.trim().length >= 2 &&
-    cardComplete &&
-    stripe !== null;
+    if (!email.trim() || !isValidEmail(email)) {
+      errors.email = "Please enter a valid email address.";
+      isValid = false;
+    }
+
+    if (cardholderName.trim().length < 2) {
+      errors.cardholderName = "Cardholder name is required.";
+      isValid = false;
+    }
+
+    if (!addressLine1.trim()) {
+      errors.addressLine1 = "Address is required.";
+      isValid = false;
+    }
+
+    if (!city.trim()) {
+      errors.city = "City is required.";
+      isValid = false;
+    }
+
+    if (!state.trim()) {
+      errors.state = "State is required.";
+      isValid = false;
+    }
+
+    if (!postalCode.trim() || postalCode.trim().length < 3) {
+      errors.postalCode = "Valid postal code is required.";
+      isValid = false;
+    }
+
+    if (!cardComplete) {
+      errors.card = "Please enter complete card details.";
+      isValid = false;
+    }
+
+    setFieldErrors(errors);
+    return isValid;
+  };
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkoutPackage || !stripe || !elements || !isFormValid) {
-      if (!isFormValid) {
-        setError("Please fill in all required fields correctly.");
-      }
+    setError(null);
+
+    // Run validation and stop if failed
+    if (!validateForm()) {
+      setError("Please fix the errors below to continue.");
       return;
     }
 
-    setError(null);
+    if (!checkoutPackage || !stripe || !elements) {
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -195,7 +224,7 @@ export function CheckoutPage() {
           city: city,
           state: state,
           postalCode: postalCode,
-          country: selectedCountry,
+          country: country,
         },
       });
 
@@ -219,7 +248,7 @@ export function CheckoutPage() {
                 city: city,
                 state: state,
                 postal_code: postalCode,
-                country: selectedCountry,
+                country: country,
               },
             },
           },
@@ -287,6 +316,14 @@ export function CheckoutPage() {
       </div>
     );
   }
+
+  // Common input class logic
+  const getInputClass = (fieldName: keyof typeof fieldErrors) => `
+    w-full px-4 py-2.5 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white
+    border ${fieldErrors[fieldName] 
+      ? "border-red-500 focus:ring-red-500 focus:border-red-500" 
+      : "border-slate-300 dark:border-slate-600 focus:ring-indigo-500 focus:border-indigo-500 focus:ring-2"}
+  `;
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white dark:bg-slate-900">
@@ -372,26 +409,17 @@ export function CheckoutPage() {
                      />
                   </div>
 
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-4">
                      <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">First Name</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Cardholder Name</label>
                         <input
                           type="text"
-                          placeholder="Jane"
-                          required
-                          disabled={isProcessing}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                          value={cardholderName}
+                          onChange={(e) => setCardholderName(e.target.value)}
+                          placeholder="Name as displayed on card"
+                          className={getInputClass('cardholderName')}
                         />
-                     </div>
-                     <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Last Name</label>
-                        <input
-                          type="text"
-                          placeholder="Doe"
-                          required
-                          disabled={isProcessing}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                        />
+                        {fieldErrors.cardholderName && <p className="text-red-500 text-xs mt-1">{fieldErrors.cardholderName}</p>}
                      </div>
                   </div>
                </div>
@@ -411,25 +439,11 @@ export function CheckoutPage() {
                   </div>
                   
                   <div className="space-y-4">
-                     <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Card Information</label>
-                        <div className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg p-3">
-                           <StripeCardElement
-                             onCardChange={(complete) => setCardComplete(complete)}
-                             disabled={isProcessing}
-                           />
-                        </div>
-                     </div>
-                     
-                     <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Cardholder Name</label>
-                        <input
-                          type="text"
-                          value={cardholderName}
-                          onChange={(e) => setCardholderName(e.target.value)}
-                          placeholder="Name as displayed on card"
-                          required
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                     <div className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg p-3">
+                        <StripeCardElement
+                          onCardChange={(complete) => setCardComplete(complete)}
+                          disabled={isProcessing}
+                          error={fieldErrors.card}
                         />
                      </div>
                   </div>
@@ -447,7 +461,7 @@ export function CheckoutPage() {
                      <select
                        value={country}
                        onChange={(e) => setCountry(e.target.value)}
-                       className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                       className={getInputClass('country')}
                      >
                         {countryOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                      </select>
@@ -460,9 +474,9 @@ export function CheckoutPage() {
                        value={addressLine1}
                        onChange={(e) => setAddressLine1(e.target.value)}
                        placeholder="123 Main St"
-                       required
-                       className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                       className={getInputClass('addressLine1')}
                      />
+                     {fieldErrors.addressLine1 && <p className="text-red-500 text-xs mt-1">{fieldErrors.addressLine1}</p>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -472,9 +486,9 @@ export function CheckoutPage() {
                           type="text"
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
-                          required
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                          className={getInputClass('city')}
                         />
+                        {fieldErrors.city && <p className="text-red-500 text-xs mt-1">{fieldErrors.city}</p>}
                      </div>
                      <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Postal Code</label>
@@ -482,9 +496,9 @@ export function CheckoutPage() {
                           type="text"
                           value={postalCode}
                           onChange={(e) => setPostalCode(e.target.value)}
-                          required
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                          className={getInputClass('postalCode')}
                         />
+                        {fieldErrors.postalCode && <p className="text-red-500 text-xs mt-1">{fieldErrors.postalCode}</p>}
                      </div>
                   </div>
                   
@@ -494,16 +508,16 @@ export function CheckoutPage() {
                           type="text"
                           value={state}
                           onChange={(e) => setState(e.target.value)}
-                          required
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                          className={getInputClass('state')}
                         />
+                        {fieldErrors.state && <p className="text-red-500 text-xs mt-1">{fieldErrors.state}</p>}
                    </div>
                </div>
              </div>
 
              <Button
                 type="submit"
-                disabled={isProcessing || !isFormValid}
+                disabled={isProcessing}
                 className="w-full py-4 text-base bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none mt-6 transition-all transform active:scale-[0.99]"
              >
                 {isProcessing ? (

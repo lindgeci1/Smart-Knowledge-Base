@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom"; // FIX: Added createPortal
 import {
   X,
   Folder,
@@ -122,9 +123,20 @@ export function SaveLocationModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-[100]" style={{ margin: 0, padding: 0, width: '100vw', height: '100vh' }}>
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full m-4 max-h-[85vh] overflow-y-auto">
+  // FIX: Used createPortal to render outside parent stacking context
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div 
+        className="
+          bg-white dark:bg-slate-800 
+          rounded-xl shadow-xl 
+          max-w-md w-full 
+          max-h-[85vh] 
+          overflow-y-auto
+          relative
+        "
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center px-5 pt-5 pb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
             Save To Folder
@@ -343,6 +355,7 @@ export function SaveLocationModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,131 +1,114 @@
-import { useState } from "react";
-import { X } from "lucide-react";
-import { Button } from "./ui/Button";
-import toast from "react-hot-toast";
-import { apiClient } from "../lib/authClient";
+import React, { useState, useEffect } from 'react';
+import { Share2, X, Mail } from 'lucide-react';
 
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
-  documentId: string;
-  documentName: string;
-  currentUserEmail?: string;
+  onConfirm: (email: string) => void;
+  documentName?: string;
+  isLoading?: boolean;
 }
 
 export function ShareModal({
   isOpen,
   onClose,
-  documentId,
+  onConfirm,
   documentName,
-  currentUserEmail,
+  isLoading = false
 }: ShareModalProps) {
-  const [email, setEmail] = useState("");
-  const [isSharing, setIsSharing] = useState(false);
+  const [email, setEmail] = useState('');
 
-  const handleShare = async () => {
-    if (!email.trim()) {
-      toast.error("Please enter an email address");
-      return;
+  useEffect(() => {
+    if (isOpen) {
+      setEmail('');
     }
+  }, [isOpen]);
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = email.trim();
 
-    // Prevent sharing with yourself
-    if (currentUserEmail && email.trim().toLowerCase() === currentUserEmail.toLowerCase()) {
-      toast.error("You cannot share a document with yourself");
-      return;
-    }
-
-    setIsSharing(true);
-    try {
-      const response = await apiClient.post(`/Documents/${documentId}/share`, {
-        email: email.trim(),
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      toast.success("Document shared successfully!");
-      setEmail("");
-      onClose();
-    } catch (error: any) {
-      console.error("Share error:", error);
-      let errorMessage = "Failed to share document";
-      
-      if (error.response?.data) {
-        if (typeof error.response.data === "string") {
-          errorMessage = error.response.data;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response.data.error) {
-          errorMessage = error.response.data.error;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
+    if (cleanEmail) {
+      // FIX: robust check to prevent "is not a function" crash
+      if (typeof onConfirm === 'function') {
+        onConfirm(cleanEmail);
+      } else {
+        console.error("ShareModal Error: The 'onConfirm' prop was not passed from the parent component.");
       }
-      
-      toast.error(errorMessage);
-    } finally {
-      setIsSharing(false);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Share Document
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div 
+        className="
+          relative 
+          w-full max-w-[85%] sm:max-w-sm 
+          bg-white dark:bg-slate-800 
+          rounded-xl shadow-2xl 
+          border border-slate-200 dark:border-slate-700 
+          transform transition-all 
+          animate-in zoom-in-95 duration-200
+          overflow-hidden
+        "
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-        <div className="p-6">
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-            Share "{documentName}" with another user
-          </p>
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-col items-center text-center gap-4">
+            <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+              <Share2 className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
 
-          <div className="mb-4">
-            <label
-              htmlFor="share-email"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"
-            >
-              Email Address
-            </label>
-            <input
-              id="share-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isSharing}
-            />
-          </div>
+            <div className="space-y-1 w-full">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                Share via Email
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 break-words">
+                {documentName 
+                  ? `Enter an email address to share "${documentName}"`
+                  : "Enter an email address to share this chat"}
+              </p>
+            </div>
 
-          <div className="flex gap-3 justify-end">
-            <Button
-              onClick={onClose}
-              variant="secondary"
-              disabled={isSharing}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleShare} disabled={isSharing}>
-              {isSharing ? "Sharing..." : "Share"}
-            </Button>
+            <form onSubmit={handleSubmit} className="w-full space-y-3">
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter email address"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!email.trim() || isLoading}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? "Sending..." : "Share"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>

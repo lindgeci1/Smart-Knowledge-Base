@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   Trash2,
@@ -10,6 +11,7 @@ import {
   FileText,
   MessageSquare,
   Search,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DndContext,
@@ -39,7 +41,7 @@ interface Summary {
   userId: string;
   userName: string;
   createdAt: string;
-  content: string; // or optional if not always needed, but UserDashboard has it required
+  content: string;
   documentName?: string;
 }
 
@@ -90,7 +92,7 @@ function SummaryItem({
       className={`flex items-center gap-2 px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-lg transition hover:bg-slate-100 ${
         isSelectable ? "cursor-pointer" : "cursor-default"
       } ${
-        newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft" : ""
+        newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft bg-blue-50 ring-1 ring-blue-200" : ""
       }`}
     >
       {isSelectable && (
@@ -150,7 +152,7 @@ function DraggableSummary({
       {...attributes}
       onClick={() => onPreviewSummary && onPreviewSummary(summary)}
       className={`flex items-center gap-2 px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-lg cursor-grab active:cursor-grabbing transition hover:bg-slate-100 ${isDragging ? "opacity-50" : ""
-        } ${newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft" : ""}`}
+        } ${newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft bg-blue-50 ring-1 ring-blue-200" : ""}`}
     >
       {summary.type === "file" ? (
         <FileText size={14} className="text-purple-600" />
@@ -408,6 +410,27 @@ export function FolderSidebar({
     }
   }, [expandFolderId, onSelectFolder]);
 
+  // FIX: Auto-expand folders that contain "glowing" items (newly moved/added)
+  useEffect(() => {
+    if (newlyMovedToFolderIds && newlyMovedToFolderIds.size > 0 && summaries.length > 0) {
+      const foldersToExpand = new Set<string>();
+      
+      summaries.forEach(summary => {
+        if (newlyMovedToFolderIds.has(summary.id) && summary.folderId) {
+          foldersToExpand.add(summary.folderId);
+        }
+      });
+
+      if (foldersToExpand.size > 0) {
+        setExpandedFolders(prev => {
+          const next = new Set(prev);
+          foldersToExpand.forEach(id => next.add(id));
+          return next;
+        });
+      }
+    }
+  }, [newlyMovedToFolderIds, summaries]);
+
   // Prevent body scroll when create folder modal is open
   useEffect(() => {
     if (showCreateModal || folderToDelete) {
@@ -424,7 +447,6 @@ export function FolderSidebar({
     if (!folderToDelete) return;
     setIsDeleting(true);
     try {
-      // Get all summaries in this folder
       const folderSummaries = summaries.filter(
         (s) => s.folderId === folderToDelete
       );
@@ -434,7 +456,6 @@ export function FolderSidebar({
         "folder";
       const movedCount = folderSummaries.length;
 
-      // Move each summary to root (no folder)
       for (const summary of folderSummaries) {
         const endpoint =
           summary.type === "text"
@@ -445,18 +466,14 @@ export function FolderSidebar({
         });
       }
 
-      // Now delete the folder
       await deleteFolder(folderToDelete);
 
-      // If the deleted folder was selected, reset to All Items
       if (selectedFolder === folderToDelete) {
         onSelectFolder(null);
       }
 
-      // Refetch folders to update counts
       await fetchFolders();
 
-      // Refresh summaries to reflect folder changes
       if (onRefresh) onRefresh();
 
       const movedText =
@@ -497,7 +514,6 @@ export function FolderSidebar({
     });
   }, []);
 
-  // Memoize folder summaries map to avoid filtering on every render
   const folderSummariesMap = useMemo(() => {
     const map = new Map<string, Summary[]>();
     summaries.forEach((s) => {
@@ -514,7 +530,6 @@ export function FolderSidebar({
     return map;
   }, [summaries]);
 
-  // Effect to expand folders on search
   useEffect(() => {
     if (!searchQuery.trim()) {
       setExpandedFolders(new Set());
@@ -548,7 +563,6 @@ export function FolderSidebar({
     }
   }, [searchQuery, folders, folderSummariesMap]);
 
-  // Get summaries for a specific folder (memoized)
   const getFolderSummaries = useCallback(
     (folderId: string) => {
       return folderSummariesMap.get(folderId) || [];
@@ -556,7 +570,6 @@ export function FolderSidebar({
     [folderSummariesMap]
   );
 
-  // Handle drag end
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -572,7 +585,6 @@ export function FolderSidebar({
     };
     const overData = over.data.current as { type?: string; folderId?: string };
 
-    // Only handle summary to folder drops
     if (activeData?.type === "summary" && overData?.type === "folder") {
       const summaryId = activeData.summaryId;
       const summaryType = activeData.summaryType;
@@ -580,7 +592,6 @@ export function FolderSidebar({
       const movedSummary = summaries.find((s) => s.id === summaryId);
       const sourceFolderId = movedSummary?.folderId || null;
 
-      // Skip if moving to the same folder
       if (sourceFolderId === targetFolderId) {
         setActiveId(null);
         return;
@@ -607,19 +618,14 @@ export function FolderSidebar({
           folderId: targetFolderId || "",
         });
 
-        // Refresh summaries first so the moved summary appears in the folder
         if (onRefresh) {
           onRefresh();
         }
         await fetchFolders();
 
-        // If moving to a folder (not root), auto-expand it and trigger glow
         if (targetFolderId && summaryId) {
-          // Auto-expand the target folder
           setExpandedFolders((prev) => new Set([...prev, targetFolderId]));
-          // Select the folder to show it
           onSelectFolder(targetFolderId);
-          // Trigger glow effect callback after a small delay to ensure summary is in the list
           setTimeout(() => {
             if (onSummaryMovedToFolder && summaryId) {
               onSummaryMovedToFolder(summaryId, targetFolderId);
@@ -643,7 +649,6 @@ export function FolderSidebar({
     setActiveId(String(event.active.id));
   };
 
-  // Get the dragged summary for the overlay
   const draggedSummary = activeId
     ? summaries.find((s) => `summary-${s.id}` === activeId)
     : null;
@@ -709,7 +714,6 @@ export function FolderSidebar({
     }
   };
 
-  // Define styles based on variant
   const containerStyles =
     variant === "admin"
       ? `h-full bg-slate-50 p-4 sm:p-6 relative ${isSidebarCollapsed ? "space-y-0" : "space-y-4"}`
@@ -725,7 +729,6 @@ export function FolderSidebar({
       ? "text-lg font-semibold text-slate-800"
       : "text-lg font-medium text-slate-900";
 
-  // Filter folders based on search
   const filteredFolders = useMemo(() => {
     if (!searchQuery.trim()) return folders;
     const query = searchQuery.toLowerCase();
@@ -874,7 +877,6 @@ export function FolderSidebar({
       )}
 
       <div className="space-y-2">
-            {/* All Items - Root */}
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${
                 selectedFolder === null
@@ -894,7 +896,6 @@ export function FolderSidebar({
               </span>
             </div>
 
-        {/* Folders List */}
         {!isCollapsed && (
           <>
             {folders.length === 0 ? (
@@ -974,7 +975,6 @@ export function FolderSidebar({
 
   return (
     <>
-      {/* Dark backdrop overlay when dragging */}
       {enableDragDrop && activeId && (
         <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-40" />
       )}
@@ -986,7 +986,6 @@ export function FolderSidebar({
           onDragEnd={handleDragEnd}
         >
           {sidebarContent}
-          {/* Drag Overlay - Shows the item being dragged */}
           <DragOverlay>
             {draggedSummary ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 bg-white rounded-xl shadow-lg border border-slate-200 opacity-90">
@@ -1022,62 +1021,76 @@ export function FolderSidebar({
         summaries={summaries}
       />
 
-      {/* Delete Confirmation Modal */}
-      {folderToDelete && (
-        <div
-          className="fixed bg-black/60 dark:bg-black/80 z-[100] flex items-center justify-center p-4"
-          style={{
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: '100vw',
-            height: '100vh',
-            margin: 0,
-            padding: '1rem'
-          }}
-        >
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">Delete Folder</h3>
-              <button
-                onClick={() => setFolderToDelete(null)}
-                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="mb-6">
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                Are you sure you want to delete
-                {folderToDeleteName
-                  ? ` "${folderToDeleteName}"`
-                  : " this folder"}
-                ? Items inside will be moved to All Items.
-              </p>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setFolderToDelete(null);
-                  setFolderToDeleteName(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteFolder}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700 disabled:opacity-50"
-              >
-                {isDeleting ? "Deleting..." : "Delete Folder"}
-              </button>
+      {/* Delete Confirmation Modal using createPortal */}
+      {folderToDelete && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className="
+              relative
+              w-full max-w-[85%] sm:max-w-sm
+              bg-white dark:bg-slate-800
+              rounded-xl shadow-2xl
+              border border-slate-200 dark:border-slate-700
+              transform transition-all
+              animate-in zoom-in-95 duration-200
+              overflow-hidden
+            "
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setFolderToDelete(null);
+                setFolderToDeleteName(null);
+              }}
+              className="absolute top-3 right-3 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="p-5 sm:p-6">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-500" />
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Delete Folder?
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Are you sure you want to delete
+                    {folderToDeleteName
+                      ? <span className="font-semibold text-slate-700 dark:text-slate-300"> "{folderToDeleteName}"</span>
+                      : " this folder"}
+                    ? Items inside will be moved to All Items.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 w-full mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFolderToDelete(null);
+                      setFolderToDeleteName(null);
+                    }}
+                    className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteFolder}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all disabled:opacity-50"
+                  >
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
