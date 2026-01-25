@@ -488,18 +488,18 @@ export function UserDashboard() {
       const pdfBlob = pdf.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);
       const downloadFilename = `${filename}-${new Date().toISOString().split("T")[0]}.pdf`;
-      
+
       const link = document.createElement('a');
       link.href = pdfUrl;
       link.download = downloadFilename;
       link.setAttribute('download', downloadFilename);
-      
+
       document.body.appendChild(link);
       link.click();
-      
+
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
-      
+
       toast.success('Summary downloaded as PDF', { id: 'pdf-download' });
     } catch (error) {
       console.error("Error downloading PDF:", error);
@@ -782,7 +782,7 @@ export function UserDashboard() {
           <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
             <Zap className="h-32 w-32 text-indigo-600 dark:text-indigo-400" />
           </div>
-          
+
           <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center gap-6 relative z-10">
             <div className="w-full sm:max-w-lg">
               <div className="flex items-center gap-2 mb-3">
@@ -793,7 +793,7 @@ export function UserDashboard() {
                   Credits & Usage
                 </h2>
               </div>
-              
+
               <div className="flex items-end gap-2 mb-2">
                 <span className="text-3xl font-bold text-slate-900 dark:text-white">{currentUsage}</span>
                 <span className="text-sm text-slate-500 dark:text-slate-400 mb-1.5">/ {limit} credits used</span>
@@ -802,9 +802,8 @@ export function UserDashboard() {
               <div className="relative h-3 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                 <div
                   style={{ width: `${usagePercentage}%` }}
-                  className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${
-                    isLimitReached ? "bg-red-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"
-                  }`}
+                  className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${isLimitReached ? "bg-red-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"
+                    }`}
                 />
               </div>
             </div>
@@ -817,9 +816,9 @@ export function UserDashboard() {
               Upgrade Plan
             </Button>
           </div>
-          
+
           {isLimitReached && (
-             <div className="mt-4 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-900/30">
+            <div className="mt-4 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-900/30">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <span className="font-medium">Limit reached.</span> Please upgrade to continue generating summaries.
             </div>
@@ -841,14 +840,23 @@ export function UserDashboard() {
               onRefresh={() => fetchSummaries()}
               refreshKey={foldersRefreshKey}
               onSummaryMovedToFolder={(summaryId, folderId) => {
-                setNewlyMovedToFolderIds((prev) => new Set([...prev, summaryId]));
-                setTimeout(() => {
-                  setNewlyMovedToFolderIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(summaryId);
-                    return next;
-                  });
-                }, 3000);
+                if (folderId === "") {
+                  // Item moved to "My Summaries" (e.g., from folder deletion)
+                  setNewlyAddedId(summaryId);
+                  setTimeout(() => {
+                    setNewlyAddedId(null);
+                  }, 3000);
+                } else {
+                  // Item moved to a folder
+                  setNewlyMovedToFolderIds((prev) => new Set([...prev, summaryId]));
+                  setTimeout(() => {
+                    setNewlyMovedToFolderIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(summaryId);
+                      return next;
+                    });
+                  }, 3000);
+                }
               }}
               newlyMovedToFolderIds={newlyMovedToFolderIds}
               expandFolderId={expandFolderId}
@@ -866,11 +874,10 @@ export function UserDashboard() {
                   <button
                     onClick={() => setActiveTab("text")}
                     disabled={isProcessing}
-                    className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
-                      activeTab === "text"
+                    className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "text"
                         ? "bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300 shadow-sm"
                         : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     <MessageSquare className="h-4 w-4" />
                     Text Input
@@ -878,11 +885,10 @@ export function UserDashboard() {
                   <button
                     onClick={() => setActiveTab("file")}
                     disabled={isProcessing}
-                    className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
-                      activeTab === "file"
+                    className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "file"
                         ? "bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300 shadow-sm"
                         : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     <Upload className="h-4 w-4" />
                     File Upload
@@ -935,11 +941,10 @@ export function UserDashboard() {
                 ) : (
                   <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
                     <div
-                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 relative group ${
-                        isLimitReached
+                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 relative group ${isLimitReached
                           ? "border-slate-200 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed"
                           : "border-slate-300 dark:border-slate-600 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10"
-                      }`}
+                        }`}
                     >
                       <input
                         type="file"
@@ -970,16 +975,16 @@ export function UserDashboard() {
                       <div className="flex flex-col items-center pointer-events-none">
                         <div className="h-14 w-14 bg-white dark:bg-slate-700 shadow-sm rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200">
                           {selectedFile ? (
-                             <FileText className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />
+                            <FileText className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />
                           ) : (
-                             <Upload className="h-7 w-7 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500" />
+                            <Upload className="h-7 w-7 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500" />
                           )}
                         </div>
                         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-200 mb-1">
                           {selectedFile ? selectedFile.name : "Click to upload or drag and drop"}
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {selectedFile 
+                          {selectedFile
                             ? `${(selectedFile.size / 1024).toFixed(1)} KB`
                             : "PDF, TXT, DOCX up to 5MB"
                           }
@@ -989,21 +994,21 @@ export function UserDashboard() {
 
                     {selectedFile && (
                       <div className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/30">
-                         <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-800 flex items-center justify-center flex-shrink-0">
-                               <FileIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
-                            </div>
-                            <span className="text-sm text-slate-700 dark:text-slate-200 truncate font-medium">
-                               {selectedFile.name}
-                            </span>
-                         </div>
-                         <button
-                            onClick={() => setSelectedFile(null)}
-                            disabled={isProcessing}
-                            className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-colors text-slate-400 hover:text-slate-600"
-                         >
-                            <X className="h-4 w-4" />
-                         </button>
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-800 flex items-center justify-center flex-shrink-0">
+                            <FileIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+                          </div>
+                          <span className="text-sm text-slate-700 dark:text-slate-200 truncate font-medium">
+                            {selectedFile.name}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setSelectedFile(null)}
+                          disabled={isProcessing}
+                          className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
                     )}
 
@@ -1029,236 +1034,227 @@ export function UserDashboard() {
 
           {/* Right: Lists */}
           <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col h-[450px] overflow-hidden">
-             {/* Header */}
-             <div className="border-b border-slate-100 dark:border-slate-700/50">
-               <div className="flex p-2 gap-1">
-                 <button
-                    onClick={() => setActiveSection("my")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
-                      activeSection === "my"
+            {/* Header */}
+            <div className="border-b border-slate-100 dark:border-slate-700/50">
+              <div className="flex p-2 gap-1">
+                <button
+                  onClick={() => setActiveSection("my")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${activeSection === "my"
                       ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                     }`}
-                 >
-                    My Summaries
-                    <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                       {summaries.filter(s => !s.folderId).length}
-                    </span>
-                 </button>
-                 <button
-                    onClick={() => setActiveSection("shared")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
-                      activeSection === "shared"
+                >
+                  My Summaries
+                  <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                    {summaries.filter(s => !s.folderId).length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setActiveSection("shared")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${activeSection === "shared"
                       ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                     }`}
-                 >
-                    Shared
-                    <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                       {sharedDocuments.length}
-                    </span>
-                 </button>
-               </div>
-               
-               <div className="flex justify-between items-center px-4 py-3 border-t border-slate-100 dark:border-slate-700/50">
-                  <div className="flex items-center gap-1">
-                     <button
-                       onClick={() => setViewMode("list")}
-                       className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" : "text-slate-400 hover:text-slate-600"}`}
-                     >
-                        <List className="h-4 w-4" />
-                     </button>
-                     <button
-                       onClick={() => setViewMode("grid")}
-                       className={`p-1.5 rounded-md transition-all ${viewMode === "grid" ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" : "text-slate-400 hover:text-slate-600"}`}
-                     >
-                        <Grid3x3 className="h-4 w-4" />
-                     </button>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                     {activeSection === "my" && (
-                        <button
-                          onClick={() => {
-                             setIsSelectMode(!isSelectMode);
-                             setSelectedSummaryIds(new Set());
-                          }}
-                          className={`text-xs font-medium px-2 py-1 rounded transition-colors ${
-                             isSelectMode ? "text-red-600 bg-red-50" : "text-indigo-600 hover:bg-indigo-50"
-                          }`}
-                        >
-                           {isSelectMode ? "Cancel" : "Select"}
-                        </button>
-                     )}
-                     <button
-                        onClick={async () => {
-                           setIsRefreshingSummaries(true);
-                           if (activeSection === "my") await fetchSummaries();
-                           else await fetchSharedDocuments();
-                           setIsRefreshingSummaries(false);
-                        }}
-                        className={`p-1.5 text-slate-400 hover:text-indigo-600 transition-colors ${isRefreshingSummaries ? "animate-spin" : ""}`}
-                     >
-                        <RefreshCw className="h-4 w-4" />
-                     </button>
-                  </div>
-               </div>
-               
-               {isSelectMode && activeSection === "my" && (
-                  <div className="px-4 pb-3 flex items-center gap-2 animate-in slide-in-from-top-2">
-                     <button
-                        onClick={() => setShowMoveModal(true)}
-                        disabled={selectedSummaryIds.size === 0}
-                        className="flex-1 bg-indigo-600 text-white text-xs font-medium py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                     >
-                        Move Selected ({selectedSummaryIds.size})
-                     </button>
-                     <button
-                        onClick={() => {
-                           const visibleIds = summaries.filter(s => !s.folderId).map(s => s.id);
-                           const allSelected = visibleIds.every(id => selectedSummaryIds.has(id));
-                           if (allSelected) setSelectedSummaryIds(new Set());
-                           else setSelectedSummaryIds(new Set(visibleIds));
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
-                     >
-                        All
-                     </button>
-                  </div>
-               )}
-             </div>
+                >
+                  Shared
+                  <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                    {sharedDocuments.length}
+                  </span>
+                </button>
+              </div>
 
-             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                {/* Content Logic matching original but with styled components */}
-                {activeSection === "shared" ? (
-                   sharedDocuments.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
-                         <Users className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
-                         <p className="text-sm text-slate-500">No shared documents</p>
+              <div className="flex justify-between items-center px-4 py-3 border-t border-slate-100 dark:border-slate-700/50">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" : "text-slate-400 hover:text-slate-600"}`}
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("grid")}
+                    className={`p-1.5 rounded-md transition-all ${viewMode === "grid" ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" : "text-slate-400 hover:text-slate-600"}`}
+                  >
+                    <Grid3x3 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {activeSection === "my" && (
+                    <button
+                      onClick={() => {
+                        setIsSelectMode(!isSelectMode);
+                        setSelectedSummaryIds(new Set());
+                      }}
+                      className={`text-xs font-medium px-2 py-1 rounded transition-colors ${isSelectMode ? "text-red-600 bg-red-50" : "text-indigo-600 hover:bg-indigo-50"
+                        }`}
+                    >
+                      {isSelectMode ? "Cancel" : "Select"}
+                    </button>
+                  )}
+                  <button
+                    onClick={async () => {
+                      setIsRefreshingSummaries(true);
+                      if (activeSection === "my") await fetchSummaries();
+                      else await fetchSharedDocuments();
+                      setIsRefreshingSummaries(false);
+                    }}
+                    className={`p-1.5 text-slate-400 hover:text-indigo-600 transition-colors ${isRefreshingSummaries ? "animate-spin" : ""}`}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {isSelectMode && activeSection === "my" && (
+                <div className="px-4 pb-3 flex items-center gap-2 animate-in slide-in-from-top-2">
+                  <button
+                    onClick={() => setShowMoveModal(true)}
+                    disabled={selectedSummaryIds.size === 0}
+                    className="flex-1 bg-indigo-600 text-white text-xs font-medium py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Move Selected ({selectedSummaryIds.size})
+                  </button>
+                  <button
+                    onClick={() => {
+                      const visibleIds = summaries.filter(s => !s.folderId).map(s => s.id);
+                      const allSelected = visibleIds.every(id => selectedSummaryIds.has(id));
+                      if (allSelected) setSelectedSummaryIds(new Set());
+                      else setSelectedSummaryIds(new Set(visibleIds));
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    All
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              {/* Content Logic matching original but with styled components */}
+              {activeSection === "shared" ? (
+                sharedDocuments.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                    <Users className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-sm text-slate-500">No shared documents</p>
+                  </div>
+                ) : viewMode === "list" ? (
+                  <div className="space-y-2">
+                    {sharedDocuments.map(item => (
+                      <div key={item.id} onClick={() => handlePreviewSummary(item)} className="group flex items-start gap-3 p-3 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-all">
+                        <div className="mt-1 h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0 text-purple-600 dark:text-purple-400">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{item.documentName || "File Summary"}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">By {item.sharedBy}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">{item.summary}</p>
+                        </div>
                       </div>
-                   ) : viewMode === "list" ? (
-                      <div className="space-y-2">
-                         {sharedDocuments.map(item => (
-                            <div key={item.id} onClick={() => handlePreviewSummary(item)} className="group flex items-start gap-3 p-3 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-all">
-                               <div className="mt-1 h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0 text-purple-600 dark:text-purple-400">
-                                  <FileText className="h-4 w-4" />
-                               </div>
-                               <div className="flex-1 min-w-0">
-                                  <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{item.documentName || "File Summary"}</h4>
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">By {item.sharedBy}</p>
-                                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">{item.summary}</p>
-                               </div>
-                            </div>
-                         ))}
-                      </div>
-                   ) : (
-                      <div className="grid grid-cols-1 gap-3">
-                         {sharedDocuments.map(item => (
-                            <div key={item.id} onClick={() => handlePreviewSummary(item)} className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer transition-all">
-                               <div className="flex items-center gap-2 mb-2">
-                                  <FileText className="h-4 w-4 text-purple-600" />
-                                  <span className="text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded font-medium">Shared</span>
-                               </div>
-                               <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">{item.documentName}</h4>
-                               <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">{item.summary}</p>
-                            </div>
-                         ))}
-                      </div>
-                   )
+                    ))}
+                  </div>
                 ) : (
-                   /* My Summaries Logic */
-                   summaries.filter(s => !s.folderId).length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
-                         <div className="bg-slate-100 dark:bg-slate-700/50 p-4 rounded-full mb-3">
-                            <Clock className="h-6 w-6 text-slate-400" />
-                         </div>
-                         <p className="text-sm font-medium text-slate-900 dark:text-white">No summaries yet</p>
-                         <p className="text-xs text-slate-500 mt-1 max-w-[150px]">Your generated content will appear here</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    {sharedDocuments.map(item => (
+                      <div key={item.id} onClick={() => handlePreviewSummary(item)} className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer transition-all">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4 text-purple-600" />
+                          <span className="text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded font-medium">Shared</span>
+                        </div>
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">{item.documentName}</h4>
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">{item.summary}</p>
                       </div>
-                   ) : viewMode === "list" ? (
-                      <div className="space-y-2">
-                         {summaries.filter(s => !s.folderId).map(item => (
-                            <div
-                               key={item.id}
-                               onClick={() => isSelectMode ? toggleSelectSummary(item.id) : handlePreviewSummary(item)}
-                               className={`group relative flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                                  selectedSummaryIds.has(item.id)
-                                  ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800"
-                                  : "bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                               } ${newlyAddedId === item.id ? "ring-2 ring-green-500 ring-offset-2" : ""}`}
-                            >
-                               {isSelectMode && (
-                                  <div className="absolute top-3 right-3">
-                                     <div className={`h-4 w-4 rounded border flex items-center justify-center ${
-                                        selectedSummaryIds.has(item.id) ? "bg-indigo-600 border-indigo-600" : "border-slate-300 bg-white"
-                                     }`}>
-                                        {selectedSummaryIds.has(item.id) && <div className="h-1.5 w-1.5 bg-white rounded-full" />}
-                                     </div>
-                                  </div>
-                               )}
-                               <div className={`mt-1 h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                  item.type === 'file' 
-                                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' 
-                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                               }`}>
-                                  {item.type === 'file' ? <FileText className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
-                               </div>
-                               <div className="flex-1 min-w-0 pr-6">
-                                  <div className="flex justify-between items-start">
-                                     <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                                        {item.type === "file" ? item.documentName || item.filename : item.textName}
-                                     </h4>
-                                  </div>
-                                  <p className="text-[10px] text-slate-400 mt-0.5 flex items-center">
-                                     {formatDate(item.createdAt)}
-                                  </p>
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed opacity-90">
-                                     {item.summary}
-                                  </p>
-                               </div>
-                               {!isSelectMode && <ChevronRight className="h-4 w-4 text-slate-300 opacity-0 group-hover:opacity-100 absolute right-3 top-1/2 -translate-y-1/2 transition-opacity" />}
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* My Summaries Logic */
+                summaries.filter(s => !s.folderId).length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                    <div className="bg-slate-100 dark:bg-slate-700/50 p-4 rounded-full mb-3">
+                      <Clock className="h-6 w-6 text-slate-400" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">No summaries yet</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-[150px]">Your generated content will appear here</p>
+                  </div>
+                ) : viewMode === "list" ? (
+                  <div className="space-y-2">
+                    {summaries.filter(s => !s.folderId).map(item => (
+                      <div
+                        key={item.id}
+                        onClick={() => isSelectMode ? toggleSelectSummary(item.id) : handlePreviewSummary(item)}
+                        className={`group relative flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${selectedSummaryIds.has(item.id)
+                            ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800"
+                            : "bg-white dark:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                          } ${newlyAddedId === item.id ? "ring-2 ring-green-500 ring-offset-2" : ""}`}
+                      >
+                        {isSelectMode && (
+                          <div className="absolute top-3 right-3">
+                            <div className={`h-4 w-4 rounded border flex items-center justify-center ${selectedSummaryIds.has(item.id) ? "bg-indigo-600 border-indigo-600" : "border-slate-300 bg-white"
+                              }`}>
+                              {selectedSummaryIds.has(item.id) && <div className="h-1.5 w-1.5 bg-white rounded-full" />}
                             </div>
-                         ))}
+                          </div>
+                        )}
+                        <div className={`mt-1 h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === 'file'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          }`}>
+                          {item.type === 'file' ? <FileText className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-6">
+                          <div className="flex justify-between items-start">
+                            <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                              {item.type === "file" ? item.documentName || item.filename : item.textName}
+                            </h4>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5 flex items-center">
+                            {formatDate(item.createdAt)}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed opacity-90">
+                            {item.summary}
+                          </p>
+                        </div>
+                        {!isSelectMode && <ChevronRight className="h-4 w-4 text-slate-300 opacity-0 group-hover:opacity-100 absolute right-3 top-1/2 -translate-y-1/2 transition-opacity" />}
                       </div>
-                   ) : (
-                      <div className="grid grid-cols-1 gap-3">
-                         {summaries.filter(s => !s.folderId).map(item => (
-                            <div
-                               key={item.id}
-                               onClick={() => isSelectMode ? toggleSelectSummary(item.id) : handlePreviewSummary(item)}
-                               className={`relative p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md ${
-                                  selectedSummaryIds.has(item.id)
-                                  ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 dark:border-indigo-400"
-                                  : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800"
-                               }`}
-                            >
-                               {isSelectMode && (
-                                  <div className={`absolute top-3 right-3 h-5 w-5 rounded-full border-2 flex items-center justify-center ${
-                                     selectedSummaryIds.has(item.id) ? "border-indigo-600 bg-indigo-600" : "border-slate-200"
-                                  }`}>
-                                     {selectedSummaryIds.has(item.id) && <div className="h-2 w-2 bg-white rounded-full" />}
-                                  </div>
-                               )}
-                               <div className="flex items-center gap-2 mb-2">
-                                  <span className={`h-6 w-6 rounded flex items-center justify-center ${
-                                     item.type === 'file' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'
-                                  }`}>
-                                     {item.type === 'file' ? <FileText className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</span>
-                                </div>
-                               <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 line-clamp-1 mb-1">
-                                  {item.type === "file" ? item.documentName || item.filename : item.textName}
-                               </h4>
-                               <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 leading-relaxed">
-                                  {item.summary}
-                               </p>
-                            </div>
-                         ))}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {summaries.filter(s => !s.folderId).map(item => (
+                      <div
+                        key={item.id}
+                        onClick={() => isSelectMode ? toggleSelectSummary(item.id) : handlePreviewSummary(item)}
+                        className={`relative p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md ${selectedSummaryIds.has(item.id)
+                            ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 dark:border-indigo-400"
+                            : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800"
+                          }`}
+                      >
+                        {isSelectMode && (
+                          <div className={`absolute top-3 right-3 h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedSummaryIds.has(item.id) ? "border-indigo-600 bg-indigo-600" : "border-slate-200"
+                            }`}>
+                            {selectedSummaryIds.has(item.id) && <div className="h-2 w-2 bg-white rounded-full" />}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`h-6 w-6 rounded flex items-center justify-center ${item.type === 'file' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                            {item.type === 'file' ? <FileText className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</span>
+                        </div>
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 line-clamp-1 mb-1">
+                          {item.type === "file" ? item.documentName || item.filename : item.textName}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 leading-relaxed">
+                          {item.summary}
+                        </p>
                       </div>
-                   )
-                )}
-             </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
       </main>
@@ -1342,28 +1338,26 @@ export function UserDashboard() {
                       Interface Theme
                     </h4>
                     <div className="grid grid-cols-2 gap-4">
-                        <div 
-                           onClick={() => handleThemeChange("light")}
-                           className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${
-                              theme === 'light' 
-                              ? 'border-indigo-600 bg-indigo-50/50' 
-                              : 'border-slate-200 hover:border-slate-300'
-                           }`}
-                        >
-                           <div className="h-20 w-full bg-slate-100 rounded-lg shadow-sm border border-slate-200" />
-                           <span className={`text-sm font-medium ${theme === 'light' ? 'text-indigo-700' : 'text-slate-600'}`}>Light Mode</span>
-                        </div>
-                        <div 
-                           onClick={() => handleThemeChange("dark")}
-                           className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${
-                              theme === 'dark' 
-                              ? 'border-indigo-600 bg-indigo-50/50' 
-                              : 'border-slate-200 hover:border-slate-300'
-                           }`}
-                        >
-                           <div className="h-20 w-full bg-slate-800 rounded-lg shadow-sm border border-slate-700" />
-                           <span className={`text-sm font-medium ${theme === 'dark' ? 'text-indigo-700' : 'text-slate-600'}`}>Dark Mode</span>
-                        </div>
+                      <div
+                        onClick={() => handleThemeChange("light")}
+                        className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${theme === 'light'
+                            ? 'border-indigo-600 bg-indigo-50/50'
+                            : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                      >
+                        <div className="h-20 w-full bg-slate-100 rounded-lg shadow-sm border border-slate-200" />
+                        <span className={`text-sm font-medium ${theme === 'light' ? 'text-indigo-700' : 'text-slate-600'}`}>Light Mode</span>
+                      </div>
+                      <div
+                        onClick={() => handleThemeChange("dark")}
+                        className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${theme === 'dark'
+                            ? 'border-indigo-600 bg-indigo-50/50'
+                            : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                      >
+                        <div className="h-20 w-full bg-slate-800 rounded-lg shadow-sm border border-slate-700" />
+                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-indigo-700' : 'text-slate-600'}`}>Dark Mode</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1474,7 +1468,7 @@ export function UserDashboard() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-100 dark:border-slate-700">
             <div className="text-center mb-6">
               <div className="h-12 w-12 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <LogOut className="h-6 w-6" />
+                <LogOut className="h-6 w-6" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Confirm Logout</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">

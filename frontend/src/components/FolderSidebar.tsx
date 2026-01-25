@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus,
@@ -89,11 +89,9 @@ function SummaryItem({
   return (
     <div
       onClick={handleClick}
-      className={`flex items-center gap-2 px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-lg transition hover:bg-slate-100 ${
-        isSelectable ? "cursor-pointer" : "cursor-default"
-      } ${
-        newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft bg-blue-50 ring-1 ring-blue-200" : ""
-      }`}
+      className={`flex items-center gap-2 px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-lg transition hover:bg-slate-100 ${isSelectable ? "cursor-pointer" : "cursor-default"
+        } ${newlyMovedToFolderIds?.has(summary.id) ? "animate-pulse-soft bg-blue-50 ring-1 ring-blue-200" : ""
+        }`}
     >
       {isSelectable && (
         <input
@@ -206,11 +204,10 @@ function FolderItem({
   return (
     <div>
       <div
-        className={`flex items-center gap-2 px-3 py-1 rounded-lg cursor-pointer transition group ${
-          selectedFolder === folderId
-            ? "bg-slate-100 text-slate-900 border border-slate-300"
-            : "text-slate-900 hover:bg-slate-50 border border-transparent"
-        }`}
+        className={`flex items-center gap-2 px-3 py-1 rounded-lg cursor-pointer transition group ${selectedFolder === folderId
+          ? "bg-slate-100 text-slate-900 border border-slate-300"
+          : "text-slate-900 hover:bg-slate-50 border border-transparent"
+          }`}
         onClick={() => {
           if (selectedFolder !== folderId) {
             onSelectFolder(folderId);
@@ -360,6 +357,7 @@ export function FolderSidebar({
   onCollapsedChange,
 }: FolderSidebarProps) {
   const { folders, deleteFolder, fetchFolders } = useFolders();
+  const prevSearchRef = useRef("");
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
@@ -414,7 +412,7 @@ export function FolderSidebar({
   useEffect(() => {
     if (newlyMovedToFolderIds && newlyMovedToFolderIds.size > 0 && summaries.length > 0) {
       const foldersToExpand = new Set<string>();
-      
+
       summaries.forEach(summary => {
         if (newlyMovedToFolderIds.has(summary.id) && summary.folderId) {
           foldersToExpand.add(summary.folderId);
@@ -476,6 +474,15 @@ export function FolderSidebar({
 
       if (onRefresh) onRefresh();
 
+      // Trigger glowing effect for items moved back to My Summaries
+      if (onSummaryMovedToFolder && folderSummaries.length > 0) {
+        setTimeout(() => {
+          folderSummaries.forEach((summary) => {
+            onSummaryMovedToFolder(summary.id, ""); // Empty string means "My Summaries"
+          });
+        }, 100);
+      }
+
       const movedText =
         movedCount > 0
           ? ` and moved ${movedCount} ${movedCount === 1 ? "summary" : "summaries"
@@ -531,8 +538,15 @@ export function FolderSidebar({
   }, [summaries]);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setExpandedFolders(new Set());
+    const isSearchEmpty = !searchQuery.trim();
+    const wasSearchEmpty = !prevSearchRef.current.trim();
+    prevSearchRef.current = searchQuery;
+
+    if (isSearchEmpty) {
+      // Only clear expanded folders if we just cleared the search (not on data updates)
+      if (!wasSearchEmpty) {
+        setExpandedFolders(new Set());
+      }
       return;
     }
 
@@ -716,13 +730,13 @@ export function FolderSidebar({
 
   const containerStyles =
     variant === "admin"
-      ? `h-full bg-slate-50 p-4 sm:p-6 relative ${isSidebarCollapsed ? "space-y-0" : "space-y-4"}`
-      : `bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative ${isSidebarCollapsed ? "space-y-0" : "space-y-4"}`;
+      ? `h-full bg-slate-50 relative ${isSidebarCollapsed ? "px-4 sm:px-6 py-2.5 space-y-0" : "px-4 sm:px-6 py-1.5 space-y-2"}`
+      : `bg-white rounded-xl shadow-sm border border-slate-200 relative ${isSidebarCollapsed ? "px-6 py-2.5 space-y-0" : "px-6 py-1.5 space-y-2"}`;
 
   const headerStyles =
     variant === "admin"
-      ? "flex items-center justify-between mb-4 pb-4 border-b border-slate-200"
-      : "flex items-center justify-between mb-6";
+      ? "flex items-center justify-between"
+      : "flex items-center justify-between";
 
   const titleStyles =
     variant === "admin"
@@ -785,11 +799,10 @@ export function FolderSidebar({
               <button
                 onClick={() => setShowCreateModal(true)}
                 disabled={folders.length >= 7}
-                className={`p-2 rounded-xl transition ${
-                  folders.length >= 7
-                    ? "text-slate-400 cursor-not-allowed opacity-50"
-                    : "hover:bg-blue-100 text-blue-600"
-                }`}
+                className={`p-2 rounded-xl transition ${folders.length >= 7
+                  ? "text-slate-400 cursor-not-allowed opacity-50"
+                  : "hover:bg-blue-100 text-blue-600"
+                  }`}
                 title={
                   folders.length >= 7
                     ? "Maximum number of folders reached"
@@ -818,6 +831,11 @@ export function FolderSidebar({
         </div>
       </div>
 
+      {/* Full-width border separator */}
+      {!isSidebarCollapsed && (
+        <div className={`-mx-6 border-b border-slate-200 ${variant === "admin" ? "sm:-mx-6" : ""}`} />
+      )}
+
       {!isSidebarCollapsed && (
         <>
           <div className="relative">
@@ -832,57 +850,54 @@ export function FolderSidebar({
           </div>
 
           {enableSelectMove && (
-          <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => {
-              setIsSelectMode((prev) => {
-                const next = !prev;
-                if (next) {
-                  setExpandedFolders(new Set(folderSummariesMap.keys()));
-                  setIsCollapsed(false);
-                }
-                return next;
-              });
-              setSelectedSummaryIds(new Set());
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-              isSelectMode
-                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
-            }`}
-          >
-            {isSelectMode ? "Cancel" : "Select"}
-          </button>
-          {isSelectMode && (
-            <>
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => setShowMoveModal(true)}
-                disabled={selectedSummaryIds.size === 0}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  selectedSummaryIds.size === 0
-                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
+                onClick={() => {
+                  setIsSelectMode((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setExpandedFolders(new Set(folderSummariesMap.keys()));
+                      setIsCollapsed(false);
+                    }
+                    return next;
+                  });
+                  setSelectedSummaryIds(new Set());
+                }}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${isSelectMode
+                  ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                  : "bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
+                  }`}
               >
-                Move ({selectedSummaryIds.size})
+                {isSelectMode ? "Cancel" : "Select"}
               </button>
-              {selectedSummaryIds.size > 0 && (
-                <span className="text-xs text-blue-600 font-medium ml-1">
-                  {selectedSummaryIds.size} selected
-                </span>
+              {isSelectMode && (
+                <>
+                  <button
+                    onClick={() => setShowMoveModal(true)}
+                    disabled={selectedSummaryIds.size === 0}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${selectedSummaryIds.size === 0
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`}
+                  >
+                    Move ({selectedSummaryIds.size})
+                  </button>
+                  {selectedSummaryIds.size > 0 && (
+                    <span className="text-xs text-blue-600 font-medium ml-1">
+                      {selectedSummaryIds.size} selected
+                    </span>
+                  )}
+                </>
               )}
-            </>
+            </div>
           )}
-        </div>
-      )}
 
-      <div className="space-y-2">
+          <div className="space-y-2">
             <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${
-                selectedFolder === null
-                  ? "bg-slate-100 text-slate-900 border border-slate-300"
-                  : "text-slate-900 hover:bg-slate-50 border border-transparent"
-              }`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors font-medium cursor-pointer ${selectedFolder === null
+                ? "bg-slate-100 text-slate-900 border border-slate-300"
+                : "text-slate-900 hover:bg-slate-50 border border-transparent"
+                }`}
               onClick={() => {
                 onSelectFolder(null);
                 setExpandedFolders(new Set());
@@ -896,78 +911,78 @@ export function FolderSidebar({
               </span>
             </div>
 
-        {!isCollapsed && (
-          <>
-            {folders.length === 0 ? (
-              <div className="px-4 py-8 text-center">
-                <p className="text-sm text-slate-500">No folders yet</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Create one to organize
-                </p>
-              </div>
-            ) : filteredFolders.length === 0 && searchQuery.trim() ? (
-              <div className="px-4 py-8 text-center">
-                <div className="flex justify-center mb-2">
-                  <Search className="h-8 w-8 text-slate-300" />
-                </div>
-                <p className="text-sm text-slate-500">No summaries with this name</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredFolders
-                  .filter((folder) => folder && folder.folderId)
-                  .map((folder) => {
-                    const folderSummaries = getFilteredSummaries(folder.folderId);
-                    const isExpanded = expandedFolders.has(folder.folderId);
+            {!isCollapsed && (
+              <>
+                {folders.length === 0 ? (
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-sm text-slate-500">No folders yet</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Create one to organize
+                    </p>
+                  </div>
+                ) : filteredFolders.length === 0 && searchQuery.trim() ? (
+                  <div className="px-4 py-8 text-center">
+                    <div className="flex justify-center mb-2">
+                      <Search className="h-8 w-8 text-slate-300" />
+                    </div>
+                    <p className="text-sm text-slate-500">No summaries with this name</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredFolders
+                      .filter((folder) => folder && folder.folderId)
+                      .map((folder) => {
+                        const folderSummaries = getFilteredSummaries(folder.folderId);
+                        const isExpanded = expandedFolders.has(folder.folderId);
 
-                    if (!enableDragDrop) {
-                      return (
-                        <FolderItem
-                          key={folder.folderId}
-                          folderId={folder.folderId}
-                          folder={folder}
-                          isExpanded={isExpanded}
-                          folderSummaries={folderSummaries}
-                          selectedFolder={selectedFolder}
-                          onSelectFolder={onSelectFolder}
-                          onToggleExpansion={toggleFolderExpansion}
-                          onDeleteFolder={(id, name) => {
-                            setFolderToDelete(id);
-                            setFolderToDeleteName(name);
-                          }}
-                          onPreviewSummary={onPreviewSummary}
-                          newlyMovedToFolderIds={newlyMovedToFolderIds}
-                          isSelectMode={enableSelectMove && isSelectMode}
-                          selectedSummaryIds={selectedSummaryIds}
-                          onToggleSelectSummary={toggleSelectSummary}
-                        />
-                      );
-                    }
+                        if (!enableDragDrop) {
+                          return (
+                            <FolderItem
+                              key={folder.folderId}
+                              folderId={folder.folderId}
+                              folder={folder}
+                              isExpanded={isExpanded}
+                              folderSummaries={folderSummaries}
+                              selectedFolder={selectedFolder}
+                              onSelectFolder={onSelectFolder}
+                              onToggleExpansion={toggleFolderExpansion}
+                              onDeleteFolder={(id, name) => {
+                                setFolderToDelete(id);
+                                setFolderToDeleteName(name);
+                              }}
+                              onPreviewSummary={onPreviewSummary}
+                              newlyMovedToFolderIds={newlyMovedToFolderIds}
+                              isSelectMode={enableSelectMove && isSelectMode}
+                              selectedSummaryIds={selectedSummaryIds}
+                              onToggleSelectSummary={toggleSelectSummary}
+                            />
+                          );
+                        }
 
-                    return (
-                      <DroppableFolder
-                        key={folder.folderId}
-                        folderId={folder.folderId}
-                        folder={folder}
-                        isExpanded={isExpanded}
-                        folderSummaries={folderSummaries}
-                        selectedFolder={selectedFolder}
-                        onSelectFolder={onSelectFolder}
-                        onToggleExpansion={toggleFolderExpansion}
-                        onDeleteFolder={(id, name) => {
-                          setFolderToDelete(id);
-                          setFolderToDeleteName(name);
-                        }}
-                        onPreviewSummary={onPreviewSummary}
-                        newlyMovedToFolderIds={newlyMovedToFolderIds}
-                      />
-                    );
-                  })}
-              </div>
+                        return (
+                          <DroppableFolder
+                            key={folder.folderId}
+                            folderId={folder.folderId}
+                            folder={folder}
+                            isExpanded={isExpanded}
+                            folderSummaries={folderSummaries}
+                            selectedFolder={selectedFolder}
+                            onSelectFolder={onSelectFolder}
+                            onToggleExpansion={toggleFolderExpansion}
+                            onDeleteFolder={(id, name) => {
+                              setFolderToDelete(id);
+                              setFolderToDeleteName(name);
+                            }}
+                            onPreviewSummary={onPreviewSummary}
+                            newlyMovedToFolderIds={newlyMovedToFolderIds}
+                          />
+                        );
+                      })}
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-      </div>
+          </div>
         </>
       )}
     </div>
