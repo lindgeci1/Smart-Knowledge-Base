@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using SmartKB.DTOs;
 using SmartKB.Models;
@@ -87,13 +88,29 @@ namespace SmartKB.Controllers
         [HttpGet("admin")]
         public async Task<IActionResult> GetAllUsers()
         {
+            // Use User entities so field names match how data was written; read twoFactorEnabled from raw doc for casing tolerance
             var users = await _userCollection.Find(_ => true).ToListAsync();
+            var usersCollection = _userCollection.Database.GetCollection<BsonDocument>("users");
 
             var result = new List<object>();
             foreach (var user in users)
             {
                 var userRole = await _userRoleCollection.Find(ur => ur.UserId == user.UserId).FirstOrDefaultAsync();
                 var roleId = userRole?.RoleId ?? 2;
+
+                // Read twoFactorEnabled from raw BSON to handle both twoFactorEnabled and TwoFactorEnabled in DB
+                var twoFactorEnabled = user.TwoFactorEnabled;
+                var rawDoc = await usersCollection.Find(Builders<BsonDocument>.Filter.Eq("user_id", user.UserId)).FirstOrDefaultAsync();
+                if (rawDoc == null)
+                    rawDoc = await usersCollection.Find(Builders<BsonDocument>.Filter.Eq("userId", user.UserId)).FirstOrDefaultAsync();
+                if (rawDoc != null)
+                {
+                    if (rawDoc.TryGetValue("twoFactorEnabled", out var tfaEl))
+                        twoFactorEnabled = tfaEl.ToBoolean();
+                    else if (rawDoc.TryGetValue("TwoFactorEnabled", out var tfaElPascal))
+                        twoFactorEnabled = tfaElPascal.ToBoolean();
+                }
+
                 result.Add(new
                 {
                     id = user.UserId,
@@ -101,7 +118,8 @@ namespace SmartKB.Controllers
                     email = user.Email,
                     role = roleId == 1 ? "admin" : "user",
                     status = user.IsActive ? "active" : "inactive",
-                    joinedAt = user.CreatedAt
+                    joinedAt = user.CreatedAt,
+                    twoFactorEnabled
                 });
             }
 

@@ -12,6 +12,7 @@ Env.Load();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpClient();
 
 // Register Services
 builder.Services.AddSingleton<EmailService>();

@@ -417,6 +417,58 @@ namespace SmartKB.Services
             await SendEmailAsync(toEmail, subject, textBody, htmlBody);
         }
 
+        public async Task SendTwoFactorEnabledEmailAsync(string toEmail, string username)
+        {
+            var subject = "Two-Factor Authentication Enabled";
+            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
+            var loginLink = $"{frontendUrl}/login";
+
+            var htmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Two-Factor Authentication Enabled</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {username},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>This email confirms that two-factor authentication (2FA) has been successfully enabled on your Smart Knowledge Base account. From now on, you will be asked for a 6-digit code from your authenticator app each time you sign in.</p>
+                            <div style='background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; margin: 24px 0; border-radius: 4px;'>
+                                <p style='color: #166534; font-size: 14px; line-height: 1.6; margin: 0;'><strong>Your account is more secure.</strong></p>
+                                <p style='color: #166534; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;'>If you did not enable 2FA, please contact our support team immediately at <a href='mailto:{_contactEmail}' style='color: #dc2626; text-decoration: underline;'>{_contactEmail}</a> to secure your account.</p>
+                            </div>
+                            <div style='text-align: center; margin: 32px 0;'>
+                                <a href='{loginLink}' style='display: inline-block; background-color: #6A5ACD; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 16px; font-weight: 500;'>Sign In</a>
+                            </div>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
+                        </div>";
+            var textBody =
+                $"Two-Factor Authentication Enabled\n\nHi {username},\n\nThis email confirms that two-factor authentication (2FA) has been successfully enabled on your Smart Knowledge Base account. From now on, you will be asked for a 6-digit code from your authenticator app each time you sign in.\n\nYour account is more secure. If you did not enable 2FA, please contact our support team immediately at {_contactEmail} to secure your account.\n\nSign In: {loginLink}\n\nThe {_fromName} Team.";
+
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
+        }
+
+        public async Task SendTwoFactorDisabledEmailAsync(string toEmail, string username)
+        {
+            var subject = "Two-Factor Authentication Disabled";
+            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173";
+            var loginLink = $"{frontendUrl}/login";
+
+            var htmlBody = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;'>
+                            <h1 style='color: #1f2937; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: left;'>Two-Factor Authentication Disabled</h1>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>Hi {username},</p>
+                            <p style='color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;'>This email confirms that two-factor authentication (2FA) has been successfully disabled on your Smart Knowledge Base account. You will no longer be asked for a 6-digit code when signing in.</p>
+                            <div style='background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 24px 0; border-radius: 4px;'>
+                                <p style='color: #991b1b; font-size: 14px; line-height: 1.6; margin: 0;'><strong>Security Notice:</strong></p>
+                                <p style='color: #991b1b; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;'>If you did not disable 2FA, please contact our support team immediately at <a href='mailto:{_contactEmail}' style='color: #dc2626; text-decoration: underline;'>{_contactEmail}</a> to secure your account.</p>
+                            </div>
+                            <div style='text-align: center; margin: 32px 0;'>
+                                <a href='{loginLink}' style='display: inline-block; background-color: #6A5ACD; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 16px; font-weight: 500;'>Sign In</a>
+                            </div>
+                            <p style='color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 40px 0 0 0;'>The {_fromName} Team.</p>
+                        </div>";
+            var textBody =
+                $"Two-Factor Authentication Disabled\n\nHi {username},\n\nThis email confirms that two-factor authentication (2FA) has been successfully disabled on your Smart Knowledge Base account. You will no longer be asked for a 6-digit code when signing in.\n\nSecurity Notice: If you did not disable 2FA, please contact our support team immediately at {_contactEmail} to secure your account.\n\nSign In: {loginLink}\n\nThe {_fromName} Team.";
+
+            await SendEmailAsync(toEmail, subject, textBody, htmlBody);
+        }
+
         public async Task SendDocumentSharedEmailAsync(string toEmail, string sharedByEmail, string sharedByName, string documentName)
         {
             var subject = "Document Shared with You";
