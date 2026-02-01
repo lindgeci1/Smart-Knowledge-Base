@@ -4,6 +4,7 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import { Toaster } from "react-hot-toast";
@@ -19,6 +20,7 @@ import { UserDashboard } from "./pages/UserDashboard";
 import { PackagesPage } from "./pages/PackagesPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 import { RequestActivationPage } from "./pages/RequestActivationPage";
+import { GitHubCallbackPage } from "./pages/GitHubCallbackPage";
 
 // Initialize Stripe
 const stripePublishableKey = (import.meta as any).env
@@ -34,10 +36,17 @@ const stripePromise = stripePublishableKey
   ? loadStripe(stripePublishableKey)
   : null;
 
+// Prefer local OAuth app when running locally; use global (Vercel) when _LOCAL not set
+const googleClientId =
+  (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID_LOCAL
+  ?? (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID
+  ?? "";
+
 function App() {
   return (
-    <AuthProvider>
-      <Elements stripe={stripePromise}>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <AuthProvider>
+        <Elements stripe={stripePromise}>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -89,6 +98,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/request-activation" element={<RequestActivationPage />} />
+            <Route path="/auth/github/callback" element={<GitHubCallbackPage />} />
 
             {/* Protected Routes */}
             {/* User Dashboard - users only */}
@@ -210,13 +220,22 @@ function App() {
                 </RoleRoute>
               }
             />
+            <Route
+              path="/admin/twofactor"
+              element={
+                <RoleRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
+                </RoleRoute>
+              }
+            />
 
             {/* Catch all - redirect to landing instead of login for better UX */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>
       </Elements>
-    </AuthProvider>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
 export { App };

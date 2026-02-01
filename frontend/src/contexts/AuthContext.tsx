@@ -17,12 +17,20 @@ export interface User {
   usageLimit: number;
   usageCount: number;
 }
+export interface LoginTwoFactorRequired {
+  requiresTwoFactor: true;
+  tempToken: string;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
+  loginWithGitHub: (code: string, redirectUri: string) => Promise<void>;
+  loginWithTwoFactor: (tempToken: string, code: string) => Promise<void>;
   register: (
     email: string,
     username: string,
@@ -103,48 +111,155 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const response = await apiClient.post("/auth/login", { email, password });
-      const jwt = response.data?.Jwt || response.data?.jwt;
+      const requiresTwoFactor = response.data?.requiresTwoFactor === true;
+      const tempToken = response.data?.tempToken;
 
+      if (requiresTwoFactor && tempToken) {
+        storeEmail(email);
+        setIsLoading(false);
+        const e = new Error("2FA required") as Error & LoginTwoFactorRequired;
+        e.requiresTwoFactor = true;
+        e.tempToken = tempToken;
+        throw e;
+      }
+
+      const jwt = response.data?.Jwt || response.data?.jwt;
       if (!jwt) {
         throw new Error("No token received from server");
       }
 
-      // Store JWT in cookie
       setJwtCookie(jwt);
-
-      // Decode JWT to get user info
       const userFromJWT = createUserFromJWT(jwt);
       if (!userFromJWT) {
         throw new Error("Failed to decode token");
       }
-
-      // Update user email from login (backend doesn't return it, but we know it)
       userFromJWT.email = email;
-      storeEmail(email); // Store email in localStorage
+      storeEmail(email);
+      setToken(jwt);
+      setUser(userFromJWT);
+    } catch (error: any) {
+      if (error?.requiresTwoFactor && error?.tempToken) {
+        throw error;
+      }
+      clearJwtCookie();
+      setToken(null);
+      setUser(null);
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+        throw new Error("Network Error");
+      }
+      if (error.response?.status === 401) {
+        throw new Error("Invalid email or password");
+      }
+      const message = error.response?.data || error.message || "Login failed";
+      throw new Error(typeof message === "string" ? message : "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const loginWithGoogle = async (idToken: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.post("/auth/google", { idToken });
+      const jwt = response.data?.Jwt ?? response.data?.jwt;
+      const email = response.data?.email ?? "";
+      if (!jwt) {
+        throw new Error("No token received from server");
+      }
+      setJwtCookie(jwt);
+      storeEmail(email);
+      const userFromJWT = createUserFromJWT(jwt);
+      if (!userFromJWT) {
+        throw new Error("Failed to decode token");
+      }
+      userFromJWT.email = email;
       setToken(jwt);
       setUser(userFromJWT);
     } catch (error: any) {
       clearJwtCookie();
       setToken(null);
       setUser(null);
-
-      // Check for network errors
-      if (
-        error.code === "ERR_NETWORK" ||
-        error.message?.includes("Network Error")
-      ) {
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
         throw new Error("Network Error");
       }
-
-      // Check for 401 Unauthorized
       if (error.response?.status === 401) {
-        throw new Error("Invalid email or password");
+        const msg = error.response?.data ?? "Invalid Google sign-in.";
+        throw new Error(typeof msg === "string" ? msg : "Invalid Google sign-in. Please try again.");
       }
+      const message = error.response?.data ?? error.message ?? "Google sign-in failed";
+      throw new Error(typeof message === "string" ? message : "Google sign-in failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      // Other errors
-      const message = error.response?.data || error.message || "Login failed";
-      throw new Error(typeof message === "string" ? message : "Login failed");
+  const loginWithGitHub = async (code: string, redirectUri: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.post("/auth/github", { code, redirectUri });
+      const jwt = response.data?.Jwt ?? response.data?.jwt;
+      const email = response.data?.email ?? "";
+      if (!jwt) {
+        throw new Error("No token received from server");
+      }
+      setJwtCookie(jwt);
+      storeEmail(email);
+      const userFromJWT = createUserFromJWT(jwt);
+      if (!userFromJWT) {
+        throw new Error("Failed to decode token");
+      }
+      userFromJWT.email = email;
+      setToken(jwt);
+      setUser(userFromJWT);
+    } catch (error: any) {
+      clearJwtCookie();
+      setToken(null);
+      setUser(null);
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+        throw new Error("Network Error");
+      }
+      if (error.response?.status === 401) {
+        const msg = error.response?.data ?? "Invalid GitHub sign-in.";
+        throw new Error(typeof msg === "string" ? msg : "Invalid GitHub sign-in. Please try again.");
+      }
+      const message = error.response?.data ?? error.message ?? "GitHub sign-in failed";
+      throw new Error(typeof message === "string" ? message : "GitHub sign-in failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithTwoFactor = async (tempToken: string, code: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.post("/auth/2fa/verify-login", {
+        tempToken,
+        code: code.trim(),
+      });
+      const jwt = response.data?.Jwt || response.data?.jwt;
+      if (!jwt) {
+        throw new Error("No token received from server");
+      }
+      setJwtCookie(jwt);
+      const userFromJWT = createUserFromJWT(jwt);
+      if (!userFromJWT) {
+        throw new Error("Failed to decode token");
+      }
+      setToken(jwt);
+      setUser(userFromJWT);
+    } catch (error: any) {
+      clearJwtCookie();
+      setToken(null);
+      setUser(null);
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+        throw new Error("Network Error");
+      }
+      if (error.response?.status === 401) {
+        const msg = error.response?.data?.message ?? error.response?.data ?? "Invalid code.";
+        throw new Error(typeof msg === "string" ? msg : "Invalid code. Please try again.");
+      }
+      const message = error.response?.data?.message ?? error.response?.data ?? error.message ?? "Verification failed";
+      throw new Error(typeof message === "string" ? message : "Verification failed");
     } finally {
       setIsLoading(false);
     }
@@ -240,6 +355,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginWithGoogle,
+        loginWithGitHub,
+        loginWithTwoFactor,
         register,
         logout,
         updateUserUsage,

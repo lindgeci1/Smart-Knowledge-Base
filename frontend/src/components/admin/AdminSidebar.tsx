@@ -14,6 +14,8 @@ import {
   UserCheck,
   Share2,
   Clock,
+  ShieldCheck,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { apiClient } from "../../lib/authClient";
@@ -29,7 +31,8 @@ interface AdminSidebarProps {
     | "folders"
     | "activations"
     | "sharing"
-    | "sessions";
+    | "sessions"
+    | "twofactor";
   setActiveView: (
     view:
       | "dashboard"
@@ -43,10 +46,12 @@ interface AdminSidebarProps {
       | "activations"
       | "sharing"
       | "sessions"
+      | "twofactor"
   ) => void;
   isOpen?: boolean;
   onClose?: () => void;
   onLogout?: () => void;
+  onOpenSettings?: () => void;
 }
 export function AdminSidebar({
   activeView,
@@ -54,6 +59,7 @@ export function AdminSidebar({
   isOpen = false,
   onClose,
   onLogout,
+  onOpenSettings,
 }: AdminSidebarProps) {
   const { logout, user } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
@@ -135,6 +141,11 @@ export function AdminSidebar({
       label: "Active Sessions",
       icon: Clock,
     },
+    {
+      id: "twofactor",
+      label: "2FA Users",
+      icon: ShieldCheck,
+    },
   ] as const;
   return (
     <>
@@ -165,14 +176,29 @@ export function AdminSidebar({
 
         {/* User Info */}
         <div className="p-6 border-b border-slate-800 bg-slate-800/50">
-          <div className="flex items-center">
-            <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold">
-              {user?.name.charAt(0)}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center min-w-0 flex-1">
+              <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold shrink-0">
+                {user?.name.charAt(0)}
+              </div>
+              <div className="ml-3 min-w-0">
+                <p className="text-sm font-medium truncate">{user?.name}</p>
+                <p className="text-xs text-slate-400">System Admin</p>
+              </div>
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium">{user?.name}</p>
-              <p className="text-xs text-slate-400">System Admin</p>
-            </div>
+            {onOpenSettings && (
+              <button
+                onClick={() => {
+                  onOpenSettings();
+                  if (onClose) onClose();
+                }}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors shrink-0"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -230,14 +256,26 @@ export function AdminSidebar({
 
         {/* User Info */}
         <div className="p-6 border-b border-slate-800 bg-slate-800/50">
-          <div className="flex items-center">
-            <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold">
-              {user?.name.charAt(0)}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center min-w-0 flex-1">
+              <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold shrink-0">
+                {user?.name.charAt(0)}
+              </div>
+              <div className="ml-3 min-w-0">
+                <p className="text-sm font-medium truncate">{user?.name}</p>
+                <p className="text-xs text-slate-400">System Admin</p>
+              </div>
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium">{user?.name}</p>
-              <p className="text-xs text-slate-400">System Admin</p>
-            </div>
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors shrink-0"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
 

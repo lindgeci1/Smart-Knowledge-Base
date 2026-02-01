@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { AdminSidebar } from "../components/admin/AdminSidebar";
-import {
-  Menu,
-  X,
-} from "lucide-react";
+import { Menu, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { DashboardSection } from "../components/admin/DashboardSection";
 import { UsersSection } from "../components/admin/UsersSection";
@@ -18,6 +15,8 @@ import { FoldersSection } from "../components/admin/FoldersSection";
 import { ActivationRequestsSection } from "../components/admin/ActivationRequestsSection";
 import { FileSharingSection } from "../components/admin/FileSharingSection";
 import { ActiveSessionsSection } from "../components/admin/ActiveSessionsSection";
+import { TwoFactorSection } from "../components/admin/TwoFactorSection";
+import { AdminSecurityModal } from "../components/admin/AdminSecurityModal";
 import { apiClient } from "../lib/authClient";
 // Types
 interface Summary {
@@ -96,7 +95,8 @@ export function AdminDashboard() {
     | "folders"
     | "activations"
     | "sharing"
-    | "sessions" => {
+    | "sessions"
+    | "twofactor" => {
     const path = location.pathname;
     if (path === "/admin") return "dashboard";
     if (path === "/admin/users") return "users";
@@ -109,6 +109,7 @@ export function AdminDashboard() {
     if (path === "/admin/activations") return "activations";
     if (path === "/admin/sharing") return "sharing";
     if (path === "/admin/sessions") return "sessions";
+    if (path === "/admin/twofactor") return "twofactor";
     return "dashboard";
   };
 
@@ -122,7 +123,9 @@ export function AdminDashboard() {
   const [activationRequests, setActivationRequests] = useState<any[]>([]);
   const [sharedDocuments, setSharedDocuments] = useState<any[]>([]);
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
+  const [twoFactorUsers, setTwoFactorUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAdminSettingsModal, setShowAdminSettingsModal] = useState(false);
   const [totalUsers, setTotalUsers] = useState(0);
   const [fileCount, setFileCount] = useState(0);
   const [textCount, setTextCount] = useState(0);
@@ -152,6 +155,7 @@ export function AdminDashboard() {
     activations: { loading: boolean; hasData: boolean };
     sharing?: { loading: boolean; hasData: boolean };
     sessions?: { loading: boolean; hasData: boolean };
+    twofactor?: { loading: boolean; hasData: boolean };
   }>({
     users: { loading: false, hasData: false },
     files: { loading: false, hasData: false },
@@ -162,6 +166,7 @@ export function AdminDashboard() {
     activations: { loading: false, hasData: false },
     sharing: { loading: false, hasData: false },
     sessions: { loading: false, hasData: false },
+    twofactor: { loading: false, hasData: false },
   });
 
   // Fetch users usage from backend
@@ -351,6 +356,15 @@ export function AdminDashboard() {
         ...prev,
         sessions: { loading: true, hasData: false },
       }));
+    } else if (
+      activeView === "twofactor" &&
+      !loadingStates.twofactor?.hasData &&
+      !loadingStates.twofactor?.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        twofactor: { loading: true, hasData: false },
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
@@ -369,7 +383,8 @@ export function AdminDashboard() {
       | "activations"
       | "sharing"
       | "sessions"
-    ) => {
+      | "twofactor"
+  ) => {
     // Navigate to the appropriate route
     if (view === "dashboard") {
       navigate("/admin");
@@ -459,6 +474,15 @@ export function AdminDashboard() {
         ...prev,
         sessions: { loading: true, hasData: false },
       }));
+    } else if (
+      view === "twofactor" &&
+      !loadingStates.twofactor?.hasData &&
+      !loadingStates.twofactor?.loading
+    ) {
+      setLoadingStates((prev) => ({
+        ...prev,
+        twofactor: { loading: true, hasData: false },
+      }));
     }
   };
 
@@ -531,6 +555,7 @@ export function AdminDashboard() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onLogout={() => setShowLogoutConfirm(true)}
+        onOpenSettings={() => setShowAdminSettingsModal(true)}
       />
 
       <div className="flex-1 md:ml-64 w-full">
@@ -740,8 +765,31 @@ export function AdminDashboard() {
               }}
             />
           )}
+
+          {activeView === "twofactor" && (
+            <TwoFactorSection
+              users={twoFactorUsers}
+              loading={loadingStates.twofactor?.loading || false}
+              onDataLoaded={(hasData) => {
+                setLoadingStates((prev) => ({
+                  ...prev,
+                  twofactor: { loading: false, hasData },
+                }));
+              }}
+              onUsersFetched={(fetchedUsers) => {
+                setTwoFactorUsers(fetchedUsers);
+              }}
+            />
+          )}
         </main>
       </div>
+
+      {showAdminSettingsModal && (
+        <AdminSecurityModal
+          isOpen={showAdminSettingsModal}
+          onClose={() => setShowAdminSettingsModal(false)}
+        />
+      )}
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (

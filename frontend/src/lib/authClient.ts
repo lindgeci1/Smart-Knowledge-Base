@@ -140,15 +140,18 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Don't retry auth endpoints
+    // Don't retry auth endpoints (and don't try refresh-token renewal on 401 for these)
     const isAuthEndpoint =
       originalRequest?.url?.includes("/auth/login") ||
       originalRequest?.url?.includes("/auth/register") ||
+      originalRequest?.url?.includes("/auth/google") ||
+      originalRequest?.url?.includes("/auth/github") ||
       originalRequest?.url?.includes("/auth/renew") ||
       originalRequest?.url?.includes("/auth/logout") ||
       originalRequest?.url?.includes("/auth/forgot-password") ||
       originalRequest?.url?.includes("/auth/verify-reset-code") ||
-      originalRequest?.url?.includes("/auth/reset-password");
+      originalRequest?.url?.includes("/auth/reset-password") ||
+      originalRequest?.url?.includes("/auth/2fa/verify-login");
 
     // Only handle 401 for non-auth endpoints and if we haven't already retried
     if (

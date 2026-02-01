@@ -22,8 +22,10 @@ import {
   Users,
   ChevronRight,
   Sparkles,
-  CreditCard
+  CreditCard,
+  Shield
 } from "lucide-react";
+import { toDataURL as qrToDataURL } from "qrcode";
 import { apiClient } from "../lib/authClient";
 import { FolderSidebar } from "../components/FolderSidebar";
 import { SaveLocationModal } from "../components/SaveLocationModal";
@@ -82,8 +84,17 @@ export function UserDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeSettingTab, setActiveSettingTab] = useState<
-    "profile" | "appearance"
+    "profile" | "appearance" | "security"
   >("profile");
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorSetupQrUrl, setTwoFactorSetupQrUrl] = useState<string | null>(null);
+  const [twoFactorSetupSecret, setTwoFactorSetupSecret] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [isEnabling2FA, setIsEnabling2FA] = useState(false);
+  const [isDisabling2FA, setIsDisabling2FA] = useState(false);
+  const [disable2FAPassword, setDisable2FAPassword] = useState("");
+  const [twoFactorStatusLoading, setTwoFactorStatusLoading] = useState(false);
+  const [twoFactorQrDataUrl, setTwoFactorQrDataUrl] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [helperMessage, setHelperMessage] = useState<string | null>(null);
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
@@ -304,6 +315,16 @@ export function UserDashboard() {
       document.body.style.overflow = "";
     };
   }, [showProfileModal, showMoveModal, showSaveModal]);
+
+  useEffect(() => {
+    if (!twoFactorSetupQrUrl) {
+      setTwoFactorQrDataUrl(null);
+      return;
+    }
+    qrToDataURL(twoFactorSetupQrUrl, { width: 200, margin: 2 })
+      .then(setTwoFactorQrDataUrl)
+      .catch(() => setTwoFactorQrDataUrl(null));
+  }, [twoFactorSetupQrUrl]);
 
   const handleSummarizeText = async () => {
     if (!textInput.trim() || !user) return;
@@ -589,6 +610,19 @@ export function UserDashboard() {
           "light";
         setTheme(savedTheme);
       }
+      setTwoFactorSetupQrUrl(null);
+      setTwoFactorSetupSecret(null);
+      setTwoFactorCode("");
+      setDisable2FAPassword("");
+      setTwoFactorStatusLoading(true);
+      try {
+        const statusRes = await apiClient.get("/auth/2fa/status");
+        setTwoFactorEnabled(!!statusRes.data?.twoFactorEnabled);
+      } catch {
+        setTwoFactorEnabled(false);
+      } finally {
+        setTwoFactorStatusLoading(false);
+      }
       setShowProfileModal(true);
     } catch (error) {
       console.error("Failed to load profile", error);
@@ -654,6 +688,64 @@ export function UserDashboard() {
       toast.error(errorMessage);
     } finally {
       setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleTwoFactorSetup = async () => {
+    try {
+      const res = await apiClient.post("/auth/2fa/setup");
+      setTwoFactorSetupQrUrl(res.data.qrCodeUrl ?? null);
+      setTwoFactorSetupSecret(res.data.secretBase32 ?? null);
+      setTwoFactorCode("");
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : "Failed to start 2FA setup";
+      toast.error(msg || "Failed to start 2FA setup");
+    }
+  };
+
+  const handleTwoFactorEnable = async () => {
+    if (!twoFactorCode.trim() || twoFactorCode.length !== 6) {
+      toast.error("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+    setIsEnabling2FA(true);
+    try {
+      await apiClient.post("/auth/2fa/enable", { code: twoFactorCode.trim() });
+      setTwoFactorEnabled(true);
+      setTwoFactorSetupQrUrl(null);
+      setTwoFactorSetupSecret(null);
+      setTwoFactorCode("");
+      toast.success("Two-factor authentication is now enabled.");
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : "Invalid code. Please try again.";
+      toast.error(msg || "Invalid code. Please try again.");
+    } finally {
+      setIsEnabling2FA(false);
+    }
+  };
+
+  const handleTwoFactorDisable = async () => {
+    if (!disable2FAPassword.trim()) {
+      toast.error("Enter your password to disable 2FA.");
+      return;
+    }
+    setIsDisabling2FA(true);
+    try {
+      await apiClient.post("/auth/2fa/disable", { password: disable2FAPassword });
+      setTwoFactorEnabled(false);
+      setDisable2FAPassword("");
+      toast.success("Two-factor authentication has been disabled.");
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : "Failed to disable 2FA.";
+      toast.error(msg || "Failed to disable 2FA.");
+    } finally {
+      setIsDisabling2FA(false);
     }
   };
 
@@ -1283,6 +1375,15 @@ export function UserDashboard() {
               >
                 Appearance
               </button>
+              <button
+                onClick={() => setActiveSettingTab("security")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeSettingTab === "security"
+                  ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50"
+                  }`}
+              >
+                Security
+              </button>
             </div>
 
             {/* Main Content */}
@@ -1361,6 +1462,106 @@ export function UserDashboard() {
                     </div>
                   </div>
                 )}
+
+                {activeSettingTab === "security" && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                    <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                      Two-Factor Authentication
+                    </h4>
+                    {twoFactorStatusLoading ? (
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">Loading...</span>
+                      </div>
+                    ) : twoFactorEnabled ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                          <Shield className="h-5 w-5" />
+                          <span className="text-sm font-medium">Two-factor authentication is enabled.</span>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          You will be asked for a 6-digit code from your authenticator app each time you sign in.
+                        </p>
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            Enter your password to disable 2FA
+                          </label>
+                          <input
+                            type="password"
+                            value={disable2FAPassword}
+                            onChange={(e) => setDisable2FAPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleTwoFactorDisable}
+                            disabled={isDisabling2FA || !disable2FAPassword.trim()}
+                            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {isDisabling2FA ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            Disable 2FA
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          Add an extra layer of security by requiring a 6-digit code from an authenticator app (e.g. Google Authenticator, Authy) when you sign in.
+                        </p>
+                        {!twoFactorSetupQrUrl ? (
+                          <button
+                            type="button"
+                            onClick={handleTwoFactorSetup}
+                            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                          >
+                            <Shield className="h-4 w-4" />
+                            Enable two-factor authentication
+                          </button>
+                        ) : (
+                          <div className="space-y-4">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Scan this QR code with your authenticator app, then enter the 6-digit code below.
+                            </p>
+                            {twoFactorQrDataUrl && (
+                              <div className="flex justify-center p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600">
+                                <img src={twoFactorQrDataUrl} alt="2FA QR code" className="w-48 h-48" />
+                              </div>
+                            )}
+                            {twoFactorSetupSecret && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 break-all">
+                                Or enter this key manually: <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">{twoFactorSetupSecret}</code>
+                              </p>
+                            )}
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                6-digit code
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={twoFactorCode}
+                                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ""))}
+                                placeholder="000000"
+                                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-white tracking-widest text-center"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleTwoFactorEnable}
+                                disabled={isEnabling2FA || twoFactorCode.length !== 6}
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                              >
+                                {isEnabling2FA ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Confirm and enable 2FA
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-100 dark:border-slate-700 p-6 bg-slate-50 dark:bg-slate-900/30 flex justify-end gap-3 mt-auto">
@@ -1376,11 +1577,11 @@ export function UserDashboard() {
                   onClick={async () => {
                     if (activeSettingTab === "profile") {
                       await handleUpdateProfile();
-                    } else {
+                    } else if (activeSettingTab === "appearance") {
                       applyTheme(theme);
                     }
                   }}
-                  disabled={isUpdatingProfile}
+                  disabled={isUpdatingProfile || activeSettingTab === "security"}
                   className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center shadow-md shadow-indigo-200 dark:shadow-none transition-all"
                 >
                   {isUpdatingProfile ? (
