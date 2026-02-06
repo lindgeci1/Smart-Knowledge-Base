@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Download, Calendar, Loader2, Share2 } from "lucide-react";
+import { FileText, MessageSquare, Download, Calendar, Loader2, Share2, Trash2 } from "lucide-react";
 import { Button } from "./ui/Button";
 
 interface SummaryPreviewModalProps {
@@ -17,6 +17,8 @@ interface SummaryPreviewModalProps {
   onDownload?: () => void;
   isDownloading?: boolean;
   onShare?: () => void;
+  onDelete?: () => void;
+  deleteDisabled?: boolean;
 }
 
 export function SummaryPreviewModal({
@@ -26,6 +28,8 @@ export function SummaryPreviewModal({
   onDownload,
   isDownloading = false,
   onShare,
+  onDelete,
+  deleteDisabled = false,
 }: SummaryPreviewModalProps) {
   if (!isOpen || !summary) return null;
 
@@ -83,6 +87,17 @@ export function SummaryPreviewModal({
                 aria-label="Share"
               >
                 <Share2 className="h-5 w-5" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                disabled={deleteDisabled}
+                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Move to Trash"
+                aria-label="Move to Trash"
+              >
+                <Trash2 className="h-5 w-5" />
               </button>
             )}
             {onDownload && (

@@ -23,7 +23,10 @@ import {
   ChevronRight,
   Sparkles,
   CreditCard,
-  Shield
+  Shield,
+  Bell,
+  Trash2,
+  RotateCcw
 } from "lucide-react";
 import { toDataURL as qrToDataURL } from "qrcode";
 import { apiClient } from "../lib/authClient";
@@ -31,6 +34,7 @@ import { FolderSidebar } from "../components/FolderSidebar";
 import { SaveLocationModal } from "../components/SaveLocationModal";
 import { SummaryPreviewModal } from "../components/SummaryPreviewModal";
 import { ShareModal } from "../components/ShareModal";
+import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { generateSummaryPDF } from "../utils/pdfGenerator";
 import { ChatInterface } from "../components/ChatInterface";
 
@@ -49,6 +53,18 @@ interface Summary {
   folderId?: string; // Folder assignment
   sharedBy?: string; // Email of user who shared this document
   isShared?: boolean; // Whether this is a shared document
+  deletedAt?: string; // Trash view
+}
+
+interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: string;
+  metadata?: Record<string, string>;
 }
 
 export function UserDashboard() {
@@ -109,12 +125,32 @@ export function UserDashboard() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [selectedDocumentForShare, setSelectedDocumentForShare] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [sharedDocuments, setSharedDocuments] = useState<Summary[]>([]);
-  const [activeSection, setActiveSection] = useState<"my" | "shared">("my");
+  const [activeSection, setActiveSection] = useState<"my" | "shared" | "trash">(
+    "my"
+  );
+
+  // Trash state
+  const [trashedItems, setTrashedItems] = useState<Summary[]>([]);
+  const [isRefreshingTrash, setIsRefreshingTrash] = useState(false);
+  const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
+  const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
+  const [deleteForeverTarget, setDeleteForeverTarget] = useState<Summary | null>(
+    null
+  );
+  const [isDeletingForever, setIsDeletingForever] = useState(false);
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isNotifLoading, setIsNotifLoading] = useState(false);
+  const notifRef = React.useRef<HTMLDivElement>(null);
 
   // Function to fetch usage from backend
   const fetchUsage = useCallback(async () => {
@@ -166,6 +202,80 @@ export function UserDashboard() {
     } catch (error) {
       console.error("Failed to load shared documents", error);
       setSharedDocuments([]);
+    }
+  }, [user]);
+
+  // Function to fetch trash (texts + documents)
+  const fetchTrash = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [textRes, docRes] = await Promise.all([
+        apiClient.get("/Texts/trash"),
+        apiClient.get("/Documents/trash"),
+      ]);
+
+      const trashedTexts = (textRes.data || []).map((t: any) => ({
+        id: t.id,
+        userId: user.id,
+        userName: user.name,
+        type: "text" as const,
+        content: t.text || "",
+        summary: t.summary || "",
+        createdAt: t.createdAt || new Date().toISOString(),
+        deletedAt: t.deletedAt || new Date().toISOString(),
+        textName: t.textName || "Text Summary",
+        folderId: t.folderId || undefined,
+      }));
+
+      const trashedDocs = (docRes.data || []).map((d: any) => ({
+        id: d.id,
+        userId: user.id,
+        userName: user.name,
+        type: "file" as const,
+        content: d.fileName || "",
+        summary: d.summary || "",
+        createdAt: d.createdAt || new Date().toISOString(),
+        deletedAt: d.deletedAt || new Date().toISOString(),
+        filename: d.fileName ? `${d.fileName}.${d.fileType}` : "",
+        documentName: d.documentName || null,
+        folderId: d.folderId || undefined,
+      }));
+
+      const all = [...trashedTexts, ...trashedDocs].sort(
+        (a, b) =>
+          new Date(b.deletedAt || b.createdAt).getTime() -
+          new Date(a.deletedAt || a.createdAt).getTime()
+      );
+
+      setTrashedItems(all);
+    } catch (err) {
+      console.error("Failed to load trash", err);
+      setTrashedItems([]);
+    }
+  }, [user]);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await apiClient.get("/Notifications/unread-count");
+      setUnreadCount(res.data?.unreadCount || 0);
+    } catch (err) {
+      console.error("Failed to load unread count", err);
+      setUnreadCount(0);
+    }
+  }, [user]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    setIsNotifLoading(true);
+    try {
+      const res = await apiClient.get("/Notifications?limit=50");
+      setNotifications(res.data || []);
+    } catch (err) {
+      console.error("Failed to load notifications", err);
+      setNotifications([]);
+    } finally {
+      setIsNotifLoading(false);
     }
   }, [user]);
 
@@ -268,17 +378,28 @@ export function UserDashboard() {
     fetchSharedDocuments();
     fetchUsage();
     fetchCurrentPlan();
-  }, [fetchSummaries, fetchSharedDocuments, fetchUsage, fetchCurrentPlan]);
+    fetchUnreadCount();
+    fetchNotifications();
+  }, [
+    fetchSummaries,
+    fetchSharedDocuments,
+    fetchUsage,
+    fetchCurrentPlan,
+    fetchUnreadCount,
+    fetchNotifications,
+  ]);
 
   // Refresh plan when component becomes visible or window gains focus (e.g., after payment)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         fetchCurrentPlan();
+        fetchUnreadCount();
       }
     };
     const handleFocus = () => {
       fetchCurrentPlan();
+      fetchUnreadCount();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleFocus);
@@ -286,7 +407,34 @@ export function UserDashboard() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [fetchCurrentPlan]);
+  }, [fetchCurrentPlan, fetchUnreadCount]);
+
+  // Close notifications dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    }
+    if (isNotifOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isNotifOpen]);
+
+  // Poll unread count occasionally
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      fetchUnreadCount();
+    }, 30000);
+    return () => window.clearInterval(id);
+  }, [fetchUnreadCount]);
+
+  useEffect(() => {
+    if (activeSection === "trash") {
+      fetchTrash();
+    }
+  }, [activeSection, fetchTrash]);
 
   // Initialize theme from localStorage on component mount (per user)
   useEffect(() => {
@@ -540,6 +688,132 @@ export function UserDashboard() {
     const documentName = summary.documentName || summary.filename || "Document";
     setSelectedDocumentForShare({ id: summary.id, name: documentName });
     setShowShareModal(true);
+  };
+
+  const markNotificationRead = async (notificationId: string) => {
+    try {
+      await apiClient.put(`/Notifications/${notificationId}/read`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Failed to mark notification read", err);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await apiClient.put("/Notifications/read-all");
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error("Failed to mark all notifications read", err);
+      toast.error("Failed to mark all as read");
+    }
+  };
+
+  const softDeleteItem = async (item: Summary) => {
+    if (item.isShared) {
+      toast.error("You can't delete a shared item.");
+      return;
+    }
+    try {
+      const endpoint =
+        item.type === "text" ? `/Texts/${item.id}` : `/Documents/${item.id}`;
+      await apiClient.delete(endpoint);
+      toast.success("Moved to Trash");
+      setIsPreviewOpen(false);
+      setPreviewSummary(null);
+      await Promise.all([fetchSummaries(), fetchTrash()]);
+      setFoldersRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to move to trash", err);
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as any).response?.data
+          : null;
+      toast.error(
+        typeof msg === "string" && msg.trim()
+          ? msg
+          : "Failed to move to trash"
+      );
+    }
+  };
+
+  const restoreTrashedItem = async (item: Summary) => {
+    try {
+      const endpoint =
+        item.type === "text"
+          ? `/Texts/${item.id}/restore`
+          : `/Documents/${item.id}/restore`;
+      await apiClient.post(endpoint);
+      toast.success("Restored");
+      await Promise.all([fetchSummaries(), fetchTrash()]);
+      setFoldersRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to restore", err);
+      toast.error("Failed to restore");
+    }
+  };
+
+  const deleteForever = async (item: Summary) => {
+    try {
+      const endpoint =
+        item.type === "text"
+          ? `/Texts/${item.id}/permanent`
+          : `/Documents/${item.id}/permanent`;
+      await apiClient.delete(endpoint);
+      toast.success("Deleted permanently");
+      await fetchTrash();
+    } catch (err) {
+      console.error("Failed to delete permanently", err);
+      toast.error("Failed to delete permanently");
+    }
+  };
+
+  const emptyTrash = async () => {
+    setIsEmptyingTrash(true);
+    try {
+      await Promise.all([
+        apiClient.delete("/Texts/trash/empty"),
+        apiClient.delete("/Documents/trash/empty"),
+      ]);
+      toast.success("Trash emptied");
+      setShowEmptyTrashConfirm(false);
+      await fetchTrash();
+    } catch (err) {
+      console.error("Failed to empty trash", err);
+      toast.error("Failed to empty trash");
+    } finally {
+      setIsEmptyingTrash(false);
+    }
+  };
+
+  const getTrashItemLabel = (item: Summary) => {
+    return item.type === "file"
+      ? item.documentName || item.filename || "File"
+      : item.textName || "Text";
+  };
+
+  const requestDeleteForever = (item: Summary) => {
+    setDeleteForeverTarget(item);
+  };
+
+  const confirmDeleteForever = () => {
+    if (!deleteForeverTarget || isDeletingForever) return;
+    const item = deleteForeverTarget;
+    setIsDeletingForever(true);
+
+    // Fire-and-forget; modal closes immediately after confirm
+    void (async () => {
+      try {
+        await deleteForever(item);
+      } finally {
+        setIsDeletingForever(false);
+        setDeleteForeverTarget(null);
+      }
+    })();
   };
 
   const toggleSelectSummary = (id: string) => {
@@ -841,6 +1115,97 @@ export function UserDashboard() {
                   {currentPlan}
                 </span>
               </div>
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={async () => {
+                    const next = !isNotifOpen;
+                    setIsNotifOpen(next);
+                    if (next) {
+                      await Promise.all([fetchNotifications(), fetchUnreadCount()]);
+                    }
+                  }}
+                  className="relative p-2.5 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-all duration-200"
+                  title="Notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-800">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {isNotifOpen && (
+                  <div className="absolute right-0 mt-2 w-[22rem] sm:w-96 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-50">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                      <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                        Notifications
+                      </div>
+                      <button
+                        onClick={markAllNotificationsRead}
+                        disabled={unreadCount === 0}
+                        className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                      {isNotifLoading ? (
+                        <div className="p-4 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading...
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                          No notifications yet
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                          {notifications.map((n) => (
+                            <button
+                              key={n.id}
+                              onClick={async () => {
+                                if (!n.isRead) await markNotificationRead(n.id);
+                                setIsNotifOpen(false);
+                                // Open shared tab if it was a share notification
+                                if (n.type === "share") {
+                                  setActiveSection("shared");
+                                  await fetchSharedDocuments();
+                                  toast.success("Opened Shared tab");
+                                }
+                                if (n.link) navigate(n.link);
+                              }}
+                              className={`w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
+                                n.isRead ? "opacity-80" : "bg-indigo-50/40 dark:bg-indigo-900/10"
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                                    n.isRead ? "bg-slate-300 dark:bg-slate-600" : "bg-indigo-600"
+                                  }`}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    {n.title}
+                                  </div>
+                                  <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 break-words">
+                                    {n.message}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                                    {formatDate(n.createdAt)}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleOpenProfileModal}
                 className="p-2.5 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-all duration-200"
@@ -1136,7 +1501,7 @@ export function UserDashboard() {
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                     }`}
                 >
-                  My Summaries
+                  <span className="whitespace-nowrap">Mine</span>
                   <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
                     {summaries.filter(s => !s.folderId).length}
                   </span>
@@ -1151,6 +1516,18 @@ export function UserDashboard() {
                   Shared
                   <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
                     {sharedDocuments.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setActiveSection("trash")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${activeSection === "trash"
+                      ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white"
+                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                    }`}
+                >
+                  Trash
+                  <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                    {trashedItems.length}
                   </span>
                 </button>
               </div>
@@ -1184,14 +1561,30 @@ export function UserDashboard() {
                       {isSelectMode ? "Cancel" : "Select"}
                     </button>
                   )}
+                  {activeSection === "trash" && (
+                    <button
+                      onClick={() => setShowEmptyTrashConfirm(true)}
+                      disabled={trashedItems.length === 0}
+                      className="text-xs font-medium px-2 py-1 rounded transition-colors text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      title="Empty Trash"
+                    >
+                      Empty
+                    </button>
+                  )}
                   <button
                     onClick={async () => {
+                      if (activeSection === "trash") {
+                        setIsRefreshingTrash(true);
+                        await fetchTrash();
+                        setIsRefreshingTrash(false);
+                        return;
+                      }
                       setIsRefreshingSummaries(true);
                       if (activeSection === "my") await fetchSummaries();
                       else await fetchSharedDocuments();
                       setIsRefreshingSummaries(false);
                     }}
-                    className={`p-1.5 text-slate-400 hover:text-indigo-600 transition-colors ${isRefreshingSummaries ? "animate-spin" : ""}`}
+                    className={`p-1.5 text-slate-400 hover:text-indigo-600 transition-colors ${(activeSection === "trash" ? isRefreshingTrash : isRefreshingSummaries) ? "animate-spin" : ""}`}
                   >
                     <RefreshCw className="h-4 w-4" />
                   </button>
@@ -1255,6 +1648,138 @@ export function UserDashboard() {
                         </div>
                         <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">{item.documentName}</h4>
                         <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">{item.summary}</p>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : activeSection === "trash" ? (
+                trashedItems.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                    <Trash2 className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-sm text-slate-500">Trash is empty</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-[170px]">
+                      Deleted items will appear here.
+                    </p>
+                  </div>
+                ) : viewMode === "list" ? (
+                  <div className="space-y-2">
+                    {trashedItems.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handlePreviewSummary(item)}
+                        className="group flex items-start gap-3 p-3 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-all"
+                      >
+                        <div
+                          className={`mt-1 h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            item.type === "file"
+                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                          }`}
+                        >
+                          {item.type === "file" ? (
+                            <FileText className="h-4 w-4" />
+                          ) : (
+                            <MessageSquare className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                            {item.type === "file"
+                              ? item.documentName || item.filename
+                              : item.textName}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Deleted {formatDate(item.deletedAt || item.createdAt)}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                            {item.summary}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              restoreTrashedItem(item);
+                            }}
+                            className="p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+                            title="Restore"
+                            aria-label="Restore"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              requestDeleteForever(item);
+                            }}
+                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400"
+                            title="Delete forever"
+                            aria-label="Delete forever"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {trashedItems.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handlePreviewSummary(item)}
+                        className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer transition-all"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-6 w-6 rounded flex items-center justify-center ${
+                                item.type === "file"
+                                  ? "bg-purple-100 text-purple-600"
+                                  : "bg-blue-100 text-blue-600"
+                              }`}
+                            >
+                              {item.type === "file" ? (
+                                <FileText className="h-3 w-3" />
+                              ) : (
+                                <MessageSquare className="h-3 w-3" />
+                              )}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              Deleted {formatDate(item.deletedAt || item.createdAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                restoreTrashedItem(item);
+                              }}
+                              className="p-1.5 rounded-md hover:bg-emerald-50 text-emerald-600"
+                              title="Restore"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                requestDeleteForever(item);
+                              }}
+                              className="p-1.5 rounded-md hover:bg-red-50 text-red-600"
+                              title="Delete forever"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 line-clamp-1 mb-1">
+                          {item.type === "file"
+                            ? item.documentName || item.filename
+                            : item.textName}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 leading-relaxed">
+                          {item.summary}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1401,7 +1926,7 @@ export function UserDashboard() {
               <div className="p-6 space-y-6 flex-1">
                 {activeSettingTab === "profile" && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-xs">
+                    <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
                       Personal Information
                     </h4>
                     <div className="space-y-4">
@@ -1624,6 +2149,12 @@ export function UserDashboard() {
           setPreviewSummary(null);
         }}
         summary={previewSummary}
+        onDelete={
+          previewSummary && !previewSummary.isShared && activeSection !== "trash"
+            ? () => softDeleteItem(previewSummary)
+            : undefined
+        }
+        deleteDisabled={!previewSummary || !!previewSummary.isShared || activeSection === "trash"}
         onDownload={() => {
           if (previewSummary) {
             handleDownloadSummary(previewSummary);
@@ -1646,21 +2177,52 @@ export function UserDashboard() {
             setShowShareModal(false);
             setSelectedDocumentForShare(null);
           }}
+          isLoading={isSharing}
           onConfirm={async (email) => {
-            // TODO: Implement actual share logic (API call)
+            if (!selectedDocumentForShare || isSharing) return;
+            setIsSharing(true);
             try {
-              // Example: await apiClient.post(`/Documents/share`, { documentId: selectedDocumentForShare.id, email });
+              await apiClient.post(
+                `/Documents/${selectedDocumentForShare.id}/share`,
+                { email }
+              );
               toast.success(`Document shared with ${email}`);
+              await fetchUnreadCount();
               setShowShareModal(false);
               setSelectedDocumentForShare(null);
             } catch (err) {
               toast.error('Failed to share document.');
+            } finally {
+              setIsSharing(false);
             }
           }}
           documentName={selectedDocumentForShare.name}
-          currentUserEmail={user?.email}
         />
       )}
+
+      <DeleteConfirmModal
+        isOpen={showEmptyTrashConfirm}
+        onClose={() => setShowEmptyTrashConfirm(false)}
+        onConfirm={emptyTrash}
+        title="Trash"
+        message="Empty Trash? This will permanently delete all items in Trash. This action cannot be undone."
+        confirmLabel={isEmptyingTrash ? "Emptying..." : "Empty Trash"}
+        cancelLabel="Cancel"
+      />
+
+      <DeleteConfirmModal
+        isOpen={!!deleteForeverTarget}
+        onClose={() => setDeleteForeverTarget(null)}
+        onConfirm={confirmDeleteForever}
+        title={deleteForeverTarget ? getTrashItemLabel(deleteForeverTarget) : "Item"}
+        message={
+          deleteForeverTarget
+            ? `Delete "${getTrashItemLabel(deleteForeverTarget)}" forever? This action cannot be undone.`
+            : "Delete this item forever? This action cannot be undone."
+        }
+        confirmLabel={isDeletingForever ? "Deleting..." : "Delete Forever"}
+        cancelLabel="Cancel"
+      />
 
       <ChatInterface />
 
