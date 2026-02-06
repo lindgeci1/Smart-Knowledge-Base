@@ -15,6 +15,8 @@ namespace SmartKB.Controllers
     {
         private readonly IMongoCollection<Document> _documentCollection;
         private readonly IMongoCollection<Text> _textCollection;
+        private readonly IMongoCollection<DocumentChunk> _chunkCollection;
+        private readonly IMongoCollection<TextChunk> _textChunkCollection;
         private readonly IMongoCollection<Chat> _chatCollection;
         private readonly IMongoCollection<ChatMessage> _chatMessageCollection;
         private readonly AiService _aiService;
@@ -33,6 +35,8 @@ namespace SmartKB.Controllers
 
             _documentCollection = database.GetCollection<Document>("documents");
             _textCollection = database.GetCollection<Text>("texts");
+            _chunkCollection = database.GetCollection<DocumentChunk>("document_chunks");
+            _textChunkCollection = database.GetCollection<TextChunk>("text_chunks");
             _chatCollection = database.GetCollection<Chat>("chats");
             _chatMessageCollection = database.GetCollection<ChatMessage>("chat_messages");
             _aiService = new AiService(configuration);
@@ -140,87 +144,108 @@ namespace SmartKB.Controllers
 
             if (!string.IsNullOrEmpty(request.DocumentId))
             {
-                // Explicit document selected - use it directly
-                var document = await _documentCollection.Find(d => d.DocumentId == request.DocumentId && d.UserId == userId).FirstOrDefaultAsync();
+                // Scenario A: Explicit document selected - use full content (not summary)
+                var document = await _documentCollection.Find(d => d.DocumentId == request.DocumentId && d.UserId == userId && !d.IsDeleted).FirstOrDefaultAsync();
                 if (document != null)
                 {
-                    contextContent = document.Summary;
+                    contextContent = document.FileData ?? "";
                 }
                 else
                 {
                     // Try finding in Texts
-                    var textDoc = await _textCollection.Find(t => t.TextId == request.DocumentId && t.UserId == userId).FirstOrDefaultAsync();
+                    var textDoc = await _textCollection.Find(t => t.TextId == request.DocumentId && t.UserId == userId && !t.IsDeleted).FirstOrDefaultAsync();
                     if (textDoc != null)
                     {
-                        contextContent = textDoc.Summary;
+                        contextContent = textDoc.TextContent ?? "";
                     }
+                }
+
+                // Avoid sending extremely large context
+                const int maxContextChars = 12000;
+                if (!string.IsNullOrEmpty(contextContent) && contextContent.Length > maxContextChars)
+                {
+                    contextContent = contextContent.Substring(0, maxContextChars);
                 }
             }
             else
             {
-                // No document selected - use RAG to find most relevant documents using embeddings
-                Console.WriteLine("[ChatController] 🔍 RAG Mode - Searching all documents using embeddings...");
+                // Scenario B: RAG mode - search chunk embeddings (top 3)
+                Console.WriteLine("[ChatController] 🔍 RAG Mode - Searching chunks using embeddings...");
                 try
                 {
                     // Generate embedding for the user's question
                     var queryEmbedding = await _embeddingService.GenerateEmbeddingAsync(request.Message);
-                    
-                    // Find similar documents and texts using cosine similarity
-                    var allDocuments = await _documentCollection
-                        .Find(d => d.UserId == userId && d.Status == "Completed" && d.Embedding != null && !string.IsNullOrEmpty(d.Summary))
-                        .ToListAsync();
-                    
-                    var allTexts = await _textCollection
-                        .Find(t => t.UserId == userId && t.Status == "Completed" && t.Embedding != null && !string.IsNullOrEmpty(t.Summary))
+
+                    // Access-control: only include chunks that belong to the current user's documents
+                    // (Still chunk-based retrieval; this just prevents cross-user leakage.)
+                    var userDocumentIds = await _documentCollection
+                        .Find(d => d.UserId == userId && d.Status == "Completed" && !d.IsDeleted)
+                        .Project(d => d.DocumentId)
                         .ToListAsync();
 
-                    // Calculate similarity scores for documents
-                    var documentScores = allDocuments
-                        .Select(d => new
-                        {
-                            Document = d,
-                            Similarity = _embeddingService.CalculateCosineSimilarity(queryEmbedding, d.Embedding!)
-                        })
-                        .OrderByDescending(x => x.Similarity)
-                        .ToList();
+                    userDocumentIds = userDocumentIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
 
-                    // Calculate similarity scores for texts
-                    var textScores = allTexts
-                        .Select(t => new
-                        {
-                            Text = t,
-                            Similarity = _embeddingService.CalculateCosineSimilarity(queryEmbedding, t.Embedding!)
-                        })
-                        .OrderByDescending(x => x.Similarity)
-                        .ToList();
+                    var userTextIds = await _textCollection
+                        .Find(t => t.UserId == userId && t.Status == "Completed" && !t.IsDeleted)
+                        .Project(t => t.TextId)
+                        .ToListAsync();
 
-                    // Filter by threshold (0.25 to avoid irrelevant matches)
-                    var relevantDocuments = documentScores.Where(x => x.Similarity > 0.25).Take(3).ToList();
-                    var relevantTexts = textScores.Where(x => x.Similarity > 0.25).Take(3).ToList();
+                    userTextIds = userTextIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
 
-                    // Combine and get the most relevant context
-                    var allResults = relevantDocuments
-                        .Select(x => new { Content = x.Document.Summary, Similarity = x.Similarity, Type = "Document", Name = x.Document.DocumentName ?? x.Document.FileName })
-                        .Concat(relevantTexts.Select(x => new { Content = x.Text.Summary, Similarity = x.Similarity, Type = "Text", Name = x.Text.TextName ?? "Text Summary" }))
-                        .OrderByDescending(x => x.Similarity)
-                        .Take(2) // Use top 2 most relevant
-                        .ToList();
+                    var scored = new List<(string source, string id, int index, string content, double sim)>();
 
-                    if (allResults.Any())
+                    if (userDocumentIds.Any())
                     {
-                        // Combine the most relevant summaries as context
-                        contextContent = string.Join("\n\n---\n\n", 
-                            allResults.Select(r => $"[From {r.Type}: {r.Name}]\n{r.Content}"));
-                        
-                        Console.WriteLine($"[ChatController] ✅ RAG found {allResults.Count} relevant documents/texts:");
-                        foreach (var result in allResults)
-                        {
-                            Console.WriteLine($"[ChatController]   - {result.Type}: {result.Name} (Similarity: {result.Similarity:F3})");
-                        }
+                        var allDocChunks = await _chunkCollection
+                            .Find(c => userDocumentIds.Contains(c.DocumentId))
+                            .ToListAsync();
+
+                        scored.AddRange(
+                            allDocChunks
+                                .Where(c => c.Embedding != null && c.Embedding.Length > 0 && !string.IsNullOrWhiteSpace(c.Content))
+                                .Select(c => ("doc", c.DocumentId, c.Index, c.Content, _embeddingService.CalculateCosineSimilarity(queryEmbedding, c.Embedding)))
+                        );
                     }
                     else
                     {
-                        Console.WriteLine("[ChatController] ⚠️ RAG found no relevant documents (similarity threshold 0.25 not met) - using general AI response");
+                        Console.WriteLine("[ChatController] ⚠️ No user documents found for doc chunk search.");
+                    }
+
+                    if (userTextIds.Any())
+                    {
+                        var allTextChunks = await _textChunkCollection
+                            .Find(c => userTextIds.Contains(c.TextId))
+                            .ToListAsync();
+
+                        scored.AddRange(
+                            allTextChunks
+                                .Where(c => c.Embedding != null && c.Embedding.Length > 0 && !string.IsNullOrWhiteSpace(c.Content))
+                                .Select(c => ("text", c.TextId, c.Index, c.Content, _embeddingService.CalculateCosineSimilarity(queryEmbedding, c.Embedding)))
+                        );
+                    }
+                    else
+                    {
+                        Console.WriteLine("[ChatController] ⚠️ No user texts found for text chunk search.");
+                    }
+
+                    var top = scored
+                        .OrderByDescending(x => x.sim)
+                        .Take(3)
+                        .ToList();
+
+                    if (top.Any())
+                    {
+                        contextContent = string.Join("\n\n---\n\n",
+                            top.Select(s =>
+                                s.source == "doc"
+                                    ? $"[Chunk doc={s.id} idx={s.index} sim={s.sim:F3}]\n{s.content}"
+                                    : $"[Chunk text={s.id} idx={s.index} sim={s.sim:F3}]\n{s.content}"
+                            ));
+                        Console.WriteLine($"[ChatController] ✅ RAG selected {top.Count} chunks (docs+texts).");
+                    }
+                    else
+                    {
+                        Console.WriteLine("[ChatController] ⚠️ RAG found no chunks to use - using general AI response");
                     }
                 }
                 catch (Exception ex)
@@ -232,7 +257,7 @@ namespace SmartKB.Controllers
 
             var prompt = string.IsNullOrEmpty(contextContent)
                 ? $"You are Summy, a helpful AI assistant. Answer the user's question concisely and accurately. Do not use markdown formatting. User Question: {request.Message}"
-                : $"You are Summy, a helpful AI assistant. Your task is to answer the user's question based ONLY on the provided summary report below.\n- Provide a direct and accurate answer.\n- Do not include information not present in the report.\n- If the answer cannot be found in the report, explicitly state: 'I cannot find the answer to that question in the selected document.'\n- Do not use markdown formatting.\n- Split the answer into clear sections if it is long.\n\nSummary Report:\n{contextContent}\n\nUser Question: {request.Message}";
+                : $"You are Summy, a helpful AI assistant. Your task is to answer the user's question based ONLY on the provided context below.\n- Provide a direct and accurate answer.\n- Do not include information not present in the context.\n- If the answer cannot be found in the context, explicitly state: 'I cannot find the answer to that question in the selected document.'\n- Do not use markdown formatting.\n- Split the answer into clear sections if it is long.\n\nContext:\n{contextContent}\n\nUser Question: {request.Message}";
 
             try 
             {

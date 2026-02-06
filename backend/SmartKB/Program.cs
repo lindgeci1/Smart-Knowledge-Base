@@ -17,6 +17,7 @@ builder.Services.AddHttpClient();
 // Register Services
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<EmbeddingService>();
+builder.Services.AddHostedService<TrashCleanupService>();
 
 // Add CORS
 builder.Services.AddCors(options =>

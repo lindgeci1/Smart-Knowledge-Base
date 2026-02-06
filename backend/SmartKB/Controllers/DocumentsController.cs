@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using SmartKB.Models;
 using SmartKB.Services;
@@ -12,10 +13,12 @@ namespace SmartKB.Controllers
     public class DocumentsController : ControllerBase
     {
         private readonly IMongoCollection<Document> _documentCollection;
+        private readonly IMongoCollection<DocumentChunk> _chunkCollection;
         private readonly IMongoCollection<User> _userCollection;
         private readonly IMongoCollection<UserRole> _userRoleCollection;
         private readonly IMongoCollection<Usage> _usageCollection;
         private readonly IMongoCollection<SharedDocument> _sharedDocumentCollection;
+        private readonly IMongoCollection<Notification> _notificationCollection;
         private readonly SummarizationService _summarizationService;
         private readonly EmbeddingService _embeddingService;
         private readonly IConfiguration _configuration;
@@ -32,10 +35,12 @@ namespace SmartKB.Controllers
             var database = client.GetDatabase(databaseName);
 
             _documentCollection = database.GetCollection<Document>("documents");
+            _chunkCollection = database.GetCollection<DocumentChunk>("document_chunks");
             _userCollection = database.GetCollection<User>("users");
             _userRoleCollection = database.GetCollection<UserRole>("userRoles");
             _usageCollection = database.GetCollection<Usage>("usage");
             _sharedDocumentCollection = database.GetCollection<SharedDocument>("sharedDocuments");
+            _notificationCollection = database.GetCollection<Notification>("notifications");
             _summarizationService = new SummarizationService(_userRoleCollection, _usageCollection);
         }
 
@@ -43,7 +48,11 @@ namespace SmartKB.Controllers
         [HttpGet("count")]
         public async Task<IActionResult> GetDocumentsCount()
         {
-            var count = await _documentCollection.CountDocumentsAsync(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary));
+            var count = await _documentCollection.CountDocumentsAsync(d =>
+                d.Status == "Completed" &&
+                !string.IsNullOrEmpty(d.Summary) &&
+                !d.IsDeleted
+            );
             return Ok(new { count = (int)count });
         }
 
@@ -52,7 +61,7 @@ namespace SmartKB.Controllers
         [HttpGet("{id}")]
         public IActionResult GetDocumentById(string id)
         {
-            var document = _documentCollection.Find(d => d.DocumentId == id).FirstOrDefault();
+            var document = _documentCollection.Find(d => d.DocumentId == id && !d.IsDeleted).FirstOrDefault();
             if (document == null)
                 return NotFound("Document not found");
 
@@ -149,6 +158,40 @@ namespace SmartKB.Controllers
 
             try
             {
+                // ---------------------------------------
+                // Chunking + embeddings (chunk-based RAG)
+                // ---------------------------------------
+                if (string.IsNullOrWhiteSpace(document.DocumentId))
+                {
+                    throw new Exception("DocumentId not generated after insert.");
+                }
+
+                var chunks = SplitTextIntoChunks(cleanedText, 1000);
+                var chunkDocs = new List<DocumentChunk>(chunks.Count);
+
+                for (var i = 0; i < chunks.Count; i++)
+                {
+                    var chunkText = chunks[i];
+                    if (string.IsNullOrWhiteSpace(chunkText))
+                        continue;
+
+                    // Generate embedding for each chunk
+                    var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunkText);
+
+                    chunkDocs.Add(new DocumentChunk
+                    {
+                        DocumentId = document.DocumentId,
+                        Content = chunkText,
+                        Index = i,
+                        Embedding = chunkEmbedding
+                    });
+                }
+
+                if (chunkDocs.Count > 0)
+                {
+                    await _chunkCollection.InsertManyAsync(chunkDocs);
+                }
+
                 Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Summarization started document");
                 var startTime = DateTime.UtcNow;
                 
@@ -160,28 +203,10 @@ namespace SmartKB.Controllers
                 
                 var documentName = $"File Summary of {keyword}";
 
-                // Generate embedding for the summary (required)
-                float[]? embedding = null;
-                if (!string.IsNullOrWhiteSpace(summary) && summary.Length >= 10)
-                {
-                    embedding = await _embeddingService.GenerateEmbeddingAsync(summary);
-                }
-
                 var update = Builders<Document>.Update
                     .Set(d => d.Summary, summary)
                     .Set(d => d.DocumentName, documentName)
                     .Set(d => d.Status, "Completed");
-
-                // Always set embedding if it was generated (required for RAG)
-                if (embedding != null)
-                {
-                    update = update.Set(d => d.Embedding, embedding);
-
-                }
-                else
-                {
-
-                }
 
                 _documentCollection.UpdateOne(d => d.DocumentId == document.DocumentId, update);
 
@@ -202,13 +227,16 @@ namespace SmartKB.Controllers
             }
             catch (Exception ex)
             {
+                Console.WriteLine("[DocumentsController] Summarization failed (upload).");
+                Console.WriteLine(ex.ToString());
 
                 var update = Builders<Document>.Update
                     .Set(d => d.Status, "Error");
 
                 _documentCollection.UpdateOne(d => d.DocumentId == document.DocumentId, update);
 
-                return StatusCode(500, "Summarization failed");
+                // Return a safe error message for debugging (no secrets included)
+                return StatusCode(500, $"Summarization failed: {ex.Message}");
             }
         }
         [Authorize(Roles = "1, 2")]
@@ -224,7 +252,7 @@ namespace SmartKB.Controllers
 
             // Get all file summaries for this user, ordered by ID (newest first, since MongoDB ObjectId includes timestamp)
             var summaries = _documentCollection
-                .Find(d => d.UserId == userId && d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary))
+                .Find(d => d.UserId == userId && d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary) && !d.IsDeleted)
                 .SortByDescending(d => d.DocumentId)
                 .ToList();
 
@@ -254,7 +282,7 @@ namespace SmartKB.Controllers
             var userId = userIdClaim.Value;
 
             // Verify document belongs to user
-            var document = await _documentCollection.Find(d => d.DocumentId == id && d.UserId == userId).FirstOrDefaultAsync();
+            var document = await _documentCollection.Find(d => d.DocumentId == id && d.UserId == userId && !d.IsDeleted).FirstOrDefaultAsync();
             if (document == null)
                 return NotFound("Document not found or you don't have permission");
 
@@ -296,6 +324,39 @@ namespace SmartKB.Controllers
             };
 
             await _sharedDocumentCollection.InsertOneAsync(sharedDocument);
+
+            // In-app notification for recipient (only if recipient user exists)
+            if (!string.IsNullOrWhiteSpace(sharedWithUserId))
+            {
+                try
+                {
+                    var documentName = document.DocumentName ?? document.FileName ?? "Document";
+                    var senderName = currentUser.Username ?? currentUser.Email;
+
+                    var notification = new Notification
+                    {
+                        UserId = sharedWithUserId,
+                        Type = "share",
+                        Title = "New document shared with you",
+                        Message = $"{senderName} shared \"{documentName}\" with you.",
+                        Link = "/dashboard",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow,
+                        Metadata = new Dictionary<string, string>
+                        {
+                            { "documentId", id },
+                            { "documentType", "file" }
+                        }
+                    };
+
+                    await _notificationCollection.InsertOneAsync(notification);
+                }
+                catch (Exception ex)
+                {
+                    // Log but don't fail share operation
+                    Console.WriteLine($"Failed to create in-app notification: {ex.Message}");
+                }
+            }
 
             // Send email notification (don't fail if email fails)
             try
@@ -343,7 +404,8 @@ namespace SmartKB.Controllers
             var documents = await _documentCollection.Find(
                 d => documentIds.Contains(d.DocumentId) && 
                      d.Status == "Completed" && 
-                     !string.IsNullOrEmpty(d.Summary)
+                     !string.IsNullOrEmpty(d.Summary) &&
+                     !d.IsDeleted
             ).ToListAsync();
 
             // Get shared by user info
@@ -435,11 +497,171 @@ namespace SmartKB.Controllers
             return Ok(new { message = "Document updated successfully" });
         }
 
+        // ----------------------------
+        // Trash / Recycle Bin (soft delete)
+        // ----------------------------
+
+        [Authorize(Roles = "1, 2")]
+        [HttpGet("trash")]
+        public async Task<IActionResult> GetTrashedDocuments()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var trashed = await _documentCollection
+                .Find(d => d.UserId == userId && d.IsDeleted)
+                .SortByDescending(d => d.DeletedAt)
+                .ToListAsync();
+
+            var result = trashed.Select(d => new
+            {
+                id = d.DocumentId,
+                fileName = d.FileName,
+                fileType = d.FileType,
+                summary = d.Summary,
+                documentName = d.DocumentName,
+                status = d.Status,
+                folderId = d.FolderId,
+                createdAt = d.CreatedAt,
+                deletedAt = d.DeletedAt
+            }).ToList();
+
+            return Ok(result);
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> SoftDeleteDocument(string id)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            // Match by id in a robust way (string/ObjectId) and treat missing isDeleted as "not deleted"
+            var idFilters = new List<FilterDefinition<Document>>
+            {
+                Builders<Document>.Filter.Eq(d => d.DocumentId, id),
+                Builders<Document>.Filter.Eq("document_id", id)
+            };
+            if (ObjectId.TryParse(id, out var objId))
+            {
+                idFilters.Add(Builders<Document>.Filter.Eq("_id", objId));
+                idFilters.Add(Builders<Document>.Filter.Eq("document_id", objId));
+            }
+
+            var filter = Builders<Document>.Filter.Or(idFilters) &
+                         Builders<Document>.Filter.Ne(d => d.IsDeleted, true);
+
+            // Regular users can only delete their own documents; admins can delete any
+            if (!User.IsInRole("1"))
+            {
+                filter &= Builders<Document>.Filter.Eq(d => d.UserId, userId);
+            }
+
+            var update = Builders<Document>.Update
+                .Set(d => d.IsDeleted, true)
+                .Set(d => d.DeletedAt, DateTime.UtcNow);
+
+            var result = await _documentCollection.UpdateOneAsync(filter, update);
+            if (result.MatchedCount == 0)
+            {
+                // Make this endpoint idempotent: if the document is already deleted, return OK
+                var existing = await _documentCollection.Find(Builders<Document>.Filter.Or(idFilters)).FirstOrDefaultAsync();
+                if (existing == null)
+                    return NotFound("Document not found");
+
+                if (!User.IsInRole("1") && existing.UserId != userId)
+                    return NotFound("Document not found");
+
+                if (existing.IsDeleted)
+                    return Ok(new { message = "Document already in trash" });
+
+                return NotFound("Document not found");
+            }
+
+            return Ok(new { message = "Document moved to trash" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpPost("{id}/restore")]
+        public async Task<IActionResult> RestoreDocument(string id)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var filter = Builders<Document>.Filter.Eq(d => d.DocumentId, id) &
+                         Builders<Document>.Filter.Eq(d => d.IsDeleted, true);
+
+            if (!User.IsInRole("1"))
+            {
+                filter &= Builders<Document>.Filter.Eq(d => d.UserId, userId);
+            }
+
+            var update = Builders<Document>.Update
+                .Set(d => d.IsDeleted, false)
+                .Set(d => d.DeletedAt, null);
+
+            var result = await _documentCollection.UpdateOneAsync(filter, update);
+            if (result.MatchedCount == 0)
+                return NotFound("Document not found in trash");
+
+            return Ok(new { message = "Document restored" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("{id}/permanent")]
+        public async Task<IActionResult> PermanentlyDeleteDocument(string id)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var filter = Builders<Document>.Filter.Eq(d => d.DocumentId, id);
+            if (!User.IsInRole("1"))
+            {
+                filter &= Builders<Document>.Filter.Eq(d => d.UserId, userId);
+            }
+
+            var result = await _documentCollection.DeleteOneAsync(filter);
+            if (result.DeletedCount == 0)
+                return NotFound("Document not found");
+
+            return Ok(new { message = "Document deleted permanently" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("trash/empty")]
+        public async Task<IActionResult> EmptyTrash()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var result = await _documentCollection.DeleteManyAsync(d => d.UserId == userId && d.IsDeleted);
+            return Ok(new { message = "Trash emptied", deletedCount = result.DeletedCount });
+        }
+
         [Authorize(Roles = "1")]
         [HttpGet("admin/count")]
         public async Task<IActionResult> GetFileSummariesCount()
         {
-            var count = await _documentCollection.CountDocumentsAsync(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary));
+            var count = await _documentCollection.CountDocumentsAsync(d =>
+                d.Status == "Completed" &&
+                !string.IsNullOrEmpty(d.Summary) &&
+                !d.IsDeleted
+            );
             return Ok(new { count = (int)count });
         }
 
@@ -448,7 +670,7 @@ namespace SmartKB.Controllers
         public async Task<IActionResult> GetAllDocuments()
         {
             var documents = await _documentCollection
-                .Find(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary))
+                .Find(d => d.Status == "Completed" && !string.IsNullOrEmpty(d.Summary) && !d.IsDeleted)
                 .SortByDescending(d => d.DocumentId)
                 .ToListAsync();
 
@@ -485,7 +707,8 @@ namespace SmartKB.Controllers
             var documents = await _documentCollection.Find(
                 d => documentIds.Contains(d.DocumentId) && 
                      d.Status == "Completed" && 
-                     !string.IsNullOrEmpty(d.Summary)
+                     !string.IsNullOrEmpty(d.Summary) &&
+                     !d.IsDeleted
             ).ToListAsync();
 
             // Get user info for all shares
@@ -585,6 +808,30 @@ namespace SmartKB.Controllers
             text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
 
             return text.Trim();
+        }
+
+        // Helper: Split text into fixed-size chunks safely
+        private List<string> SplitTextIntoChunks(string text, int chunkSize)
+        {
+            var chunks = new List<string>();
+            if (string.IsNullOrWhiteSpace(text))
+                return chunks;
+
+            if (chunkSize <= 0)
+                chunkSize = 1000;
+
+            var normalized = text.Trim();
+            for (var i = 0; i < normalized.Length; i += chunkSize)
+            {
+                var len = Math.Min(chunkSize, normalized.Length - i);
+                var chunk = normalized.Substring(i, len).Trim();
+                if (!string.IsNullOrWhiteSpace(chunk))
+                {
+                    chunks.Add(chunk);
+                }
+            }
+
+            return chunks;
         }
     }
 }

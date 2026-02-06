@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using SmartKB.DTOs;
 using SmartKB.Models;
@@ -12,6 +13,7 @@ namespace SmartKB.Controllers
     public class TextController : ControllerBase
     {
         private readonly IMongoCollection<Text> _textCollection;
+        private readonly IMongoCollection<TextChunk> _textChunkCollection;
         private readonly IMongoCollection<User> _userCollection;
         private readonly IMongoCollection<UserRole> _userRoleCollection;
         private readonly IMongoCollection<Usage> _usageCollection;
@@ -29,6 +31,7 @@ namespace SmartKB.Controllers
             var database = client.GetDatabase(databaseName);
 
             _textCollection = database.GetCollection<Text>("texts");
+            _textChunkCollection = database.GetCollection<TextChunk>("text_chunks");
             _userCollection = database.GetCollection<User>("users");
             _userRoleCollection = database.GetCollection<UserRole>("userRoles");
             _usageCollection = database.GetCollection<Usage>("usage");
@@ -39,7 +42,11 @@ namespace SmartKB.Controllers
         [HttpGet("count")]
         public async Task<IActionResult> GetTextSummariesCount()
         {
-            var count = await _textCollection.CountDocumentsAsync(t => t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary));
+            var count = await _textCollection.CountDocumentsAsync(t =>
+                t.Status == "Completed" &&
+                !string.IsNullOrEmpty(t.Summary) &&
+                !t.IsDeleted
+            );
             return Ok(new { count = (int)count });
         }
 
@@ -97,6 +104,38 @@ namespace SmartKB.Controllers
 
             try
             {
+                // ---------------------------------------
+                // Chunking + embeddings (chunk-based RAG)
+                // ---------------------------------------
+                if (string.IsNullOrWhiteSpace(text.TextId))
+                {
+                    throw new Exception("TextId not generated after insert.");
+                }
+
+                var chunks = SplitTextIntoChunks(cleanedText, 1000);
+                var chunkDocs = new List<TextChunk>(chunks.Count);
+
+                for (var i = 0; i < chunks.Count; i++)
+                {
+                    var chunkText = chunks[i];
+                    if (string.IsNullOrWhiteSpace(chunkText))
+                        continue;
+
+                    var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunkText);
+                    chunkDocs.Add(new TextChunk
+                    {
+                        TextId = text.TextId,
+                        Content = chunkText,
+                        Index = i,
+                        Embedding = chunkEmbedding
+                    });
+                }
+
+                if (chunkDocs.Count > 0)
+                {
+                    await _textChunkCollection.InsertManyAsync(chunkDocs);
+                }
+
                 Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Summarization started text");
                 var startTime = DateTime.UtcNow;
                 
@@ -108,28 +147,10 @@ namespace SmartKB.Controllers
                 
                 var textName = $"Text Summary of {keyword}";
 
-                // Generate embedding for the summary (required)
-                float[]? embedding = null;
-                if (!string.IsNullOrWhiteSpace(summary) && summary.Length >= 10)
-                {
-                    embedding = await _embeddingService.GenerateEmbeddingAsync(summary);
-                }
-
                 var update = Builders<Text>.Update
                     .Set(t => t.Summary, summary)
                     .Set(t => t.TextName, textName)
                     .Set(t => t.Status, "Completed");
-
-                // Always set embedding if it was generated (required for RAG)
-                if (embedding != null)
-                {
-                    update = update.Set(t => t.Embedding, embedding);
-
-                }
-                else
-                {
-
-                }
 
                 _textCollection.UpdateOne(t => t.TextId == text.TextId, update);
 
@@ -148,14 +169,17 @@ namespace SmartKB.Controllers
                     textName = updatedText?.TextName
                 });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine("[TextController] Summarization failed (add text).");
+                Console.WriteLine(ex.ToString());
+
                 var update = Builders<Text>.Update
                     .Set(t => t.Status, "Error");
 
                 _textCollection.UpdateOne(t => t.TextId == text.TextId, update);
 
-                return StatusCode(500, "Summarization failed");
+                return StatusCode(500, $"Summarization failed: {ex.Message}");
             }
         }
 
@@ -172,7 +196,7 @@ namespace SmartKB.Controllers
 
             // Get all text summaries for this user, ordered by creation date (newest first)
             var summaries = _textCollection
-                .Find(t => t.UserId == userId && t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary))
+                .Find(t => t.UserId == userId && t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary) && !t.IsDeleted)
                 .SortByDescending(t => t.CreatedAt)
                 .ToList();
 
@@ -253,11 +277,185 @@ namespace SmartKB.Controllers
             return Ok(new { message = "Text updated successfully" });
         }
 
+        // ----------------------------
+        // Trash / Recycle Bin (soft delete)
+        // ----------------------------
+
+        [Authorize(Roles = "1, 2")]
+        [HttpGet("trash")]
+        public async Task<IActionResult> GetTrashedTexts()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var trashed = await _textCollection
+                .Find(t => t.UserId == userId && t.IsDeleted)
+                .SortByDescending(t => t.DeletedAt)
+                .ToListAsync();
+
+            var result = trashed.Select(t => new
+            {
+                id = t.TextId,
+                text = t.TextContent,
+                textName = t.TextName,
+                summary = t.Summary,
+                createdAt = t.CreatedAt,
+                deletedAt = t.DeletedAt,
+                status = t.Status,
+                folderId = t.FolderId
+            }).ToList();
+
+            return Ok(result);
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> SoftDeleteText(string id)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var idFilters = new List<FilterDefinition<Text>>
+            {
+                Builders<Text>.Filter.Eq(t => t.TextId, id),
+                Builders<Text>.Filter.Eq("text_id", id)
+            };
+            if (ObjectId.TryParse(id, out var objId))
+            {
+                idFilters.Add(Builders<Text>.Filter.Eq("_id", objId));
+                idFilters.Add(Builders<Text>.Filter.Eq("text_id", objId));
+            }
+
+            var filter = Builders<Text>.Filter.Or(idFilters) &
+                         Builders<Text>.Filter.Ne(t => t.IsDeleted, true);
+
+            if (!User.IsInRole("1"))
+            {
+                filter &= Builders<Text>.Filter.Eq(t => t.UserId, userId);
+            }
+
+            var update = Builders<Text>.Update
+                .Set(t => t.IsDeleted, true)
+                .Set(t => t.DeletedAt, DateTime.UtcNow);
+
+            var result = await _textCollection.UpdateOneAsync(filter, update);
+            if (result.MatchedCount == 0)
+            {
+                var existing = await _textCollection.Find(Builders<Text>.Filter.Or(idFilters)).FirstOrDefaultAsync();
+                if (existing == null)
+                    return NotFound("Text not found");
+
+                if (!User.IsInRole("1") && existing.UserId != userId)
+                    return NotFound("Text not found");
+
+                if (existing.IsDeleted)
+                    return Ok(new { message = "Text already in trash" });
+
+                return NotFound("Text not found");
+            }
+
+            return Ok(new { message = "Text moved to trash" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpPost("{id}/restore")]
+        public async Task<IActionResult> RestoreText(string id)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var filter = Builders<Text>.Filter.Eq(t => t.TextId, id) &
+                         Builders<Text>.Filter.Eq(t => t.IsDeleted, true);
+
+            if (!User.IsInRole("1"))
+            {
+                filter &= Builders<Text>.Filter.Eq(t => t.UserId, userId);
+            }
+
+            var update = Builders<Text>.Update
+                .Set(t => t.IsDeleted, false)
+                .Set(t => t.DeletedAt, null);
+
+            var result = await _textCollection.UpdateOneAsync(filter, update);
+            if (result.MatchedCount == 0)
+                return NotFound("Text not found in trash");
+
+            return Ok(new { message = "Text restored" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("{id}/permanent")]
+        public async Task<IActionResult> PermanentlyDeleteText(string id)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var filter = Builders<Text>.Filter.Eq(t => t.TextId, id);
+            if (!User.IsInRole("1"))
+            {
+                filter &= Builders<Text>.Filter.Eq(t => t.UserId, userId);
+            }
+
+            // Find first so we only delete chunks for an accessible text
+            var text = await _textCollection.Find(filter).FirstOrDefaultAsync();
+            if (text == null)
+                return NotFound("Text not found");
+
+            await _textChunkCollection.DeleteManyAsync(c => c.TextId == text.TextId);
+
+            var result = await _textCollection.DeleteOneAsync(filter);
+            if (result.DeletedCount == 0)
+                return NotFound("Text not found");
+
+            return Ok(new { message = "Text deleted permanently" });
+        }
+
+        [Authorize(Roles = "1, 2")]
+        [HttpDelete("trash/empty")]
+        public async Task<IActionResult> EmptyTrash()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+                return Unauthorized("User ID not found in token.");
+
+            var userId = userIdClaim.Value;
+
+            var trashedIds = await _textCollection
+                .Find(t => t.UserId == userId && t.IsDeleted)
+                .Project(t => t.TextId)
+                .ToListAsync();
+
+            trashedIds = trashedIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
+            if (trashedIds.Any())
+            {
+                await _textChunkCollection.DeleteManyAsync(c => trashedIds.Contains(c.TextId));
+            }
+
+            var result = await _textCollection.DeleteManyAsync(t => t.UserId == userId && t.IsDeleted);
+            return Ok(new { message = "Trash emptied", deletedCount = result.DeletedCount });
+        }
+
         [Authorize(Roles = "1")]
         [HttpGet("admin/count")]
         public async Task<IActionResult> GetAdminTextSummariesCount()
         {
-            var count = await _textCollection.CountDocumentsAsync(t => t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary));
+            var count = await _textCollection.CountDocumentsAsync(t =>
+                t.Status == "Completed" &&
+                !string.IsNullOrEmpty(t.Summary) &&
+                !t.IsDeleted
+            );
             return Ok(new { count = (int)count });
         }
 
@@ -266,7 +464,7 @@ namespace SmartKB.Controllers
         public async Task<IActionResult> GetAllTextSummaries()
         {
             var texts = await _textCollection
-                .Find(t => t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary))
+                .Find(t => t.Status == "Completed" && !string.IsNullOrEmpty(t.Summary) && !t.IsDeleted)
                 .SortByDescending(t => t.CreatedAt)
                 .ToListAsync();
 
@@ -297,6 +495,7 @@ namespace SmartKB.Controllers
             if (text == null)
                 return NotFound("Text summary not found");
 
+            await _textChunkCollection.DeleteManyAsync(c => c.TextId == text.TextId);
             await _textCollection.DeleteOneAsync(t => t.TextId == id);
             return Ok(new { message = "Text summary deleted successfully" });
         }
@@ -318,11 +517,33 @@ namespace SmartKB.Controllers
             var userRole = await _userRoleCollection.Find(ur => ur.UserId == userId).FirstOrDefaultAsync();
             if (userRole != null && userRole.RoleId == 2) // Role 2 is regular user
             {
+                var allowedIds = await _textCollection
+                    .Find(t => ids!.Contains(t.TextId!) && t.UserId == userId)
+                    .Project(t => t.TextId)
+                    .ToListAsync();
+
+                allowedIds = allowedIds.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                if (allowedIds.Any())
+                {
+                    await _textChunkCollection.DeleteManyAsync(c => allowedIds.Contains(c.TextId));
+                }
+
                 var result = await _textCollection.DeleteManyAsync(t => ids!.Contains(t.TextId!) && t.UserId == userId);
                 return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
             }
             else // Admin can delete any
             {
+                var allowedIds = await _textCollection
+                    .Find(t => ids!.Contains(t.TextId!))
+                    .Project(t => t.TextId)
+                    .ToListAsync();
+
+                allowedIds = allowedIds.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                if (allowedIds.Any())
+                {
+                    await _textChunkCollection.DeleteManyAsync(c => allowedIds.Contains(c.TextId));
+                }
+
                 var result = await _textCollection.DeleteManyAsync(t => ids!.Contains(t.TextId!));
                 return Ok(new { message = "Text summaries deleted successfully", deletedCount = result.DeletedCount });
             }
@@ -341,6 +562,29 @@ namespace SmartKB.Controllers
             text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
 
             return text.Trim();
+        }
+
+        private List<string> SplitTextIntoChunks(string text, int chunkSize)
+        {
+            var chunks = new List<string>();
+            if (string.IsNullOrWhiteSpace(text))
+                return chunks;
+
+            if (chunkSize <= 0)
+                chunkSize = 1000;
+
+            var normalized = text.Trim();
+            for (var i = 0; i < normalized.Length; i += chunkSize)
+            {
+                var len = Math.Min(chunkSize, normalized.Length - i);
+                var chunk = normalized.Substring(i, len).Trim();
+                if (!string.IsNullOrWhiteSpace(chunk))
+                {
+                    chunks.Add(chunk);
+                }
+            }
+
+            return chunks;
         }
     }
 }
