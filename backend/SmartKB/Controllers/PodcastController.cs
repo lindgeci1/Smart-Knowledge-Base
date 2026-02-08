@@ -15,10 +15,16 @@ namespace SmartKB.Controllers
         private readonly IMongoCollection<Text> _textCollection;
         private readonly IMongoCollection<PodcastMetadata> _podcastMetadataCollection;
         private readonly PodcastService _podcastService;
+        private readonly ILogger<PodcastController> _logger;
 
-        public PodcastController(IConfiguration configuration, PodcastService podcastService)
+        public PodcastController(
+            IConfiguration configuration,
+            PodcastService podcastService,
+            ILogger<PodcastController> logger
+        )
         {
             _podcastService = podcastService;
+            _logger = logger;
 
             var connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ??
                                    configuration["MongoDbSettings:ConnectionString"];
@@ -77,45 +83,51 @@ namespace SmartKB.Controllers
         [HttpPost("generate/{documentId}")]
         public async Task<IActionResult> Generate(string documentId, CancellationToken ct)
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
-            if (userIdClaim == null)
-                return Unauthorized("User ID not found in token.");
-
-            var userId = userIdClaim.Value;
-
-            // 1) Try file document
-            var doc = await _documentCollection
-                .Find(d => d.DocumentId == documentId && d.UserId == userId && !d.IsDeleted)
-                .FirstOrDefaultAsync(ct);
-
-            string? title = null;
-            string? text = null;
-            Text? textDoc = null;
-
-            if (doc != null)
-            {
-                title = doc.DocumentName ?? doc.FileName ?? "Document Podcast";
-                text = doc.FileData;
-            }
-            else
-            {
-                // 2) Try text summary entry
-                textDoc = await _textCollection
-                    .Find(t => t.TextId == documentId && t.UserId == userId && !t.IsDeleted)
-                    .FirstOrDefaultAsync(ct);
-
-                if (textDoc != null)
-                {
-                    title = textDoc.TextName ?? "Text Podcast";
-                    text = textDoc.TextContent;
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(text))
-                return NotFound("Document/Text not found or has no content.");
-
             try
             {
+                // Validate config early (Render env)
+                if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_CREDENTIALS_JSON")))
+                {
+                    _logger.LogWarning("GOOGLE_CREDENTIALS_JSON is empty. Google TTS may fail if no local credentials file exists.");
+                }
+
+                var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+                if (userIdClaim == null)
+                    return Unauthorized("User ID not found in token.");
+
+                var userId = userIdClaim.Value;
+
+                // 1) Try file document
+                var doc = await _documentCollection
+                    .Find(d => d.DocumentId == documentId && d.UserId == userId && !d.IsDeleted)
+                    .FirstOrDefaultAsync(ct);
+
+                string? title = null;
+                string? text = null;
+                Text? textDoc = null;
+
+                if (doc != null)
+                {
+                    title = doc.DocumentName ?? doc.FileName ?? "Document Podcast";
+                    text = doc.FileData;
+                }
+                else
+                {
+                    // 2) Try text summary entry
+                    textDoc = await _textCollection
+                        .Find(t => t.TextId == documentId && t.UserId == userId && !t.IsDeleted)
+                        .FirstOrDefaultAsync(ct);
+
+                    if (textDoc != null)
+                    {
+                        title = textDoc.TextName ?? "Text Podcast";
+                        text = textDoc.TextContent;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(text))
+                    return NotFound("Document/Text not found or has no content.");
+
                 // Cache lookup (Mongo) - same ID works for documents and texts.
                 var existing = await _podcastMetadataCollection
                     .Find(p => p.DocumentId == documentId && !string.IsNullOrEmpty(p.AudioUrl))
@@ -172,9 +184,8 @@ namespace SmartKB.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[PodcastController] Podcast generation failed.");
-                Console.WriteLine(ex.ToString());
-                return StatusCode(500, $"Podcast generation failed: {ex.Message}");
+                _logger.LogError(ex, "CRITICAL ERROR generating podcast: {Message}", ex.Message);
+                return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
             }
         }
     }

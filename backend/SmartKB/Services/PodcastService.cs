@@ -11,6 +11,7 @@ using Grpc.Auth;
 using Grpc.Core;
 using Microsoft.AspNetCore.Hosting;
 using NAudio.Wave;
+using NLayer.NAudioSupport;
 using SmartKB.Models;
 
 namespace SmartKB.Services
@@ -667,9 +668,7 @@ namespace SmartKB.Services
                     continue;
 
                 using var segStream = new MemoryStream(seg);
-                using var reader = new Mp3FileReader(segStream);
-                Mp3Frame? frame;
-                while ((frame = reader.ReadNextFrame()) != null)
+                foreach (var frame in ReadMp3Frames(segStream))
                 {
                     output.Write(frame.RawData, 0, frame.RawData.Length);
                 }
@@ -684,9 +683,7 @@ namespace SmartKB.Services
 
             double seconds = 0;
             using var segStream = new MemoryStream(mp3Bytes);
-            using var reader = new Mp3FileReader(segStream);
-            Mp3Frame? frame;
-            while ((frame = reader.ReadNextFrame()) != null)
+            foreach (var frame in ReadMp3Frames(segStream))
             {
                 output.Write(frame.RawData, 0, frame.RawData.Length);
 
@@ -697,6 +694,73 @@ namespace SmartKB.Services
                 }
             }
             return seconds;
+        }
+
+        /// <summary>
+        /// Cross-platform MP3 frame reader that skips ID3v2 tags and reads raw MP3 frames without relying on
+        /// Windows ACM codecs (Msacm32.dll). This is safe on Linux (Render).
+        /// </summary>
+        private static IEnumerable<Mp3Frame> ReadMp3Frames(Stream stream)
+        {
+            if (stream == null) yield break;
+
+            if (stream.CanSeek)
+                stream.Position = 0;
+
+            SkipId3v2TagIfPresent(stream);
+
+            while (true)
+            {
+                Mp3Frame? frame = null;
+                try
+                {
+                    frame = Mp3Frame.LoadFromStream(stream);
+                }
+                catch (EndOfStreamException)
+                {
+                    yield break;
+                }
+                catch
+                {
+                    // If the stream is not positioned at a valid frame boundary, stop gracefully.
+                    yield break;
+                }
+
+                if (frame == null)
+                    yield break;
+
+                yield return frame;
+            }
+        }
+
+        private static void SkipId3v2TagIfPresent(Stream stream)
+        {
+            if (stream == null || !stream.CanSeek) return;
+
+            var start = stream.Position;
+            var header = new byte[10];
+            var read = stream.Read(header, 0, header.Length);
+            if (read < header.Length)
+            {
+                stream.Position = start;
+                return;
+            }
+
+            // ID3v2 header: "ID3" + ver(2) + flags(1) + size(4 synchsafe)
+            if (header[0] == (byte)'I' && header[1] == (byte)'D' && header[2] == (byte)'3')
+            {
+                var size =
+                    ((header[6] & 0x7F) << 21) |
+                    ((header[7] & 0x7F) << 14) |
+                    ((header[8] & 0x7F) << 7) |
+                    (header[9] & 0x7F);
+
+                stream.Position = start + 10 + size;
+                return;
+            }
+
+            // Not an ID3 tag; rewind.
+            stream.Position = start;
         }
     }
 }
