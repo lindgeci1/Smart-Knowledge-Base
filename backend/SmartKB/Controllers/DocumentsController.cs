@@ -166,7 +166,8 @@ namespace SmartKB.Controllers
                     throw new Exception("DocumentId not generated after insert.");
                 }
 
-                var chunks = SplitTextIntoChunks(cleanedText, 1000);
+                var chunkSize = GetEnvInt("RAG_CHUNK_SIZE", 1000, 200, 4000);
+                var chunks = SplitTextIntoChunks(cleanedText, chunkSize);
                 var chunkDocs = new List<DocumentChunk>(chunks.Count);
 
                 for (var i = 0; i < chunks.Count; i++)
@@ -832,6 +833,24 @@ namespace SmartKB.Controllers
             }
 
             return chunks;
+        }
+
+        private static int GetEnvInt(string key, int defaultValue, int min, int max)
+        {
+            try
+            {
+                var raw = Environment.GetEnvironmentVariable(key);
+                if (int.TryParse(raw, out var value))
+                {
+                    return Math.Clamp(value, min, max);
+                }
+            }
+            catch
+            {
+                // ignore and use default
+            }
+
+            return Math.Clamp(defaultValue, min, max);
         }
     }
 }

@@ -1,14 +1,14 @@
 using System.Diagnostics;
+using CloudinaryDotNet;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using SmartKB.Services;
 
+DotNetEnv.Env.Load();
+
 var builder = WebApplication.CreateBuilder(args);
-
-Env.Load();
-
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -17,6 +17,38 @@ builder.Services.AddHttpClient();
 // Register Services
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<EmbeddingService>();
+builder.Services.AddSingleton<PodcastService>();
+
+var cloudinaryUrlRaw = Environment.GetEnvironmentVariable("CLOUDINARY_URL")?.Trim().Trim('"');
+if (string.IsNullOrWhiteSpace(cloudinaryUrlRaw))
+{
+    throw new Exception("Missing CLOUDINARY_URL");
+}
+
+Account account;
+if (cloudinaryUrlRaw.StartsWith("cloudinary://", StringComparison.OrdinalIgnoreCase))
+{
+    // Format: cloudinary://api_key:api_secret@cloud_name
+    var uri = new Uri(cloudinaryUrlRaw);
+    var cloudName = uri.Host;
+    var userInfo = uri.UserInfo;
+    var sep = userInfo.IndexOf(':');
+    if (sep <= 0 || sep >= userInfo.Length - 1)
+        throw new Exception("Invalid CLOUDINARY_URL format. Expected cloudinary://api_key:api_secret@cloud_name");
+
+    var apiKey = userInfo.Substring(0, sep);
+    var apiSecret = userInfo.Substring(sep + 1);
+    account = new Account(cloudName, apiKey, apiSecret);
+}
+else
+{
+    // Fallback: allow passing cloud name only (not recommended)
+    account = new Account(cloudinaryUrlRaw);
+}
+
+var cloudinary = new Cloudinary(account);
+cloudinary.Api.Secure = true;
+builder.Services.AddSingleton(cloudinary);
 builder.Services.AddHostedService<TrashCleanupService>();
 
 // Add CORS
