@@ -43,8 +43,5 @@ namespace SmartKB.Models
 
         [BsonElement("deletedAt")]
         public DateTime? DeletedAt { get; set; }
-
-        [BsonElement("embedding")]
-        public float[]? Embedding { get; set; } // Vector embedding for semantic search (typically 768 dimensions)
     }
 }

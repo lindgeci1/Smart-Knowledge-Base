@@ -69,6 +69,13 @@ export function useChatState() {
     }
   }, []);
 
+  const normalizeSummaryName = (name: string) => {
+    const trimmed = (name ?? "").trim();
+    if (!trimmed) return trimmed;
+    // Convert "File Summary of X" / "Text Summary of X" -> "Summary of X"
+    return trimmed.replace(/^(file|text)\s+summary\s+of\s+/i, "Summary of ");
+  };
+
   // Fetch available documents (summaries)
   const fetchDocuments = useCallback(async () => {
     try {
@@ -81,12 +88,12 @@ export function useChatState() {
       const docs: Document[] = [
         ...documentsResponse.data.map((doc: any) => ({
           id: doc.id,
-          name: doc.documentName || doc.fileName || "Unnamed Document",
+          name: normalizeSummaryName(doc.documentName || doc.fileName || "Unnamed Document"),
           type: "pdf" as const,
         })),
         ...textsResponse.data.map((text: any) => ({
           id: text.id,
-          name: text.textName || "Text Summary",
+          name: normalizeSummaryName(text.textName || "Text Summary"),
           type: "txt" as const,
         })),
       ];

@@ -44,3 +44,4 @@ appsettings*.json
 # Temporary files
 *.tmp
 *.temp
+google-credentials.json

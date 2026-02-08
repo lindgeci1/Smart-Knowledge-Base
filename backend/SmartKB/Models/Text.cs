@@ -3,6 +3,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace SmartKB.Models
 {
+    [BsonIgnoreExtraElements]
     public class Text
     {
         [BsonId]
@@ -37,8 +38,9 @@ namespace SmartKB.Models
         [BsonElement("deletedAt")]
         public DateTime? DeletedAt { get; set; }
 
-        [BsonElement("embedding")]
-        public float[]? Embedding { get; set; } // Vector embedding for semantic search (typically 768 dimensions)
+        // Optional FK to cached podcast metadata (stored in podcast_metadata collection)
+        [BsonElement("podcastMetadataId")]
+        public string? PodcastMetadataId { get; set; }
     }
 }
 

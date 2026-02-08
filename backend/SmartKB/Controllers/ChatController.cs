@@ -135,6 +135,8 @@ namespace SmartKB.Controllers
 
             // 2. Prepare Context using RAG (Retrieval Augmented Generation)
             string contextContent = "";
+            var maxContextChars = GetEnvInt("RAG_MAX_CONTEXT_CHARS", 20000, 2000, 60000);
+            var ragTopK = GetEnvInt("RAG_TOP_K", 5, 1, 10);
             
             // If request doesn't have documentId but session does, use session's (Lock behavior)
             if (string.IsNullOrEmpty(request.DocumentId) && !string.IsNullOrEmpty(session.DocumentId))
@@ -161,7 +163,6 @@ namespace SmartKB.Controllers
                 }
 
                 // Avoid sending extremely large context
-                const int maxContextChars = 12000;
                 if (!string.IsNullOrEmpty(contextContent) && contextContent.Length > maxContextChars)
                 {
                     contextContent = contextContent.Substring(0, maxContextChars);
@@ -230,7 +231,7 @@ namespace SmartKB.Controllers
 
                     var top = scored
                         .OrderByDescending(x => x.sim)
-                        .Take(3)
+                        .Take(ragTopK)
                         .ToList();
 
                     if (top.Any())
@@ -242,6 +243,11 @@ namespace SmartKB.Controllers
                                     : $"[Chunk text={s.id} idx={s.index} sim={s.sim:F3}]\n{s.content}"
                             ));
                         Console.WriteLine($"[ChatController] ✅ RAG selected {top.Count} chunks (docs+texts).");
+
+                        if (!string.IsNullOrEmpty(contextContent) && contextContent.Length > maxContextChars)
+                        {
+                            contextContent = contextContent.Substring(0, maxContextChars);
+                        }
                     }
                     else
                     {
@@ -299,6 +305,24 @@ namespace SmartKB.Controllers
             {
                 return StatusCode(500, $"Error communicating with AI: {ex.Message}");
             }
+        }
+
+        private static int GetEnvInt(string key, int defaultValue, int min, int max)
+        {
+            try
+            {
+                var raw = Environment.GetEnvironmentVariable(key);
+                if (int.TryParse(raw, out var value))
+                {
+                    return Math.Clamp(value, min, max);
+                }
+            }
+            catch
+            {
+                // ignore and use default
+            }
+
+            return Math.Clamp(defaultValue, min, max);
         }
 
         [HttpDelete("DeleteChat/{chatId}")]
