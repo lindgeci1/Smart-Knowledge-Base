@@ -35,15 +35,13 @@ jobs:
         uses: azure/container-apps-deploy-action@v2
         with:
           appSourcePath: ${{ github.workspace }}/frontend
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
           registryUrl: docker.io
           registryUsername: ${{ secrets.SMARTKNOWLEDGEBASEFRONTEND_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.SMARTKNOWLEDGEBASEFRONTEND_REGISTRY_PASSWORD }}
           containerAppName: smart-knowledge-base-frontend
           resourceGroup: Smart-Knowledge-Base
           imageToBuild: lindgeci/smart-knowledge-base-frontend:${{ github.sha }}
-          _buildArgumentsKey_: |
+          buildArguments: |
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
             VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
             VITE_GITHUB_CLIENT_ID=${{ secrets.VITE_GITHUB_CLIENT_ID }}
