@@ -44,6 +44,9 @@ jobs:
           resourceGroup: Smart-Knowledge-Base
           imageToBuild: lindgeci/smart-knowledge-base-frontend:${{ github.sha }}
           _buildArgumentsKey_: |
-            _buildArgumentsValues_
+            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+            VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+            VITE_GITHUB_CLIENT_ID=${{ secrets.VITE_GITHUB_CLIENT_ID }}
+            VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
 
